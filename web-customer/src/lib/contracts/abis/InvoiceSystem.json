@@ -1,0 +1,400 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_shoppingCart",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_productCatalog",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createInvoice",
+    "inputs": [
+      {
+        "name": "_customer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_companyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getAllInvoices",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct IInvoiceSystem.Invoice[]",
+        "components": [
+          {
+            "name": "invoiceId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "companyId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "customerAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "totalAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isPaid",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "paymentTxHash",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCompanyInvoices",
+    "inputs": [
+      {
+        "name": "_companyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct IInvoiceSystem.Invoice[]",
+        "components": [
+          {
+            "name": "invoiceId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "companyId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "customerAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "totalAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isPaid",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "paymentTxHash",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCustomerInvoices",
+    "inputs": [
+      {
+        "name": "_customer",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct IInvoiceSystem.Invoice[]",
+        "components": [
+          {
+            "name": "invoiceId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "companyId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "customerAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "totalAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isPaid",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "paymentTxHash",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getInvoice",
+    "inputs": [
+      {
+        "name": "_invoiceId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IInvoiceSystem.Invoice",
+        "components": [
+          {
+            "name": "invoiceId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "companyId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "customerAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "totalAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isPaid",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "paymentTxHash",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getInvoiceItems",
+    "inputs": [
+      {
+        "name": "_invoiceId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct IInvoiceSystem.InvoiceItem[]",
+        "components": [
+          {
+            "name": "productId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "productName",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "quantity",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "unitPrice",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalPrice",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "markAsPaid",
+    "inputs": [
+      {
+        "name": "_invoiceId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_txHash",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "productCatalog",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IProductCatalog"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "shoppingCart",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IShoppingCart"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "InvoiceCreated",
+    "inputs": [
+      {
+        "name": "invoiceId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "customer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "companyId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "InvoicePaid",
+    "inputs": [
+      {
+        "name": "invoiceId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "txHash",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  }
+]

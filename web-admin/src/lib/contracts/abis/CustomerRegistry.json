@@ -1,0 +1,174 @@
+[
+  {
+    "type": "function",
+    "name": "getAllCustomers",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct ICustomerRegistry.Customer[]",
+        "components": [
+          {
+            "name": "customerAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "totalPurchases",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalSpent",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "registrationDate",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "lastPurchaseDate",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isActive",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCustomer",
+    "inputs": [
+      {
+        "name": "_customer",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ICustomerRegistry.Customer",
+        "components": [
+          {
+            "name": "customerAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "totalPurchases",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalSpent",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "registrationDate",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "lastPurchaseDate",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isActive",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isCustomerRegistered",
+    "inputs": [
+      {
+        "name": "_customer",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registerCustomer",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updatePurchaseStats",
+    "inputs": [
+      {
+        "name": "_customer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "CustomerRegistered",
+    "inputs": [
+      {
+        "name": "customerAddress",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PurchaseStatsUpdated",
+    "inputs": [
+      {
+        "name": "customerAddress",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  }
+]

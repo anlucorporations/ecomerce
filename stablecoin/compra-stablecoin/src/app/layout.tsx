@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pasarela de Pago Web3 - EuroToken (EURT)",
-  description: "Pasarela de pago descentralizada con EuroToken para E-Commerce",
+  title: "Compra EuroToken (EURT) - Stripe On-Ramp",
+  description: "Adquiere EuroToken con tarjeta de crédito/débito mediante Stripe",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className="antialiased bg-[#0b0f19] text-gray-100 flex flex-col min-h-screen justify-between">
+      <body className="antialiased bg-[#090d16] text-slate-100 flex flex-col min-h-screen">
         {children}
       </body>
     </html>

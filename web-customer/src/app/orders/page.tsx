@@ -1,221 +1,214 @@
-'use client';
+"use client";
 
-import { Fragment, useEffect, useState } from 'react';
-import { useContract } from '@/hooks/useContract';
-import { useWallet } from '@/hooks/useWallet';
-import Link from 'next/link';
+import { useState, useEffect } from "react";
+import { ethers } from "ethers";
+import { useWallet } from "../../hooks/useWallet";
 
-interface Invoice {
-  invoiceId: bigint;
-  companyId: bigint;
-  customerAddress: string;
-  totalAmount: bigint;
-  timestamp: bigint;
-  isPaid: boolean;
-  paymentTxHash: string;
-}
+const ECOMMERCE_ABI = [
+  "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
+  "function confirmDelivery(uint256 invoiceId)",
+  "function rateCompany(uint256 companyId, uint8 rating, string comment)"
+];
 
-interface InvoiceItem {
-  productId: bigint;
-  productName: string;
-  quantity: bigint;
-  unitPrice: bigint;
-  totalPrice: bigint;
-}
+const ORDER_STATUS_LABELS = ["Creado", "Pagado (EURT)", "Enviado", "Entregado", "Completado"];
 
-export default function OrdersPage() {
-  const { provider, signer, chainId, address, isConnecting } = useWallet();
-  const ecommerce = useContract('ecommerce', provider, signer, chainId);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [selectedInvoice, setSelectedInvoice] = useState<bigint | null>(null);
-  const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function CustomerOrdersPage() {
+  const { address, signer } = useWallet();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  useEffect(() => {
-    const loadInvoices = async () => {
-      if (!ecommerce || !address) {
-        if (!isConnecting) {
-          setLoading(false);
-        }
-        return;
-      }
+  // Rating modal state
+  const [ratingModalCompanyId, setRatingModalCompanyId] = useState<string | null>(null);
+  const [selectedStars, setSelectedStars] = useState<number>(5);
+  const [reviewComment, setReviewComment] = useState<string>("");
+  const [submittingRating, setSubmittingRating] = useState<boolean>(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
-      try {
-        setLoading(true);
-        const customerInvoices = await ecommerce.getCustomerInvoices(address);
-        setInvoices(customerInvoices);
-      } catch (error) {
-        console.error('Error loading invoices:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
-    loadInvoices();
-  }, [ecommerce, address, isConnecting]);
-
-  const loadInvoiceDetails = async (invoiceId: bigint) => {
-    if (!ecommerce) return;
-
+  const fetchCustomerOrders = async () => {
+    if (!address) return;
     try {
-      const items = await ecommerce.getInvoiceItems(invoiceId);
-      setInvoiceItems(items);
-      setSelectedInvoice(invoiceId);
-    } catch (error) {
-      console.error('Error loading invoice items:', error);
+      setLoading(true);
+      const provider = signer?.provider || new ethers.JsonRpcProvider("http://localhost:8545");
+      const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, provider);
+
+      const rawOrders = await contract.getCustomerInvoices(address);
+      setOrders(rawOrders);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const formatPrice = (price: bigint) => {
-    return (Number(price) / 1_000_000).toFixed(2);
+  useEffect(() => {
+    if (address) {
+      fetchCustomerOrders();
+    }
+  }, [address]);
+
+  const handleConfirmDelivery = async (invoiceId: string) => {
+    try {
+      if (!signer) {
+        alert("Por favor conecte su wallet para confirmar la entrega.");
+        return;
+      }
+
+      setConfirmingId(invoiceId);
+      const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, signer);
+      const tx = await contract.confirmDelivery(invoiceId);
+      await tx.wait();
+
+      alert("¡Entrega confirmada con éxito!");
+      fetchCustomerOrders();
+    } catch (err: any) {
+      alert("Error confirmando entrega: " + (err?.reason || err?.message));
+    } finally {
+      setConfirmingId(null);
+    }
   };
 
-  const formatDate = (timestamp: bigint) => {
-    return new Date(Number(timestamp) * 1000).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const handleSendRating = async () => {
+    try {
+      if (!ratingModalCompanyId || !signer) return;
+      setSubmittingRating(true);
+
+      const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, signer);
+      const tx = await contract.rateCompany(ratingModalCompanyId, selectedStars, reviewComment || "Excelente servicio");
+      await tx.wait();
+
+      alert("¡Gracias por enviar su valoración a la empresa!");
+      setRatingModalCompanyId(null);
+      setReviewComment("");
+    } catch (err: any) {
+      alert("Error enviando valoración: " + (err?.reason || err?.message));
+    } finally {
+      setSubmittingRating(false);
+    }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl text-gray-600 dark:text-gray-400">Loading invoices...</div>
-      </div>
-    );
-  }
-
-  if (!address) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            Please connect your wallet
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            You need to connect your wallet to view your invoices
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Invoices</h1>
-          <Link
-            href="/products"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-          >
-            Continue Shopping
-          </Link>
-        </div>
-
-        {invoices.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">You haven&apos;t placed any invoices yet</p>
-            <Link
-              href="/products"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-            >
-              Browse Products
-            </Link>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Order #
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {invoices.map((invoice) => (
-                  <Fragment key={invoice.invoiceId.toString()}>
-                    <tr key={invoice.invoiceId.toString()} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        INV-{invoice.invoiceId.toString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {formatDate(invoice.timestamp)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
-                        €{formatPrice(invoice.totalAmount)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            invoice.isPaid
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                              : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                          }`}
-                        >
-                          {invoice.isPaid ? 'Paid' : 'Pending'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={() => loadInvoiceDetails(invoice.invoiceId)}
-                          className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300"
-                        >
-                          {selectedInvoice === invoice.invoiceId ? 'Hide Details' : 'View Details'}
-                        </button>
-                      </td>
-                    </tr>
-                    {selectedInvoice === invoice.invoiceId && (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-4 bg-gray-50 dark:bg-gray-900">
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Order Items:</h4>
-                            {invoiceItems.map((item, idx) => (
-                              <div
-                                key={idx}
-                                className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700 last:border-0"
-                              >
-                                <div>
-                                  <span className="font-medium text-gray-900 dark:text-white">{item.productName}</span>
-                                  <span className="text-gray-500 dark:text-gray-400 ml-2">
-                                    x {item.quantity.toString()}
-                                  </span>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-gray-900 dark:text-white">€{formatPrice(item.totalPrice)}</div>
-                                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                                    €{formatPrice(item.unitPrice)} each
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+    <div className="container mx-auto px-4 py-8 max-w-5xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold text-gray-900">Mis Pedidos y Seguimiento</h1>
+        <p className="text-gray-600 mt-1">Consulte el estado de sus órdenes, confirme entregas y valore a los comercios.</p>
       </div>
+
+      {!address ? (
+        <div className="p-8 text-center bg-blue-50 rounded-2xl border border-blue-200 text-blue-800">
+          Por favor conecte su wallet Web3 en el encabezado para ver sus pedidos.
+        </div>
+      ) : loading ? (
+        <div className="p-8 text-center text-gray-500">Cargando sus pedidos...</div>
+      ) : orders.length === 0 ? (
+        <div className="p-12 text-center bg-gray-50 rounded-2xl border border-gray-200 text-gray-500">
+          No tiene pedidos registrados aún con la cuenta <span className="font-mono text-gray-700">{address}</span>.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {orders.map((ord: any) => {
+            const statusIdx = Number(ord.status);
+            const amountEur = (Number(ord.totalAmount) / 1000000).toFixed(2);
+
+            return (
+              <div key={ord.invoiceId.toString()} className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-gray-900 text-lg">Orden #{ord.invoiceId.toString()}</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      statusIdx === 1 ? "bg-amber-100 text-amber-800" :
+                      statusIdx === 2 ? "bg-blue-100 text-blue-800" :
+                      statusIdx === 3 ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
+                    }`}>
+                      {ORDER_STATUS_LABELS[statusIdx] || "En proceso"}
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-gray-600 mt-1">
+                    Empresa ID: <span className="font-semibold">#{ord.companyId.toString()}</span>
+                  </p>
+                  <p className="text-sm text-gray-600 mt-0.5">
+                    Monto total: <span className="font-extrabold text-emerald-600">€{amountEur} EURT</span>
+                  </p>
+                  {ord.trackingNumber && (
+                    <p className="text-xs text-blue-600 font-mono mt-1">
+                      📦 Código de Seguimiento: {ord.trackingNumber}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                  {statusIdx === 2 && (
+                    <button
+                      onClick={() => handleConfirmDelivery(ord.invoiceId.toString())}
+                      disabled={confirmingId === ord.invoiceId.toString()}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition"
+                    >
+                      {confirmingId === ord.invoiceId.toString() ? "Confirmando..." : "Confirmar Entrega Recibida"}
+                    </button>
+                  )}
+
+                  {(statusIdx === 2 || statusIdx === 3) && (
+                    <button
+                      onClick={() => setRatingModalCompanyId(ord.companyId.toString())}
+                      className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1 justify-center"
+                    >
+                      <span>⭐ Valorar Empresa</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Rating Modal */}
+      {ratingModalCompanyId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-gray-100">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Valorar Empresa #{ratingModalCompanyId}</h3>
+            <p className="text-xs text-gray-500 mb-4">Califique su experiencia con esta empresa en la blockchain.</p>
+
+            <div className="flex justify-center gap-2 mb-4">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setSelectedStars(star)}
+                  className={`text-3xl transition ${star <= selectedStars ? "text-amber-400 scale-110" : "text-gray-300"}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              rows={3}
+              value={reviewComment}
+              onChange={(e) => setReviewComment(e.target.value)}
+              placeholder="Escriba un comentario sobre el producto y atención..."
+              className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 text-xs text-gray-900 focus:outline-none focus:border-blue-500 mb-4"
+            />
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setRatingModalCompanyId(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSendRating}
+                disabled={submittingRating}
+                className="px-5 py-2 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow"
+              >
+                {submittingRating ? "Enviando..." : "Enviar Valoración"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

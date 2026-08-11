@@ -23,17 +23,24 @@ export default function RootLayout({
                 <Link href="/" className="text-2xl font-bold text-blue-600 hover:text-blue-700">
                   E-Shop
                 </Link>
-                <nav className="hidden md:flex gap-6">
+                <nav className="hidden md:flex gap-6 items-center">
                   <Link href="/products" className="text-gray-900 hover:text-blue-600 font-medium transition-colors">
-                    Products
+                    Productos
                   </Link>
                   <Link href="/cart" className="text-gray-900 hover:text-blue-600 font-medium transition-colors">
-                    Cart
+                    Carrito
                   </Link>
-                 
                   <Link href="/orders" className="text-gray-900 hover:text-blue-600 font-medium transition-colors">
-                    Orders
+                    Mis Pedidos
                   </Link>
+                  <a
+                    href="http://localhost:3003"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition flex items-center gap-1"
+                  >
+                    <span>💳 Comprar EURT (Stripe)</span>
+                  </a>
                 </nav>
               </div>
               <WalletConnect />

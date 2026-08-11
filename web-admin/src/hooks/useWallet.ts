@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { BrowserProvider } from 'ethers';
 import {
   detectWallets,
   connectWallet as connectWalletProvider,
@@ -64,15 +65,15 @@ export function useWallet() {
         localStorage.setItem('connectedAddress', address);
         localStorage.setItem('connectedChainId', chainId.toString());
       }
-      } catch (error: unknown) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        setState((prev) => ({
-          ...prev,
-          isConnecting: false,
-          error: err.message || 'Failed to connect wallet',
-        }));
-        throw error;
-      }
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      setState((prev) => ({
+        ...prev,
+        isConnecting: false,
+        error: err.message || 'Failed to connect wallet',
+      }));
+      throw error;
+    }
   }, []);
 
   // Disconnect wallet
@@ -120,32 +121,46 @@ export function useWallet() {
       if (typeof window === 'undefined') return;
 
       const savedWallet = localStorage.getItem('selectedWallet');
-      if (!savedWallet) return;
+      if (savedWallet) {
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const walletInfo = JSON.parse(savedWallet);
+          await connect(walletInfo, true);
+          console.log('Auto-reconnected successfully via saved wallet');
+          return;
+        } catch (error) {
+          console.warn('Auto-connect via saved wallet failed:', error);
+        }
+      }
 
-      try {
-        // Wait for wallets to be detected first
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const walletInfo = JSON.parse(savedWallet);
-        // Use silent mode to reconnect without prompting the user
-        await connect(walletInfo, true);
-        console.log('Auto-reconnected successfully');
-      } catch (error: unknown) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        console.warn('Auto-connect failed:', err.message);
-        // Set a flag that auto-connect failed, but keep the wallet info
-        // so user can see they need to reconnect manually
-        setState((prev) => ({
-          ...prev,
-          error: 'Please reconnect your wallet',
-          isConnecting: false,
-        }));
+      // Fallback auto-connect via window.ethereum directly
+      if (window.ethereum) {
+        try {
+          const browserProvider = new BrowserProvider(window.ethereum as any);
+          const accounts = await browserProvider.send('eth_accounts', []);
+          if (accounts && accounts.length > 0) {
+            const activeSigner = await browserProvider.getSigner();
+            const network = await browserProvider.getNetwork();
+            setState((prev) => ({
+              ...prev,
+              provider: browserProvider,
+              signer: activeSigner,
+              address: accounts[0],
+              chainId: Number(network.chainId),
+              isConnecting: false,
+              error: null,
+            }));
+            console.log('Auto-connected via window.ethereum directly:', accounts[0]);
+          }
+        } catch (err) {
+          console.warn('Direct window.ethereum auto-connect failed:', err);
+        }
       }
     }
 
     autoConnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, []);
 
   // Listen for account/chain changes
   useEffect(() => {
@@ -155,11 +170,16 @@ export function useWallet() {
       const accounts = args[0] as string[];
       if (accounts.length === 0) {
         disconnect();
-      } else if (state.provider && state.selectedWallet) {
-        const signer = await state.provider.getSigner();
-        setState((prev) => ({ ...prev, address: accounts[0], signer }));
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('connectedAddress', accounts[0]);
+      } else {
+        try {
+          const browserProvider = new BrowserProvider(window.ethereum as any);
+          const activeSigner = await browserProvider.getSigner();
+          setState((prev) => ({ ...prev, address: accounts[0], provider: browserProvider, signer: activeSigner }));
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('connectedAddress', accounts[0]);
+          }
+        } catch (e) {
+          console.error('Error handling accountsChanged:', e);
         }
       }
     };
@@ -167,12 +187,14 @@ export function useWallet() {
     const handleChainChanged = async (...args: unknown[]) => {
       const chainIdHex = args[0] as string;
       const chainId = parseInt(chainIdHex, 16);
-      if (state.provider) {
-        const signer = await state.provider.getSigner();
-        setState((prev) => ({ ...prev, chainId, signer }));
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('connectedChainId', chainId.toString());
+      try {
+        if (window.ethereum) {
+          const browserProvider = new BrowserProvider(window.ethereum as any);
+          const activeSigner = await browserProvider.getSigner();
+          setState((prev) => ({ ...prev, chainId, provider: browserProvider, signer: activeSigner }));
         }
+      } catch (e) {
+        console.error('Error handling chainChanged:', e);
       }
     };
 
@@ -187,7 +209,7 @@ export function useWallet() {
         }
       };
     }
-  }, [state.provider, state.selectedWallet, disconnect]);
+  }, [disconnect]);
 
   return {
     ...state,

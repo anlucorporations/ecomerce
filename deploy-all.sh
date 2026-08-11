@@ -192,11 +192,11 @@ EOF
     echo -e "${GREEN}✅ Updated ${ENV_FILE}${NC}"
 }
 
-# Update web-admin .env.local
+# Update .env.local for all 4 microservices
 update_env_file "${SCRIPT_DIR}/web-admin/.env.local" "web-admin"
-
-# Update web-customer .env.local
 update_env_file "${SCRIPT_DIR}/web-customer/.env.local" "web-customer"
+update_env_file "${SCRIPT_DIR}/stablecoin/pasarela-de-pago/.env.local" "pasarela-de-pago"
+update_env_file "${SCRIPT_DIR}/stablecoin/compra-stablecoin/.env.local" "compra-stablecoin"
 
 echo ""
 

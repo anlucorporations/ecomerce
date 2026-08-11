@@ -26,6 +26,8 @@ contract Ecommerce {
     CustomerLib.CustomerStorage internal customerStorage;
     ShoppingCartLib.CartStorage internal cartStorage;
 
+    enum OrderStatus { Created, Paid, Shipped, Delivered, Completed }
+
     // Invoice and Payment structures
     struct Invoice {
         uint256 invoiceId;
@@ -35,6 +37,17 @@ contract Ecommerce {
         uint256 timestamp;
         bool isPaid;
         string paymentTxHash;
+        OrderStatus status;
+        string trackingNumber;
+        uint256 shippedTimestamp;
+        uint256 deliveredTimestamp;
+    }
+
+    struct Rating {
+        uint8 rating; // 1 to 5
+        string comment;
+        address reviewer;
+        uint256 timestamp;
     }
 
     struct InvoiceItem {
@@ -52,10 +65,34 @@ contract Ecommerce {
     mapping(uint256 => uint256[]) private companyInvoices;
     uint256[] private invoiceIds;
 
+    // Reputation & Rating Storage
+    mapping(uint256 => uint256) public companyTotalRating;
+    mapping(uint256 => uint256) public companyRatingCount;
+    mapping(uint256 => Rating[]) private companyRatings;
+
+    // Light KYC Certification Storage
+    mapping(address => bool) public isKYCVerified;
+
+    uint256 public constant REGISTRATION_FEE = 3 ether;
+
+    struct ActivityLog {
+        address user;
+        string action;
+        string details;
+        uint256 timestamp;
+    }
+
+    ActivityLog[] private activityLogs;
+
     // Events
     event InvoiceCreated(uint256 indexed invoiceId, address indexed customer, uint256 indexed companyId, uint256 totalAmount);
     event InvoicePaid(uint256 indexed invoiceId, string txHash);
     event PaymentProcessed(uint256 indexed invoiceId, address indexed customer, uint256 amount);
+    event OrderShipped(uint256 indexed invoiceId, uint256 indexed companyId, string trackingNumber);
+    event OrderDelivered(uint256 indexed invoiceId, address indexed customer);
+    event CompanyRated(uint256 indexed companyId, address indexed reviewer, uint8 rating, string comment);
+    event KYCStatusUpdated(address indexed account, bool isVerified);
+    event ActivityLogged(address indexed user, string action, string details, uint256 timestamp);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");
@@ -69,14 +106,68 @@ contract Ecommerce {
         productStorage.nextProductId = 1;
     }
 
+    // ============ AUDIT & LOGGING FUNCTIONS ============
+
+    function _logActivity(address _user, string memory _action, string memory _details) internal {
+        activityLogs.push(ActivityLog({
+            user: _user,
+            action: _action,
+            details: _details,
+            timestamp: block.timestamp
+        }));
+        emit ActivityLogged(_user, _action, _details, block.timestamp);
+    }
+
+    function getActivityLogs() external view returns (ActivityLog[] memory) {
+        return activityLogs;
+    }
+
+    function isSystemsAdmin(address account) external view returns (bool) {
+        return account == owner;
+    }
+
     // ============ COMPANY FUNCTIONS ============
+
+    function registerCompanySelf(
+        string memory _name,
+        string memory _description,
+        CompanyLib.BusinessType _businessType
+    ) external payable returns (uint256) {
+        require(msg.value >= REGISTRATION_FEE, "Registration fee is 3 ETH");
+
+        // Transfer 3 ETH fee to owner
+        payable(owner).transfer(msg.value);
+
+        isKYCVerified[msg.sender] = true;
+        emit KYCStatusUpdated(msg.sender, true);
+
+        uint256 companyId = companyStorage.registerCompany(msg.sender, _name, _description, _businessType);
+        _logActivity(msg.sender, "REGISTER_COMPANY_SELF", _name);
+
+        return companyId;
+    }
 
     function registerCompany(
         address _address,
         string memory _name,
         string memory _description
     ) external onlyOwner returns (uint256) {
-        return companyStorage.registerCompany(_address, _name, _description);
+        return registerCompany(_address, _name, _description, CompanyLib.BusinessType.ProductSales);
+    }
+
+    function registerCompany(
+        address _address,
+        string memory _name,
+        string memory _description,
+        CompanyLib.BusinessType _businessType
+    ) public onlyOwner returns (uint256) {
+        isKYCVerified[_address] = true;
+        emit KYCStatusUpdated(_address, true);
+
+        uint256 companyId = companyStorage.registerCompany(_address, _name, _description, _businessType);
+        _logActivity(_address, "REGISTER_COMPANY_ADMIN", _name);
+
+        return companyId;
     }
 
     function deactivateCompany(uint256 _companyId) external onlyOwner {
@@ -113,7 +204,9 @@ contract Ecommerce {
         string memory _ipfsImageHash,
         uint256 _stock
     ) external returns (uint256) {
-        return productStorage.addProduct(companyStorage, _companyId, _name, _description, _price, _ipfsImageHash, _stock, msg.sender);
+        uint256 productId = productStorage.addProduct(companyStorage, _companyId, _name, _description, _price, _ipfsImageHash, _stock, msg.sender);
+        _logActivity(msg.sender, "ADD_PRODUCT", _name);
+        return productId;
     }
 
     function updateProduct(
@@ -150,6 +243,10 @@ contract Ecommerce {
         return productStorage.getProductsByCompany(_companyId);
     }
 
+    function getCompanyProducts(uint256 _companyId) external view returns (ProductLib.Product[] memory) {
+        return productStorage.getProductsByCompany(_companyId);
+    }
+
     function getAllProducts() external view returns (ProductLib.Product[] memory) {
         return productStorage.getAllProducts();
     }
@@ -158,10 +255,44 @@ contract Ecommerce {
         return productStorage.isProductAvailable(_productId, _quantity);
     }
 
+    // ============ ENTITY & AUTH FUNCTIONS ============
+
+    function getEntityType(address account) public view returns (uint8) {
+        if (account == owner) {
+            return 3; // Owner
+        }
+        if (companyStorage.addressToCompanyId[account] != 0) {
+            return 1; // Company
+        }
+        if (customerStorage.isCustomerRegistered(account)) {
+            return 2; // Customer
+        }
+        return 0; // Unregistered
+    }
+
+    function isRegisteredEntity(address account) external view returns (bool) {
+        return getEntityType(account) != 0;
+    }
+
     // ============ CUSTOMER FUNCTIONS ============
 
+    function registerCustomerSelf(
+        string memory _name,
+        string memory _contactEmail,
+        string memory _shippingAddress
+    ) external {
+        isKYCVerified[msg.sender] = true;
+        emit KYCStatusUpdated(msg.sender, true);
+
+        customerStorage.registerCustomerSelf(msg.sender, _name, _contactEmail, _shippingAddress);
+        _logActivity(msg.sender, "REGISTER_CUSTOMER_SELF", _name);
+    }
+
     function registerCustomer() external {
+        isKYCVerified[msg.sender] = true;
+        emit KYCStatusUpdated(msg.sender, true);
         customerStorage.registerCustomer(msg.sender);
+        _logActivity(msg.sender, "REGISTER_CUSTOMER", "Auto Customer");
     }
 
     function getCustomer(address _customer) external view returns (CustomerLib.Customer memory) {
@@ -243,7 +374,11 @@ contract Ecommerce {
             totalAmount: total,
             timestamp: block.timestamp,
             isPaid: false,
-            paymentTxHash: ""
+            paymentTxHash: "",
+            status: OrderStatus.Created,
+            trackingNumber: "",
+            shippedTimestamp: 0,
+            deliveredTimestamp: 0
         });
 
         customerInvoices[_customer].push(invoiceId);
@@ -285,7 +420,7 @@ contract Ecommerce {
         return result;
     }
 
-    // ============ PAYMENT FUNCTIONS ============
+    // ============ PAYMENT & ORDER WORKFLOW FUNCTIONS ============
 
     function processPayment(
         address _customer,
@@ -309,6 +444,7 @@ contract Ecommerce {
         // Mark invoice as paid
         invoice.isPaid = true;
         invoice.paymentTxHash = "";
+        invoice.status = OrderStatus.Paid;
         emit InvoicePaid(_invoiceId, "");
 
         // Update customer stats
@@ -321,6 +457,75 @@ contract Ecommerce {
         }
 
         emit PaymentProcessed(_invoiceId, _customer, _amount);
+        _logActivity(_customer, "PAYMENT_PROCESSED", "Paid Invoice");
         return true;
+    }
+
+    function shipOrder(uint256 _invoiceId, string memory _trackingNumber) external {
+        Invoice storage invoice = invoices[_invoiceId];
+        require(invoice.invoiceId != 0, "Invoice not found");
+        require(invoice.isPaid, "Invoice not paid");
+        require(invoice.status == OrderStatus.Paid, "Order cannot be shipped");
+
+        // Verify sender is company owner
+        CompanyLib.Company memory company = companyStorage.getCompany(invoice.companyId);
+        require(msg.sender == company.companyAddress || msg.sender == owner, "Only company owner can ship");
+
+        invoice.status = OrderStatus.Shipped;
+        invoice.trackingNumber = _trackingNumber;
+        invoice.shippedTimestamp = block.timestamp;
+
+        _logActivity(msg.sender, "SHIP_ORDER", _trackingNumber);
+        emit OrderShipped(_invoiceId, invoice.companyId, _trackingNumber);
+    }
+
+    function confirmDelivery(uint256 _invoiceId) external {
+        Invoice storage invoice = invoices[_invoiceId];
+        require(invoice.invoiceId != 0, "Invoice not found");
+        require(invoice.customerAddress == msg.sender, "Only buyer can confirm delivery");
+        require(invoice.status == OrderStatus.Shipped, "Order not shipped yet");
+
+        invoice.status = OrderStatus.Delivered;
+        invoice.deliveredTimestamp = block.timestamp;
+
+        emit OrderDelivered(_invoiceId, msg.sender);
+    }
+
+    // ============ REPUTATION & RATING FUNCTIONS ============
+
+    function rateCompany(uint256 _companyId, uint8 _rating, string memory _comment) external {
+        require(_rating >= 1 && _rating <= 5, "Rating must be 1 to 5");
+        require(companyStorage.isCompanyActive(_companyId), "Company inactive");
+
+        companyTotalRating[_companyId] += _rating;
+        companyRatingCount[_companyId] += 1;
+
+        companyRatings[_companyId].push(Rating({
+            rating: _rating,
+            comment: _comment,
+            reviewer: msg.sender,
+            timestamp: block.timestamp
+        }));
+
+        emit CompanyRated(_companyId, msg.sender, _rating, _comment);
+    }
+
+    function getCompanyRating(uint256 _companyId) external view returns (uint256 avgRatingTimes100, uint256 totalReviews) {
+        totalReviews = companyRatingCount[_companyId];
+        if (totalReviews == 0) {
+            return (0, 0);
+        }
+        avgRatingTimes100 = (companyTotalRating[_companyId] * 100) / totalReviews;
+    }
+
+    function getCompanyReviews(uint256 _companyId) external view returns (Rating[] memory) {
+        return companyRatings[_companyId];
+    }
+
+    // ============ KYC CONTROL FUNCTIONS ============
+
+    function setKYCStatus(address _account, bool _isVerified) external onlyOwner {
+        isKYCVerified[_account] = _isVerified;
+        emit KYCStatusUpdated(_account, _isVerified);
     }
 }

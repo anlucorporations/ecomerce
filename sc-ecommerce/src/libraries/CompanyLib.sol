@@ -2,11 +2,14 @@
 pragma solidity ^0.8.13;
 
 library CompanyLib {
+    enum BusinessType { ProductSales, ServiceProvision }
+
     struct Company {
         uint256 companyId;
         address companyAddress;
         string name;
         string description;
+        BusinessType businessType;
         bool isActive;
         uint256 registrationDate;
     }
@@ -18,7 +21,7 @@ library CompanyLib {
         uint256[] companyIds;
     }
 
-    event CompanyRegistered(uint256 indexed companyId, address indexed companyAddress, string name);
+    event CompanyRegistered(uint256 indexed companyId, address indexed companyAddress, string name, BusinessType businessType);
     event CompanyDeactivated(uint256 indexed companyId);
     event CompanyActivated(uint256 indexed companyId);
 
@@ -26,7 +29,8 @@ library CompanyLib {
         CompanyStorage storage self,
         address _address,
         string memory _name,
-        string memory _description
+        string memory _description,
+        BusinessType _businessType
     ) external returns (uint256) {
         require(_address != address(0), "Invalid address");
         require(bytes(_name).length > 0, "Name required");
@@ -39,6 +43,7 @@ library CompanyLib {
             companyAddress: _address,
             name: _name,
             description: _description,
+            businessType: _businessType,
             isActive: true,
             registrationDate: block.timestamp
         });
@@ -46,7 +51,7 @@ library CompanyLib {
         self.addressToCompanyId[_address] = companyId;
         self.companyIds.push(companyId);
 
-        emit CompanyRegistered(companyId, _address, _name);
+        emit CompanyRegistered(companyId, _address, _name, _businessType);
         return companyId;
     }
 

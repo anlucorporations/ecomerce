@@ -67,50 +67,52 @@ export default function CompraStablecoinPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between items-center p-6 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
+    <div className="min-h-screen flex flex-col justify-between items-center p-6 bg-[#F5F5F0] text-[#333333] font-sans bg-wave-pattern">
       {/* Navbar */}
-      <header className="w-full max-w-4xl flex justify-between items-center py-4 px-6 glass-card rounded-2xl border border-slate-800">
+      <header className="w-full max-w-4xl flex justify-between items-center py-4 px-6 glass-card shadow-sm border border-[#0077BB]/15">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-black text-slate-950 text-lg shadow-lg">
-            €
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#0077BB] via-[#005F96] to-[#FF8800] flex items-center justify-center font-black text-white text-lg shadow-md font-poppins">
+            B
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-none">Compra EuroToken (EURT)</h1>
-            <span className="text-xs text-slate-400">Pasarela Fiat-to-Crypto con Stripe (PCI-DSS Compliant)</span>
+            <h1 className="font-extrabold text-lg leading-none font-poppins text-[#333333]">
+              BARLO-<span className="text-[#FF8800]">VENTAS</span> EURT
+            </h1>
+            <span className="text-xs text-[#0077BB] font-semibold">Adquisición de EuroToken con Stripe (PCI-DSS Compliant)</span>
           </div>
         </div>
         <button
           onClick={connectWallet}
-          className="px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 transition"
+          className="px-4 py-2 text-xs font-bold rounded-xl bg-[#E6F4FA] hover:bg-sky-100 text-[#0077BB] border border-[#0077BB]/30 transition font-poppins"
         >
           {walletAddress ? `Wallet: ${walletAddress.substring(0, 6)}...` : "Conectar Wallet"}
         </button>
       </header>
 
       {/* Main Card */}
-      <main className="w-full max-w-lg glass-card rounded-3xl p-8 my-8 border border-slate-800 shadow-2xl relative">
+      <main className="w-full max-w-lg glass-card rounded-3xl p-8 my-8 border border-[#0077BB]/15 shadow-2xl relative">
         <div className="mb-6 text-center">
-          <span className="inline-block px-3 py-1 text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 rounded-full mb-2">
+          <span className="inline-block px-3.5 py-1 text-[11px] font-bold text-[#2E8B57] bg-[#EAF5EF] border border-[#2E8B57]/30 rounded-full mb-2 font-poppins">
             1 EUR = 1.00 EURT (Sin comisiones)
           </span>
-          <h2 className="text-2xl font-extrabold text-white">Adquiere EuroTokens</h2>
-          <p className="text-xs text-slate-400 mt-1">Paga con tarjeta de prueba y recibe los tokens automáticamente</p>
+          <h2 className="text-2xl font-black text-[#333333] font-poppins">Adquiere EuroTokens</h2>
+          <p className="text-xs text-[#A9A9A9] mt-1">Paga con tarjeta de prueba e inmediatamente recibe la emisión en tu billetera</p>
         </div>
 
         <form onSubmit={handleBuyTokens} className="space-y-5">
           {/* Preset Amount Selector */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-2">Selecciona el monto en Euros (€):</label>
+            <label className="block text-xs font-bold text-[#333333] mb-2 font-poppins">Selecciona el monto en Euros (€):</label>
             <div className="grid grid-cols-4 gap-2 mb-3">
               {["10", "25", "50", "100"].map((val) => (
                 <button
                   type="button"
                   key={val}
                   onClick={() => setAmount(val)}
-                  className={`py-2 rounded-xl text-sm font-bold border transition ${
+                  className={`py-2 rounded-xl text-sm font-bold border transition font-poppins ${
                     amount === val
-                      ? "bg-emerald-600 text-white border-emerald-400 shadow-lg shadow-emerald-600/20"
-                      : "bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700"
+                      ? "bg-[#FF8800] text-white border-[#FF8800] shadow-md shadow-[#FF8800]/25"
+                      : "bg-white text-[#333333] border-[#0077BB]/20 hover:border-[#0077BB]"
                   }`}
                 >
                   €{val}
@@ -122,7 +124,7 @@ export default function CompraStablecoinPage() {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="Otro monto"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
+              className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-4 py-3 text-sm text-[#333333] focus:outline-none focus:border-[#0077BB]"
               required
             />
           </div>
@@ -130,8 +132,8 @@ export default function CompraStablecoinPage() {
           {/* Wallet Address Input */}
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-medium text-slate-300">Dirección Wallet de Destino:</label>
-              <button type="button" onClick={connectWallet} className="text-[11px] text-emerald-400 hover:underline">
+              <label className="block text-xs font-bold text-[#333333] font-poppins">Dirección Wallet de Destino:</label>
+              <button type="button" onClick={connectWallet} className="text-[11px] text-[#0077BB] font-bold hover:underline">
                 Usar mi wallet
               </button>
             </div>
@@ -140,47 +142,47 @@ export default function CompraStablecoinPage() {
               value={walletAddress}
               onChange={(e) => setWalletAddress(e.target.value)}
               placeholder="0x..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-mono text-emerald-300 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-4 py-3 text-sm font-mono text-[#2E8B57] font-bold focus:outline-none focus:border-[#2E8B57]"
               required
             />
           </div>
 
           {/* Stripe Test Card Selector Info */}
-          <div className="bg-slate-950/80 rounded-2xl p-4 border border-slate-800 text-xs space-y-2">
+          <div className="bg-white/80 rounded-2xl p-4 border border-[#0077BB]/15 text-xs space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-medium">Tarjeta de Prueba Stripe:</span>
-              <span className="text-indigo-400 font-bold">Stripe Elements (Pruebas)</span>
+              <span className="text-[#333333] font-bold font-poppins">Tarjeta de Prueba Stripe:</span>
+              <span className="text-[#0077BB] font-bold font-mono">Visa Test PM</span>
             </div>
             <input
               type="text"
               value={cardNumber}
               onChange={(e) => setCardNumber(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-200"
+              className="w-full bg-slate-50 border border-[#0077BB]/20 rounded-lg px-3 py-2 text-xs font-mono text-[#333333]"
             />
-            <p className="text-[10px] text-slate-500">
-              Usa cualquier fecha futura (ej. 12/28) y CVC (123) para pruebas PCI-DSS.
+            <p className="text-[10px] text-[#A9A9A9]">
+              Utiliza cualquier fecha futura (ej. 12/28) y CVC (123) para pruebas del entorno PCI-DSS.
             </p>
           </div>
 
           {/* Status Message Display */}
           {status === "processing" && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs text-center animate-pulse">
+            <div className="p-3 rounded-xl bg-[#FFF3E5] border border-[#FF8800]/40 text-[#FF8800] text-xs text-center font-bold animate-pulse font-poppins">
               {message}
             </div>
           )}
 
           {status === "success" && (
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs space-y-2 text-center">
-              <p className="font-bold text-sm">¡Compra procesada con Éxito!</p>
-              <div className="text-[11px] text-slate-300 space-y-1 font-mono text-left bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                <p><span className="text-slate-500">Stripe ID:</span> {txDetails.stripeId}</p>
-                <p className="truncate"><span className="text-slate-500">Blockchain Mint Tx:</span> {txDetails.mintHash}</p>
+            <div className="p-4 rounded-xl bg-[#EAF5EF] border border-[#2E8B57]/40 text-[#2E8B57] text-xs space-y-2 text-center">
+              <p className="font-bold text-sm font-poppins">¡Compra procesada con Éxito!</p>
+              <div className="text-[11px] text-[#333333] space-y-1 font-mono text-left bg-white p-3 rounded-lg border border-[#2E8B57]/20">
+                <p><span className="text-[#A9A9A9]">Stripe ID:</span> {txDetails.stripeId}</p>
+                <p className="truncate"><span className="text-[#A9A9A9]">Blockchain Mint Tx:</span> {txDetails.mintHash}</p>
               </div>
             </div>
           )}
 
           {status === "error" && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs text-center">
+            <div className="p-3 rounded-xl bg-[#FCEAEB] border border-[#CC2233]/40 text-[#CC2233] text-xs text-center font-semibold font-poppins">
               {message}
             </div>
           )}
@@ -188,15 +190,15 @@ export default function CompraStablecoinPage() {
           <button
             type="submit"
             disabled={status === "processing"}
-            className="w-full py-4 rounded-2xl font-extrabold text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 hover:opacity-95 shadow-xl shadow-emerald-500/20 transition disabled:opacity-50 text-base"
+            className="w-full btn-cacao-pulse text-sm font-poppins uppercase tracking-wider text-center flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {status === "processing" ? "Procesando en Stripe & Blockchain..." : `Comprar €${amount} EURT con Stripe`}
           </button>
         </form>
       </main>
 
-      <footer className="text-center text-xs text-slate-600 py-4">
-        Servicio de Adquisición de Stablecoins - Master Code Crypto © 2026
+      <footer className="text-center text-xs text-[#A9A9A9] font-mono py-4">
+        BARLO-VENTAS Web3 &copy; 2025 - Adquisición de Stablecoins
       </footer>
     </div>
   );

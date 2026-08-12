@@ -75,11 +75,11 @@ export default function ProductDetailPage() {
         const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
-        // 1. Fetch current product
+        // Fetch current product
         const prodData = await contract.getProduct(BigInt(productIdStr));
         setProduct(prodData as Product);
 
-        // 2. Fetch merchant company
+        // Fetch merchant company
         if (prodData && prodData.companyId) {
           try {
             const compData = await contract.getCompany(prodData.companyId);
@@ -89,7 +89,7 @@ export default function ProductDetailPage() {
           }
         }
 
-        // 3. Fetch all company products for carousel & related section
+        // Fetch company products
         try {
           const allProds = await contract.getAllProducts();
           const compProds = Array.from(allProds).filter(
@@ -134,7 +134,6 @@ export default function ProductDetailPage() {
     router.push('/cart');
   };
 
-  // Simulated Photo Gallery for Product
   const photoGallery = useMemo(() => {
     if (!product) return [];
     const mainHash = product.ipfsImageHash;
@@ -145,7 +144,6 @@ export default function ProductDetailPage() {
     ].filter(Boolean);
   }, [product]);
 
-  // Top Carousel Slides (Featured / Best Sellers from Merchant)
   const carouselItems = useMemo(() => {
     if (companyProducts.length > 0) return companyProducts;
     return product ? [product] : [];
@@ -153,10 +151,10 @@ export default function ProductDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-[#F5F5F0] flex items-center justify-center p-6">
         <div className="text-center space-y-3">
-          <div className="w-12 h-12 border-4 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-500 font-mono">Cargando ficha de detalle del producto...</p>
+          <div className="w-12 h-12 border-4 border-[#0077BB] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-[#A9A9A9] font-mono">Cargando ficha BARLO-VENTAS...</p>
         </div>
       </div>
     );
@@ -164,16 +162,13 @@ export default function ProductDetailPage() {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-xl border border-slate-200 text-center space-y-4">
-          <h1 className="text-xl font-black text-slate-900">Producto No Encontrado</h1>
-          <p className="text-xs text-slate-500">
-            El producto con ID #{productIdStr} no existe o no está disponible en la red.
+      <div className="min-h-screen bg-[#F5F5F0] flex items-center justify-center p-6">
+        <div className="glass-card p-8 max-w-md w-full text-center space-y-4">
+          <h1 className="text-xl font-black text-[#333333] font-poppins">Producto No Encontrado</h1>
+          <p className="text-xs text-[#A9A9A9]">
+            El producto con ID #{productIdStr} no está disponible.
           </p>
-          <Link
-            href="/"
-            className="inline-block px-5 py-2.5 bg-rose-600 text-white font-bold text-xs rounded-xl shadow-md"
-          >
+          <Link href="/" className="btn-cacao-pulse inline-block text-xs font-poppins">
             Volver al Catálogo
           </Link>
         </div>
@@ -186,37 +181,36 @@ export default function ProductDetailPage() {
   const subtotal = Number(product.price) * quantity;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-24">
+    <div className="min-h-screen bg-[#F5F5F0] text-[#333333] font-sans pb-24">
       
-      {/* 1. TOP FULL-WIDTH HERO CAROUSEL (CARRUSEL QUE ABARCA TODA LA PÁGINA) */}
-      <section className="w-full relative bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white overflow-hidden shadow-xl">
-        <div className="w-full py-16 px-6 sm:px-12 relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 max-w-7xl mx-auto">
+      {/* 1. TOP FULL-WIDTH HERO CAROUSEL - AZUL CARIBE */}
+      <section className="w-full relative bg-gradient-to-r from-[#0077BB] via-[#005F96] to-slate-900 text-white overflow-hidden shadow-xl">
+        <div className="w-full py-14 px-6 sm:px-12 relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 max-w-7xl mx-auto">
           
           <div className="max-w-xl space-y-4 text-center md:text-left">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold uppercase tracking-wider">
-              <span>🔥 Los Más Vendidos de {companyName}</span>
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/20 text-white border border-white/30 text-xs font-bold uppercase tracking-wider font-poppins">
+              <span>🔥 Más Vendidos por {companyName}</span>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight font-poppins">
               {carouselItems[carouselSlide]?.name || product.name}
             </h1>
 
-            <p className="text-xs sm:text-sm text-slate-300 line-clamp-2">
+            <p className="text-xs sm:text-sm text-sky-100 line-clamp-2">
               {carouselItems[carouselSlide]?.description || product.description}
             </p>
 
             <div className="flex items-center justify-center md:justify-start gap-4 pt-2">
-              <span className="text-2xl font-black font-mono text-emerald-400">
+              <span className="text-2xl font-black font-mono text-[#2E8B57] bg-[#EAF5EF] px-3 py-1 rounded-xl">
                 €{formatPrice(carouselItems[carouselSlide]?.price || product.price)} EURT
               </span>
-              <span className="px-3 py-1 bg-amber-400/20 text-amber-300 border border-amber-400/30 font-bold text-xs rounded-full">
+              <span className="px-3 py-1 bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30 font-bold text-xs rounded-full font-poppins">
                 ★ {getProductRating(carouselItems[carouselSlide]?.productId || product.productId).score.toFixed(1)}
               </span>
             </div>
           </div>
 
-          {/* Carousel Slide Image Preview */}
-          <div className="w-full md:w-96 h-64 bg-slate-800 rounded-3xl overflow-hidden border border-rose-500/30 shadow-2xl relative">
+          <div className="w-full md:w-96 h-64 bg-slate-800 rounded-3xl overflow-hidden border border-white/30 shadow-2xl relative">
             {carouselItems[carouselSlide]?.ipfsImageHash ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -225,15 +219,14 @@ export default function ProductDetailPage() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs font-mono">
-                Destacado de {companyName}
+              <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-mono">
+                Destacado BARLO-VENTAS
               </div>
             )}
           </div>
 
         </div>
 
-        {/* Carousel Navigation Buttons & Dots */}
         {carouselItems.length > 1 && (
           <div className="absolute inset-x-0 bottom-4 flex justify-center items-center gap-2 z-20">
             {carouselItems.map((_, idx) => (
@@ -241,7 +234,7 @@ export default function ProductDetailPage() {
                 key={idx}
                 onClick={() => setCarouselSlide(idx)}
                 className={`w-3 h-3 rounded-full transition ${
-                  carouselSlide === idx ? 'bg-rose-500 w-8' : 'bg-white/40 hover:bg-white'
+                  carouselSlide === idx ? 'bg-[#FF8800] w-8' : 'bg-white/40 hover:bg-white'
                 }`}
               />
             ))}
@@ -249,41 +242,41 @@ export default function ProductDetailPage() {
         )}
       </section>
 
-      {/* 2. MERCHANT COMPANY HEADER BANNER */}
+      {/* 2. MERCHANT COMPANY HEADER */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20">
-        <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="glass-card p-6 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-600 flex items-center justify-center text-white font-bold text-2xl shadow-md">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0077BB] to-[#FF8800] flex items-center justify-center text-white font-bold text-2xl shadow-md">
               🏬
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-black text-slate-900">{companyName}</h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <h2 className="text-xl font-black text-[#333333] font-poppins">{companyName}</h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30">
                   ✓ Verificada Web3
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {company?.description || 'Empresa proveedora oficial registrada en el contrato inteligente Ecommerce.'}
+              <p className="text-xs text-[#A9A9A9] mt-0.5">
+                {company?.description || 'Empresa oficial registrada en la red BARLO-VENTAS.'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 text-xs font-semibold text-slate-600 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-200">
-            <span>⭐ 4.9 Reputación</span>
+          <div className="flex items-center gap-3 text-xs font-semibold text-[#333333] bg-[#E6F4FA] px-4 py-2 rounded-2xl border border-[#0077BB]/20 font-poppins">
+            <span className="text-[#FF8800] font-bold">⭐ 4.9 Reputación</span>
             <span>&bull;</span>
-            <span className="text-emerald-600">⏱ 15-30 min Delivery</span>
+            <span className="text-[#2E8B57]">⏱ 15-30 min Delivery</span>
           </div>
         </div>
       </section>
 
-      {/* 3. MAIN PRODUCT DETAIL CONTAINER & CART ATTACHMENT */}
+      {/* 3. MAIN PRODUCT DETAIL CONTAINER */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Left Column: Photo Gallery Slider (Slider de Fotos) */}
+          {/* Left Column: Photo Gallery Slider */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="w-full h-96 bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm relative flex items-center justify-center">
+            <div className="w-full h-96 glass-card overflow-hidden relative flex items-center justify-center">
               {photoGallery[activePhotoIdx] ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -292,16 +285,15 @@ export default function ProductDetailPage() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="text-slate-400 font-mono text-xs">Sin Imagen Disponible</div>
+                <div className="text-[#A9A9A9] font-mono text-xs">Sin Imagen Disponible</div>
               )}
               {product.stock === BigInt(0) && (
-                <span className="absolute top-4 right-4 bg-red-500 text-white font-bold text-xs px-3 py-1 rounded-full shadow">
+                <span className="absolute top-4 right-4 bg-[#CC2233] text-white font-bold text-xs px-3 py-1 rounded-full shadow font-poppins">
                   Agotado
                 </span>
               )}
             </div>
 
-            {/* Photo Thumbnails */}
             {photoGallery.length > 1 && (
               <div className="flex gap-3">
                 {photoGallery.map((imgUrl, idx) => (
@@ -309,7 +301,7 @@ export default function ProductDetailPage() {
                     key={idx}
                     onClick={() => setActivePhotoIdx(idx)}
                     className={`w-20 h-20 rounded-2xl overflow-hidden border-2 transition ${
-                      activePhotoIdx === idx ? 'border-rose-600 scale-105 shadow-md' : 'border-slate-200 opacity-60 hover:opacity-100'
+                      activePhotoIdx === idx ? 'border-[#0077BB] scale-105 shadow-md' : 'border-slate-200 opacity-60 hover:opacity-100'
                     }`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -320,36 +312,36 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {/* Middle Column: Detailed Description & Shipping Conditions */}
+          {/* Middle Column: Description & Shipping Conditions */}
           <div className="lg:col-span-4 space-y-6">
             <div className="space-y-3">
-              <span className="text-xs font-bold text-rose-600 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-[#0077BB] uppercase tracking-wider block font-poppins">
                 {companyName}
               </span>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">
+              <h1 className="text-3xl font-black text-[#333333] tracking-tight leading-tight font-poppins">
                 {product.name}
               </h1>
               
-              <div className="flex items-center gap-2 text-xs font-bold text-amber-500">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#FF8800]">
                 <span>{'★'.repeat(Math.floor(rating.score))}</span>
-                <span className="text-slate-700 font-mono">{rating.score.toFixed(1)}</span>
-                <span className="text-slate-400 font-normal">({rating.count} opiniones verificadas)</span>
+                <span className="text-[#333333] font-mono">{rating.score.toFixed(1)}</span>
+                <span className="text-[#A9A9A9] font-normal">({rating.count} opiniones)</span>
               </div>
             </div>
 
-            {/* Detailed Description */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            {/* Description */}
+            <div className="glass-card p-6 shadow-sm space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#0077BB] font-poppins">
                 Descripción Detallada del Producto
               </h3>
-              <p className="text-xs text-slate-600 leading-relaxed font-normal">
-                {product.description || 'Producto oficial de alta calidad disponible para adquisición directa en la red con EuroToken (EURT).'}
+              <p className="text-xs text-[#333333] leading-relaxed font-normal">
+                {product.description || 'Producto oficial de alta calidad disponible en la red BARLO-VENTAS con pago directo en EuroToken (EURT).'}
               </p>
             </div>
 
-            {/* Shipping & Delivery Conditions (Condiciones de Envío) */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-3">
+            {/* Shipping Conditions */}
+            <div className="glass-card p-6 shadow-sm space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#0077BB] border-b border-[#0077BB]/10 pb-3 font-poppins">
                 Condiciones de Envío y Garantía
               </h3>
 
@@ -357,24 +349,24 @@ export default function ProductDetailPage() {
                 <div className="flex items-start gap-3">
                   <span className="text-base">🛵</span>
                   <div>
-                    <span className="font-bold text-slate-900 block">Despacho Express Blockchain</span>
-                    <span className="text-slate-500">Entrega estimada de 15 a 30 minutos a su dirección de envío.</span>
+                    <span className="font-bold text-[#333333] block font-poppins">Despacho Express Blockchain</span>
+                    <span className="text-[#A9A9A9]">Entrega estimada de 15 a 30 minutos a su dirección guardada.</span>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <span className="text-base">📜</span>
                   <div>
-                    <span className="font-bold text-slate-900 block">Factura Electrónica Inmutable</span>
-                    <span className="text-slate-500">Comprobante de compra emitido directamente en Smart Contract.</span>
+                    <span className="font-bold text-[#333333] block font-poppins">Factura Inmutable Smart Contract</span>
+                    <span className="text-[#A9A9A9]">Comprobante registrado directamente en Ethereum Local.</span>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <span className="text-base">🛡️</span>
                   <div>
-                    <span className="font-bold text-slate-900 block">Garantía de Reembolso EURT</span>
-                    <span className="text-slate-500">Protección al comprador con devolución respaldada en tokens EURT.</span>
+                    <span className="font-bold text-[#333333] block font-poppins">Garantía Respaldada en EURT</span>
+                    <span className="text-[#A9A9A9]">Protección total de compra con reembolso automatizado.</span>
                   </div>
                 </div>
               </div>
@@ -382,51 +374,51 @@ export default function ProductDetailPage() {
 
           </div>
 
-          {/* Right Column: Cart Attachment Card (Ficha para adjuntar al carrito) */}
+          {/* Right Column: Cart Widget Attachment */}
           <div className="lg:col-span-3">
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xl space-y-6 sticky top-24">
+            <div className="glass-card p-6 shadow-xl space-y-6 sticky top-24">
               
               <div>
-                <span className="text-[10px] text-slate-400 uppercase font-mono block">Precio PVP</span>
-                <div className="text-3xl font-black font-mono text-emerald-600">
-                  €{formatPrice(product.price)} <span className="text-xs font-normal text-slate-500">EURT</span>
+                <span className="text-[10px] text-[#A9A9A9] uppercase font-mono block">Precio PVP</span>
+                <div className="text-3xl font-black font-mono text-[#2E8B57]">
+                  €{formatPrice(product.price)} <span className="text-xs font-normal text-[#333333]">EURT</span>
                 </div>
               </div>
 
-              {/* Quantity Selector */}
+              {/* Quantity */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700">Cantidad a Comprar:</label>
-                <div className="flex items-center bg-slate-100 border border-slate-200 rounded-2xl p-1 justify-between">
+                <label className="block text-xs font-bold text-[#333333] font-poppins">Cantidad:</label>
+                <div className="flex items-center bg-white border border-[#0077BB]/20 rounded-2xl p-1 justify-between">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-9 h-9 rounded-xl bg-white hover:bg-slate-200 font-black text-slate-800 text-sm shadow-sm transition"
+                    className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black text-[#333333] text-sm shadow-sm transition"
                   >
                     -
                   </button>
-                  <span className="font-mono font-bold text-slate-900 text-sm">{quantity}</span>
+                  <span className="font-mono font-bold text-[#333333] text-sm">{quantity}</span>
                   <button
                     onClick={() => setQuantity(quantity + 1)}
-                    className="w-9 h-9 rounded-xl bg-white hover:bg-slate-200 font-black text-slate-800 text-sm shadow-sm transition"
+                    className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black text-[#333333] text-sm shadow-sm transition"
                   >
                     +
                   </button>
                 </div>
               </div>
 
-              {/* Subtotal Display */}
-              <div className="border-t border-b border-slate-100 py-3 flex justify-between items-center text-xs">
-                <span className="text-slate-500 font-medium">Subtotal Calculado:</span>
-                <span className="font-mono font-black text-emerald-600 text-base">
+              {/* Subtotal */}
+              <div className="border-t border-b border-[#0077BB]/10 py-3 flex justify-between items-center text-xs">
+                <span className="text-[#A9A9A9] font-medium">Subtotal Calculado:</span>
+                <span className="font-mono font-black text-[#2E8B57] text-base">
                   €{formatPrice(BigInt(subtotal))} EURT
                 </span>
               </div>
 
-              {/* Action Buttons */}
+              {/* Actions */}
               <div className="space-y-3">
                 <button
                   onClick={handleAddCart}
                   disabled={product.stock === BigInt(0) || addingToCart}
-                  className="w-full py-3 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-bold rounded-2xl shadow-lg shadow-rose-500/25 transition disabled:opacity-50 text-xs flex items-center justify-center gap-2"
+                  className="w-full btn-cacao-pulse text-xs font-poppins uppercase tracking-wider text-center flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <span>🛒</span>
                   <span>{addingToCart ? 'Procesando...' : 'Adjuntar al Carrito'}</span>
@@ -435,14 +427,14 @@ export default function ProductDetailPage() {
                 <button
                   onClick={handleBuyNow}
                   disabled={product.stock === BigInt(0)}
-                  className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-md transition disabled:opacity-50 text-xs"
+                  className="w-full py-3 bg-[#0077BB] hover:bg-[#005F96] text-white font-bold rounded-full shadow-md transition disabled:opacity-50 text-xs font-poppins"
                 >
                   Comprar Ahora ➔
                 </button>
               </div>
 
               <div className="text-center">
-                <span className="text-[10px] text-slate-400 block font-mono">
+                <span className="text-[10px] text-[#A9A9A9] block font-mono">
                   Stock Disponible: {product.stock.toString()} unidad(es)
                 </span>
               </div>
@@ -453,20 +445,17 @@ export default function ProductDetailPage() {
         </div>
       </section>
 
-      {/* 4. RELATED PRODUCTS SECTION (PRODUCTOS RELACIONADOS) */}
+      {/* 4. RELATED PRODUCTS SECTION */}
       {companyProducts.filter((p) => p.productId.toString() !== product.productId.toString()).length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6 border-t border-slate-200">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6 border-t border-[#0077BB]/10">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Productos Relacionados</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Más opciones disponibles en el catálogo de {companyName}.
+              <h2 className="text-2xl font-black text-[#333333] tracking-tight font-poppins">Productos Relacionados</h2>
+              <p className="text-xs text-[#A9A9A9] mt-0.5">
+                Más productos del catálogo de {companyName}.
               </p>
             </div>
-            <Link
-              href="/"
-              className="text-xs font-bold text-rose-600 hover:underline"
-            >
+            <Link href="/" className="text-xs font-bold text-[#0077BB] hover:underline font-poppins">
               Ver Todo el Catálogo ➔
             </Link>
           </div>
@@ -479,7 +468,7 @@ export default function ProductDetailPage() {
                 <Link
                   key={relProduct.productId.toString()}
                   href={`/products/${relProduct.productId.toString()}`}
-                  className="group bg-white border border-slate-200/80 rounded-2xl overflow-hidden hover:shadow-xl hover:border-rose-300 transition-all duration-300 flex flex-col justify-between"
+                  className="group glass-card overflow-hidden hover:border-[#0077BB] transition-all duration-300 flex flex-col justify-between"
                 >
                   <div>
                     <div className="w-full h-40 bg-slate-100 relative overflow-hidden flex items-center justify-center">
@@ -491,25 +480,25 @@ export default function ProductDetailPage() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
-                        <div className="text-slate-400 font-mono text-xs">Sin Imagen</div>
+                        <div className="text-[#A9A9A9] font-mono text-xs">Sin Imagen</div>
                       )}
                     </div>
 
                     <div className="p-4 space-y-1.5">
-                      <span className="text-[10px] font-bold text-rose-600 block">{companyName}</span>
-                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-rose-600 transition-colors line-clamp-1">
+                      <span className="text-[10px] font-bold text-[#0077BB] block font-poppins">{companyName}</span>
+                      <h3 className="text-sm font-bold text-[#333333] group-hover:text-[#0077BB] transition-colors line-clamp-1 font-poppins">
                         {relProduct.name}
                       </h3>
-                      <p className="text-xs text-slate-500 line-clamp-2">{relProduct.description}</p>
+                      <p className="text-xs text-[#A9A9A9] line-clamp-2">{relProduct.description}</p>
                     </div>
                   </div>
 
                   <div className="p-4 pt-0">
-                    <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                      <span className="text-sm font-black font-mono text-emerald-600">
+                    <div className="flex items-center justify-between border-t border-[#0077BB]/10 pt-3">
+                      <span className="text-sm font-black font-mono text-[#2E8B57]">
                         €{formatPrice(relProduct.price)} EURT
                       </span>
-                      <span className="text-xs font-bold text-rose-600 group-hover:underline">
+                      <span className="text-xs font-bold text-[#FF8800] group-hover:underline font-poppins">
                         Ver ➔
                       </span>
                     </div>

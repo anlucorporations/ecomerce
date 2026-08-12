@@ -36,7 +36,7 @@ function getProductRating(productId: bigint) {
 
 export default function Home() {
   const { provider, signer, chainId, address } = useWallet();
-  const { items, total, addToCart } = useCart(provider, signer, chainId, address);
+  const { items, total } = useCart(provider, signer, chainId, address);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [companies, setCompanies] = useState<Record<string, string>>({});
@@ -113,43 +113,84 @@ export default function Home() {
   }, [products, searchQuery, selectedCompanyId, maxPriceFilter, onlyInStock]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-24 selection:bg-rose-500 selection:text-white">
+    <div className="min-h-screen bg-[#F5F5F0] text-[#333333] font-sans pb-24 selection:bg-[#FF8800] selection:text-white">
       
-      {/* HERO BANNER */}
-      <section className="relative bg-gradient-to-br from-rose-500 via-rose-600 to-indigo-700 text-white py-14 px-4 sm:px-6 lg:px-8 shadow-xl overflow-hidden">
+      {/* HERO BANNER - AZUL CARIBE & NARANJA CACAO SOL */}
+      <section className="relative bg-gradient-to-br from-[#0077BB] via-[#005F96] to-slate-900 text-white py-14 px-4 sm:px-6 lg:px-8 shadow-xl overflow-hidden">
         <div className="max-w-7xl mx-auto relative z-10 text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-bold uppercase tracking-wider border border-white/30">
-            <span>🛵 BARLO-VENTAS Web3 &bull; Marketplace & Delivery Descentralizado</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-bold uppercase tracking-wider border border-white/30 font-poppins">
+            <span>🛵 BARLO-VENTAS Web3 &bull; El Ritmo de tus Compras</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
-            Catálogo de Productos en <span className="text-amber-300">EuroToken (EURT)</span>
+          <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight font-poppins">
+            Catálogo de Productos en <span className="text-[#FF8800]">EuroToken (EURT)</span>
           </h1>
-          <p className="text-xs sm:text-sm text-rose-100 max-w-xl mx-auto font-medium">
-            Seleccione cualquier producto para ver el perfil detallado de la empresa vendedora, fotos y condiciones de envío.
+          <p className="text-xs sm:text-sm text-sky-100 max-w-xl mx-auto font-medium">
+            Seleccione cualquier producto para explorar la empresa vendedora, galería de fotos y condiciones de despacho.
           </p>
         </div>
       </section>
 
+      {/* PROMOTIONAL CARDS - ROJO SAN JUAN & VERDE MANGLAR */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="glass-card p-5 space-y-2 border-l-4 border-l-[#CC2233]">
+            <div className="flex justify-between items-center">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-[#CC2233] text-white uppercase font-poppins">PROMO SAN JUAN</span>
+              <span className="text-[11px] font-mono text-[#2E8B57] font-bold">15% Cashback EURT</span>
+            </div>
+            <h3 className="text-base font-bold text-[#333333] font-poppins">Reembolso en Compras</h3>
+            <p className="text-xs text-[#A9A9A9] leading-relaxed">
+              Recibe 15% de reembolso directo en EuroTokens al completar tus órdenes en la plataforma.
+            </p>
+          </div>
+
+          <div className="glass-card p-5 space-y-2 border-l-4 border-l-[#0077BB]">
+            <div className="flex justify-between items-center">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-[#0077BB] text-white uppercase font-poppins">DELIVERY EXPRESS</span>
+              <span className="text-[11px] font-mono text-[#0077BB] font-bold">0.00 EURT</span>
+            </div>
+            <h3 className="text-base font-bold text-[#333333] font-poppins">Envío Blockchain Bonificado</h3>
+            <p className="text-xs text-[#A9A9A9] leading-relaxed">
+              Facturación inmutable registrada directamente en el contrato inteligente Ecommerce.
+            </p>
+          </div>
+
+          <div className="glass-card p-5 space-y-2 border-l-4 border-l-[#FF8800]">
+            <div className="flex justify-between items-center">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-[#FF8800] text-white uppercase font-poppins">RECARGA STRIPE</span>
+              <span className="text-[11px] font-mono text-[#FF8800] font-bold">Instantáneo</span>
+            </div>
+            <h3 className="text-base font-bold text-[#333333] font-poppins">Recarga tu Billetera EURT</h3>
+            <p className="text-xs text-[#A9A9A9] leading-relaxed">
+              Adquiere EuroTokens en segundos usando tarjeta de crédito a través de nuestro portal Stripe.
+            </p>
+            <a href="http://localhost:3003" target="_blank" rel="noreferrer" className="inline-block text-xs font-bold text-[#FF8800] hover:underline pt-1 font-poppins">
+              Recargar Saldo Ahora ↗
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* FILTER TOOLBAR */}
-      <section id="catalog" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <section id="catalog" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+        <div className="glass-panel rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-[#0077BB]/10 pb-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#0077BB] font-poppins">
               Catálogo de Productos Disponibles
             </h2>
-            <span className="text-xs font-mono text-rose-600 font-bold">
+            <span className="text-xs font-mono text-[#0077BB] font-bold">
               {filteredProducts.length} producto(s)
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Empresa Vendedora:</label>
+              <label className="block text-[11px] font-bold text-[#333333] mb-1 font-poppins">Empresa Vendedora:</label>
               <select
                 value={selectedCompanyId}
                 onChange={(e) => setSelectedCompanyId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500 focus:bg-white"
+                className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3 py-2 text-xs text-[#333333] focus:outline-none focus:border-[#0077BB]"
               >
                 <option value="all">Todas las Empresas</option>
                 {Object.entries(companies).map(([id, name]) => (
@@ -162,8 +203,8 @@ export default function Home() {
 
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="text-[11px] font-bold text-slate-700">Precio Máximo:</label>
-                <span className="text-xs font-mono text-emerald-600 font-bold">€{maxPriceFilter} EURT</span>
+                <label className="text-[11px] font-bold text-[#333333] font-poppins">Precio Máximo:</label>
+                <span className="text-xs font-mono text-[#2E8B57] font-bold">€{maxPriceFilter} EURT</span>
               </div>
               <input
                 type="range"
@@ -172,7 +213,7 @@ export default function Home() {
                 step="5"
                 value={maxPriceFilter}
                 onChange={(e) => setMaxPriceFilter(Number(e.target.value))}
-                className="w-full accent-rose-500 cursor-pointer"
+                className="w-full accent-[#FF8800] cursor-pointer"
               />
             </div>
 
@@ -182,9 +223,9 @@ export default function Home() {
                   type="checkbox"
                   checked={onlyInStock}
                   onChange={(e) => setOnlyInStock(e.target.checked)}
-                  className="w-4 h-4 text-rose-600 bg-slate-50 border-slate-300 rounded focus:ring-rose-500"
+                  className="w-4 h-4 text-[#FF8800] bg-white border-slate-300 rounded focus:ring-[#FF8800]"
                 />
-                <span className="text-xs text-slate-700 font-semibold">Solo Disponibles en Stock</span>
+                <span className="text-xs text-[#333333] font-semibold">Solo Disponibles en Stock</span>
               </label>
             </div>
           </div>
@@ -196,12 +237,12 @@ export default function Home() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {loading ? (
           <div className="py-20 text-center space-y-3">
-            <div className="w-10 h-10 border-4 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-slate-400 font-mono">Cargando catálogo en blockchain...</p>
+            <div className="w-10 h-10 border-4 border-[#0077BB] border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-[#A9A9A9] font-mono">Cargando catálogo BARLO-VENTAS en blockchain...</p>
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3 shadow-xs">
-            <p className="text-slate-800 font-bold text-base">No se encontraron productos con los filtros aplicados.</p>
+          <div className="glass-card p-12 text-center space-y-3 shadow-xs">
+            <p className="text-[#333333] font-bold text-base">No se encontraron productos con los filtros aplicados.</p>
             <button
               onClick={() => {
                 setSearchQuery('');
@@ -209,7 +250,7 @@ export default function Home() {
                 setMaxPriceFilter(500);
                 setOnlyInStock(false);
               }}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-rose-600 font-bold text-xs rounded-xl border border-slate-200 transition"
+              className="px-4 py-2 bg-white hover:bg-slate-100 text-[#0077BB] font-bold text-xs rounded-xl border border-[#0077BB]/20 transition font-poppins"
             >
               Restablecer Filtros
             </button>
@@ -224,7 +265,7 @@ export default function Home() {
                 <Link
                   key={product.productId.toString()}
                   href={`/products/${product.productId.toString()}`}
-                  className="group bg-white border border-slate-200/80 rounded-2xl overflow-hidden hover:shadow-xl hover:border-rose-400 transition-all duration-300 flex flex-col justify-between"
+                  className="group glass-card overflow-hidden hover:border-[#0077BB] transition-all duration-300 flex flex-col justify-between"
                 >
                   <div>
                     {/* Summary Image */}
@@ -237,57 +278,54 @@ export default function Home() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
-                        <div className="text-slate-400 font-mono text-xs">Sin Imagen IPFS</div>
+                        <div className="text-[#A9A9A9] font-mono text-xs">Sin Imagen IPFS</div>
                       )}
 
                       {/* Stock Badge */}
                       <div className="absolute top-3 right-3">
                         {product.stock > BigInt(0) ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white shadow-sm">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2E8B57] text-white shadow-sm font-poppins">
                             Stock: {product.stock.toString()}
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white shadow-sm">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#CC2233] text-white shadow-sm font-poppins">
                             Agotado
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Summary Info: Title & Company */}
+                    {/* Summary Info */}
                     <div className="p-5 space-y-2">
-                      {/* Company Name */}
                       <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-rose-500" />
-                        <span className="text-[11px] font-extrabold text-rose-600 truncate">
+                        <span className="w-2 h-2 rounded-full bg-[#0077BB]" />
+                        <span className="text-[11px] font-extrabold text-[#0077BB] truncate font-poppins">
                           {compName}
                         </span>
                       </div>
 
-                      {/* Product Title */}
-                      <h3 className="text-base font-bold text-slate-900 tracking-tight leading-snug group-hover:text-rose-600 transition-colors">
+                      <h3 className="text-base font-bold text-[#333333] tracking-tight leading-snug group-hover:text-[#0077BB] transition-colors font-poppins">
                         {product.name}
                       </h3>
 
-                      {/* Visual Rating */}
-                      <div className="flex items-center gap-1.5 text-xs text-amber-400 pt-1">
+                      <div className="flex items-center gap-1.5 text-xs text-amber-500 pt-1">
                         <span>★ {rating.score.toFixed(1)}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">({rating.count} valoraciones)</span>
+                        <span className="text-[10px] text-[#A9A9A9] font-mono">({rating.count} opiniones)</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Summary Footer: Price & Direct View Details CTA */}
+                  {/* Summary Footer */}
                   <div className="p-5 pt-0">
-                    <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                    <div className="flex items-center justify-between border-t border-[#0077BB]/10 pt-3">
                       <div>
-                        <span className="text-[10px] text-slate-400 uppercase font-mono block">PVP EURT</span>
-                        <span className="text-xl font-black font-mono text-emerald-600">
+                        <span className="text-[10px] text-[#A9A9A9] uppercase font-mono block">PVP EURT</span>
+                        <span className="text-xl font-black font-mono text-[#2E8B57]">
                           €{formatPrice(product.price)}
                         </span>
                       </div>
 
-                      <span className="px-3.5 py-1.5 bg-rose-50 group-hover:bg-rose-600 text-rose-600 group-hover:text-white font-bold text-xs rounded-xl border border-rose-200 group-hover:border-rose-600 transition">
+                      <span className="px-3 py-1.5 bg-[#FFF3E5] text-[#FF8800] font-bold text-xs rounded-xl border border-[#FF8800]/30 group-hover:bg-[#FF8800] group-hover:text-white transition font-poppins">
                         Ver Detalle ➔
                       </span>
                     </div>
@@ -302,22 +340,22 @@ export default function Home() {
 
       {/* STICKY FLOATING CART BAR */}
       {items.length > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 max-w-xl w-[92%] bg-white/95 border border-rose-200 rounded-2xl p-4 shadow-2xl backdrop-blur-md z-40 flex items-center justify-between gap-4">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 max-w-xl w-[92%] glass-panel border border-[#FF8800]/40 rounded-2xl p-4 shadow-2xl backdrop-blur-md z-40 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-600 text-white font-black flex items-center justify-center text-sm shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-[#FF8800] text-white font-black flex items-center justify-center text-sm shadow-md font-poppins">
               {items.reduce((acc, i) => acc + Number(i.quantity), 0)}
             </div>
             <div>
-              <span className="text-xs text-slate-500 block font-mono">Tu Pedido Actual</span>
-              <span className="text-base font-black font-mono text-emerald-600">
-                €{formatPrice(total)} <span className="text-xs font-normal text-slate-500">EURT</span>
+              <span className="text-xs text-[#A9A9A9] block font-mono">Tu Pedido Actual</span>
+              <span className="text-base font-black font-mono text-[#2E8B57]">
+                €{formatPrice(total)} <span className="text-xs font-normal text-[#333333]">EURT</span>
               </span>
             </div>
           </div>
 
           <Link
             href="/cart"
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-extrabold text-xs shadow-lg shadow-rose-500/30 transition transform hover:scale-105"
+            className="btn-cacao-pulse text-xs font-poppins uppercase tracking-wider"
           >
             Ver Carrito & Pagar ➔
           </Link>

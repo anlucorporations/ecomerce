@@ -104,7 +104,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="h-full bg-slate-50">
       <head>
-        <title>MCC E-Commerce Admin Platform</title>
+        <title>BARLO-VENTAS Admin Platform</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </head>
       <body className="h-full bg-slate-50 text-slate-900 flex flex-col md:flex-row antialiased">
@@ -115,10 +115,10 @@ export default function RootLayout({
             <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-600/30">
-                  M
+                  B
                 </div>
                 <div>
-                  <h1 className="font-extrabold text-base text-white tracking-tight leading-none">MasterCode Crypto</h1>
+                  <h1 className="font-extrabold text-base text-white tracking-tight leading-none">BARLO-VENTAS</h1>
                   <span className="text-[11px] font-semibold text-indigo-400">Plataforma Comercial E-Commerce</span>
                 </div>
               </div>
@@ -179,10 +179,10 @@ export default function RootLayout({
                 {/* Sidebar Brand Header */}
                 <div className="p-6 border-b border-slate-100 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-md shadow-indigo-600/20">
-                    A
+                    B
                   </div>
                   <div>
-                    <h1 className="font-bold text-sm text-slate-900 leading-tight">MasterCode Crypto</h1>
+                    <h1 className="font-bold text-sm text-slate-900 leading-tight">BARLO-VENTAS</h1>
                     <span className="text-[11px] font-semibold text-indigo-600">Admin Platform</span>
                   </div>
                 </div>

@@ -18,13 +18,20 @@ const ECOMMERCE_ABI = [
 export default function CartPage() {
   const { provider, signer, chainId, address, isConnected, connect, wallets } = useWallet();
   const ecommerce = useContract('ecommerce', provider, signer, chainId);
-  const { items, total, loading, removeFromCart, updateQuantity, clearCart } = useCart(
-    provider,
-    signer,
-    chainId,
-    address
-  );
+  const {
+    items,
+    total,
+    loading,
+    eurtBalance,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    syncGuestCartToContract,
+    refreshBalance
+  } = useCart(provider, signer, chainId, address);
+
   const [processing, setProcessing] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState<string>('');
 
   // Customer Registration Modal State
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -34,11 +41,23 @@ export default function CartPage() {
     shippingAddress: '',
   });
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
   const formatPrice = (price: bigint) => {
     return (Number(price) / 1_000_000).toFixed(2);
   };
+
+  const hasSufficientEurt = eurtBalance >= total;
+
+  // Group cart items by companyId
+  const itemsByCompany = items.reduce((acc, item) => {
+    const compId = item.companyId.toString();
+    if (!acc[compId]) {
+      acc[compId] = [];
+    }
+    acc[compId].push(item);
+    return acc;
+  }, {} as Record<string, typeof items>);
 
   const handleCheckout = async () => {
     if (items.length === 0) {
@@ -46,7 +65,7 @@ export default function CartPage() {
       return;
     }
 
-    // Step 1: Prompt Wallet Connection if not connected
+    // Step 1: Wallet Connection Check
     let activeSigner = signer;
     let activeAddress = address;
 
@@ -67,37 +86,51 @@ export default function CartPage() {
 
     try {
       setProcessing(true);
+      setCheckoutStep('Verificando registro en plataforma...');
       const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
-      // Step 2: Check Entity Type in Contract
+      // Step 2: Check Entity Registration Status
       const entityType = await contract.getEntityType(activeAddress);
-      console.log("Connected entity type:", entityType);
 
       // EntityType 0: Unregistered -> Show Customer Registration Modal
       if (Number(entityType) === 0) {
         setShowRegisterModal(true);
         setProcessing(false);
+        setCheckoutStep('');
         return;
       }
 
-      // Step 3: EntityType 1 (Company), 2 (Customer), 3 (Owner) -> Proceed to Invoice & Web3 Payment
-      await executeInvoiceCreation(activeAddress);
+      // Step 3: Auto-sync guest cart items to contract
+      if (!activeSigner && typeof window !== "undefined" && window.ethereum) {
+        const browserProvider = new ethers.BrowserProvider(window.ethereum as any);
+        activeSigner = await browserProvider.getSigner();
+      }
+
+      if (activeSigner) {
+        setCheckoutStep('Sincronizando productos a la blockchain...');
+        await syncGuestCartToContract(activeSigner);
+      }
+
+      // Step 4: Create Invoice & Redirect
+      await executeInvoiceCreation(activeAddress, activeSigner);
     } catch (error: unknown) {
-      console.error('Error in checkout handler:', error);
+      console.error('Error en proceso de checkout:', error);
       const err = error instanceof Error ? error : new Error(String(error));
       alert(`Error en checkout: ${err.message || String(error)}`);
       setProcessing(false);
+      setCheckoutStep('');
     }
   };
 
-  // Submit Customer Self Registration on Blockchain
+  // Submit Customer Registration on Blockchain
   const handleRegisterCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!address) return;
 
     try {
       setProcessing(true);
+      setCheckoutStep('Inscribiendo comprador en blockchain...');
       let activeSigner = signer;
 
       if (!activeSigner && typeof window !== "undefined" && window.ethereum) {
@@ -108,6 +141,7 @@ export default function CartPage() {
       if (!activeSigner) {
         alert("Desbloquee su extensión MetaMask para firmar el registro.");
         setProcessing(false);
+        setCheckoutStep('');
         return;
       }
 
@@ -122,18 +156,22 @@ export default function CartPage() {
       alert("¡Inscripción de comprador exitosa en blockchain! Procediendo al pago...");
       setShowRegisterModal(false);
 
+      // Sync guest cart to contract
+      setCheckoutStep('Sincronizando productos a la blockchain...');
+      await syncGuestCartToContract(activeSigner);
+
       // Execute Invoice Creation
-      await executeInvoiceCreation(address);
+      await executeInvoiceCreation(address, activeSigner);
     } catch (err: any) {
       console.error("Failed to register customer:", err);
       alert("Error registrando usuario: " + (err?.reason || err?.message || "Transacción fallida"));
       setProcessing(false);
+      setCheckoutStep('');
     }
   };
 
-  const executeInvoiceCreation = async (customerAddr: string) => {
+  const executeInvoiceCreation = async (customerAddr: string, activeSigner: any) => {
     try {
-      let activeSigner = signer;
       if (!activeSigner && typeof window !== "undefined" && window.ethereum) {
         const browserProvider = new ethers.BrowserProvider(window.ethereum as any);
         activeSigner = await browserProvider.getSigner();
@@ -142,20 +180,11 @@ export default function CartPage() {
       if (!activeSigner) throw new Error("Signer not available");
 
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
-
-      // Group items by company
-      const itemsByCompany = items.reduce((acc, item) => {
-        const companyId = item.companyId.toString();
-        if (!acc[companyId]) {
-          acc[companyId] = [];
-        }
-        acc[companyId].push(item);
-        return acc;
-      }, {} as Record<string, typeof items>);
-
       const companyIds = Object.keys(itemsByCompany);
-      if (companyIds.length === 0) throw new Error('No items in cart');
 
+      if (companyIds.length === 0) throw new Error('Carrito vacío');
+
+      setCheckoutStep('Generando factura electrónica en blockchain...');
       const firstCompanyId = companyIds[0];
       const tx = await contract.createInvoice(customerAddr, BigInt(firstCompanyId));
       const receipt = await tx.wait();
@@ -175,6 +204,7 @@ export default function CartPage() {
 
       await clearCart();
 
+      setCheckoutStep('Redirigiendo a Pasarela de Pago Web3...');
       const invoice = await contract.getInvoice(invoiceId);
       const company = await contract.getCompany(BigInt(firstCompanyId));
 
@@ -189,109 +219,224 @@ export default function CartPage() {
       console.error('Error creating invoice:', err);
       alert('Error generando factura: ' + (err?.reason || err?.message));
       setProcessing(false);
+      setCheckoutStep('');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Carrito de Compras</h1>
+    <div className="min-h-screen bg-slate-900 text-slate-100 py-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-5">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+              <span>🛒 Carrito de Compras</span>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-full">
+                Web3 Powered
+              </span>
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">
+              Catálogo descentralizado con liquidación instantánea en EURT
+            </p>
+          </div>
           <Link
             href="/products"
-            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+            className="text-xs font-bold px-4 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-400 rounded-xl border border-slate-700 transition"
           >
-            ← Continuar Comprando
+            ← Volver al Catálogo
           </Link>
         </div>
 
         {items.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">Tu carrito está vacío</p>
+          <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-12 text-center shadow-xl">
+            <div className="w-16 h-16 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+              🛍️
+            </div>
+            <p className="text-slate-300 font-semibold text-lg mb-2">Tu carrito está vacío</p>
+            <p className="text-xs text-slate-400 mb-6">Explora nuestros productos verificados en blockchain y agrega tus favoritos.</p>
             <Link
               href="/products"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+              className="inline-flex items-center px-6 py-3 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/30 transition"
             >
-              Explorar Catálogo
+              Explorar Catálogo de Productos
             </Link>
           </div>
         ) : (
-          <div className="space-y-6">
-            {/* Cart Items */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-              <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-                {items.map((item) => (
-                  <li key={item.productId.toString()} className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                          {item.productName}
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          €{formatPrice(item.unitPrice)} c/u
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              const newQty = item.quantity - BigInt(1);
-                              if (newQty > BigInt(0)) {
-                                updateQuantity(item.productId, newQty);
-                              }
-                            }}
-                            className="w-8 h-8 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-                          >
-                            -
-                          </button>
-                          <span className="w-12 text-center text-gray-900 dark:text-white font-bold">
-                            {item.quantity.toString()}
-                          </span>
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.quantity + BigInt(1))}
-                            className="w-8 h-8 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 w-28 text-right">
-                          €{formatPrice(item.unitPrice * item.quantity)}
-                        </div>
-                        <button
-                          onClick={() => removeFromCart(item.productId)}
-                          className="text-red-600 dark:text-red-400 hover:text-red-800 text-xs font-semibold"
-                        >
-                          Eliminar
-                        </button>
-                      </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Column: Cart Items grouped by Merchant */}
+            <div className="lg:col-span-2 space-y-6">
+              {Object.entries(itemsByCompany).map(([compId, companyItems]) => (
+                <div key={compId} className="bg-slate-800/80 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl">
+                  {/* Merchant Badge Header */}
+                  <div className="bg-slate-800 px-6 py-3 border-b border-slate-700 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                        Empresa Vendedora ID #{compId}
+                      </span>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {companyItems.length} producto(s)
+                    </span>
+                  </div>
+
+                  {/* Items List */}
+                  <ul className="divide-y divide-slate-700/60">
+                    {companyItems.map((item) => (
+                      <li key={item.productId.toString()} className="p-6 hover:bg-slate-800/40 transition">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1">
+                            <h3 className="text-base font-bold text-white">
+                              {item.productName}
+                            </h3>
+                            <p className="text-xs font-mono text-slate-400 mt-0.5">
+                              €{formatPrice(item.unitPrice)} EURT / unidad
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            {/* Quantity Controls */}
+                            <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl p-1">
+                              <button
+                                onClick={() => {
+                                  const newQty = item.quantity - BigInt(1);
+                                  if (newQty > BigInt(0)) {
+                                    updateQuantity(item.productId, newQty);
+                                  }
+                                }}
+                                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center font-bold text-sm"
+                              >
+                                -
+                              </button>
+                              <span className="w-10 text-center font-mono text-sm font-bold text-white">
+                                {item.quantity.toString()}
+                              </span>
+                              <button
+                                onClick={() => updateQuantity(item.productId, item.quantity + BigInt(1))}
+                                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center font-bold text-sm"
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            {/* Subtotal */}
+                            <div className="text-right w-24">
+                              <span className="text-sm font-extrabold font-mono text-emerald-400 block">
+                                €{formatPrice(item.unitPrice * item.quantity)}
+                              </span>
+                              <span className="text-[10px] text-slate-500 uppercase font-mono">EURT</span>
+                            </div>
+
+                            {/* Remove button */}
+                            <button
+                              onClick={() => removeFromCart(item.productId)}
+                              className="p-2 text-slate-400 hover:text-red-400 transition"
+                              title="Eliminar producto"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
 
-            {/* Cart Summary */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="flex justify-between items-center mb-6">
-                <span className="text-xl font-semibold text-gray-900 dark:text-white">Total</span>
-                <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                  €{formatPrice(total)} EURT
-                </span>
+            {/* Right Column: Checkout Summary & EURT Balance Widget */}
+            <div className="space-y-6">
+              {/* EURT Balance Widget */}
+              <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center justify-between">
+                  <span>💶 Saldo Billetera (EURT)</span>
+                  <button
+                    onClick={refreshBalance}
+                    className="text-[10px] text-indigo-400 hover:underline"
+                  >
+                    🔄 Actualizar
+                  </button>
+                </h2>
+
+                <div className="bg-slate-900 border border-slate-700/80 rounded-xl p-4 mb-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-mono">Disponible en Wallet</span>
+                    <span className="text-2xl font-black font-mono text-white">
+                      €{formatPrice(eurtBalance)} <span className="text-xs text-emerald-400 font-normal">EURT</span>
+                    </span>
+                  </div>
+                  {hasSufficientEurt ? (
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      ✓ Saldo Suficiente
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      ⚠️ Requiere Recarga
+                    </span>
+                  )}
+                </div>
+
+                {/* Warning & Buy EURT Stripe Shortcut */}
+                {!hasSufficientEurt && (
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 space-y-2">
+                    <p className="text-xs text-amber-200 leading-relaxed">
+                      Tu saldo actual es menor que el total de la orden (€{formatPrice(total)} EURT).
+                    </p>
+                    <a
+                      href="http://localhost:3003"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md transition"
+                    >
+                      💳 Adquirir EURT con Stripe (€3003) ↗
+                    </a>
+                  </div>
+                )}
               </div>
-              <div className="space-y-3">
-                <button
-                  onClick={handleCheckout}
-                  disabled={processing}
-                  className="w-full bg-indigo-600 text-white px-6 py-3.5 rounded-xl hover:bg-indigo-700 disabled:opacity-50 font-bold text-base shadow-md transition"
-                >
-                  {processing ? 'Procesando Pago...' : 'Proceed to Payment (Pasarela Web3)'}
-                </button>
-                <button
-                  onClick={clearCart}
-                  className="w-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-6 py-2.5 rounded-xl hover:bg-gray-200 font-semibold text-sm"
-                >
-                  Vaciar Carrito
-                </button>
+
+              {/* Order Total & Checkout Button */}
+              <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-6">
+                <div className="border-b border-slate-700 pb-4 space-y-2">
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>Subtotal Productos:</span>
+                    <span className="font-mono text-slate-200">€{formatPrice(total)} EURT</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>Comisión de Transacción:</span>
+                    <span className="font-mono text-emerald-400">0.00 EURT (Red Demo)</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="text-lg font-bold text-white">Total a Pagar</span>
+                    <span className="text-2xl font-black font-mono text-emerald-400">
+                      €{formatPrice(total)} <span className="text-xs text-slate-400">EURT</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress Feedback Indicator */}
+                {processing && (
+                  <div className="bg-indigo-950/60 border border-indigo-500/40 rounded-xl p-3.5 text-center space-y-2">
+                    <div className="inline-block w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-xs font-semibold text-indigo-300">{checkoutStep}</p>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <button
+                    onClick={handleCheckout}
+                    disabled={processing}
+                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-6 py-4 rounded-xl disabled:opacity-50 font-bold text-base shadow-xl shadow-indigo-600/30 transition transform active:scale-98"
+                  >
+                    {processing ? 'Procesando Transacción...' : 'Proceed to Payment (Pasarela Web3)'}
+                  </button>
+
+                  <button
+                    onClick={clearCart}
+                    className="w-full bg-slate-900 hover:bg-slate-700 text-slate-400 hover:text-slate-200 px-6 py-2.5 rounded-xl text-xs font-semibold border border-slate-700 transition"
+                  >
+                    Vaciar Carrito
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -300,50 +445,50 @@ export default function CartPage() {
 
       {/* CUSTOMER REGISTRATION MODAL */}
       {showRegisterModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-indigo-100 space-y-4">
-            <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 mb-2 inline-block">
-                ⚠️ Wallet No Inscrita
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-indigo-500/30 space-y-4">
+            <div className="border-b border-slate-700 pb-3">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-2 inline-block">
+                ⚠️ Billetera No Registrada
               </span>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Registro de Usuario Comprador</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Complete su información de despacho para vincular su billetera en blockchain antes de pagar.
+              <h2 className="text-xl font-bold text-white">Inscripción de Usuario Comprador</h2>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                Para cumplir con la política de seguridad y poder facturar en blockchain, complete sus datos de despacho una única vez.
               </p>
             </div>
 
             <form onSubmit={handleRegisterCustomer} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1">Nombre Completo:</label>
+                <label className="block font-bold text-slate-300 mb-1">Nombre Completo:</label>
                 <input
                   type="text"
                   value={registerForm.name}
                   onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
                   placeholder="Ej. Juan Pérez"
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-gray-900 dark:text-white"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1">Email / Contacto:</label>
+                <label className="block font-bold text-slate-300 mb-1">Email / Contacto:</label>
                 <input
                   type="email"
                   value={registerForm.email}
                   onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
                   placeholder="juan@ejemplo.com"
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-gray-900 dark:text-white"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1">Dirección Completa de Envío:</label>
+                <label className="block font-bold text-slate-300 mb-1">Dirección Completa de Envío:</label>
                 <textarea
                   value={registerForm.shippingAddress}
                   onChange={(e) => setRegisterForm({ ...registerForm, shippingAddress: e.target.value })}
                   placeholder="Calle, Número, Ciudad, Código Postal..."
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-gray-900 dark:text-white"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   rows={3}
                   required
                 />
@@ -353,16 +498,16 @@ export default function CartPage() {
                 <button
                   type="button"
                   onClick={() => setShowRegisterModal(false)}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 font-semibold"
+                  className="px-4 py-2 text-slate-400 font-semibold hover:text-white"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={processing}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow disabled:opacity-50"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 disabled:opacity-50"
                 >
-                  {processing ? "Registrando..." : "Completar Registro & Pagar"}
+                  {processing ? "Inscribiendo..." : "Completar Registro & Pagar"}
                 </button>
               </div>
             </form>

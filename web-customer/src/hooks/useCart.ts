@@ -34,8 +34,34 @@ export function useCart(
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState<bigint>(BigInt(0));
+  const [eurtBalance, setEurtBalance] = useState<bigint>(BigInt(0));
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+  const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+
+  // Load EURT Balance
+  const loadEurtBalance = useCallback(async () => {
+    if (!address) {
+      setEurtBalance(BigInt(0));
+      return;
+    }
+    try {
+      const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+      const tokenContract = new ethers.Contract(
+        euroTokenAddress,
+        ["function balanceOf(address account) view returns (uint256)"],
+        rpcProvider
+      );
+      const bal = await tokenContract.balanceOf(address);
+      setEurtBalance(BigInt(bal.toString()));
+    } catch (e) {
+      console.warn("Error loading EURT balance:", e);
+    }
+  }, [address, provider, euroTokenAddress]);
+
+  useEffect(() => {
+    loadEurtBalance();
+  }, [loadEurtBalance]);
 
   // Load cart from contract or localStorage fallback
   const loadCart = useCallback(async () => {
@@ -98,11 +124,46 @@ export function useCart(
     } finally {
       setLoading(false);
     }
-  }, [ecommerce, address, provider]);
+  }, [ecommerce, address, provider, ecommerceAddress]);
 
   useEffect(() => {
     loadCart();
   }, [loadCart]);
+
+  // Sync guest cart from localStorage to smart contract
+  const syncGuestCartToContract = useCallback(
+    async (activeSigner: JsonRpcSigner) => {
+      if (typeof window === 'undefined') return;
+      const saved = localStorage.getItem('guest_cart');
+      if (!saved) return;
+      let guestItems: any[] = [];
+      try {
+        guestItems = JSON.parse(saved);
+      } catch {
+        return;
+      }
+      if (!Array.isArray(guestItems) || guestItems.length === 0) return;
+
+      const contract = new ethers.Contract(
+        ecommerceAddress,
+        ["function addToCart(uint256 _productId, uint256 _quantity)"],
+        activeSigner
+      );
+
+      for (const item of guestItems) {
+        try {
+          const tx = await contract.addToCart(BigInt(item.productId), BigInt(item.quantity));
+          await tx.wait();
+        } catch (e) {
+          console.warn("Error syncing item to contract:", item.productId, e);
+        }
+      }
+
+      localStorage.removeItem('guest_cart');
+      await loadCart();
+    },
+    [ecommerceAddress, loadCart]
+  );
 
   // Add to cart
   const addToCart = useCallback(
@@ -144,7 +205,7 @@ export function useCart(
         await loadCart();
       }
     },
-    [ecommerce, address, provider, loadCart]
+    [ecommerce, address, provider, ecommerceAddress, loadCart]
   );
 
   // Remove from cart
@@ -224,10 +285,13 @@ export function useCart(
     items,
     total,
     loading,
+    eurtBalance,
     addToCart,
     removeFromCart,
     updateQuantity,
     clearCart,
+    syncGuestCartToContract,
     refresh: loadCart,
+    refreshBalance: loadEurtBalance,
   };
 }

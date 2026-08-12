@@ -59,7 +59,7 @@ function PaymentGatewayContent() {
         const regStatus = await ecommerceContract.isRegisteredEntity(account);
         setIsRegistered(regStatus);
         if (!regStatus) {
-          setErrorMessage("⚠️ Esta billetera no está registrada en BARLO-VENTAS. Por favor inscribe tu cuenta antes de proceder al pago.");
+          setErrorMessage("⚠️ Esta billetera no está registrada en BARLO-VENTAS. Por favor inscribe tu cuenta en el catálogo antes de proceder al pago.");
         }
       } catch (e) {
         console.warn("Error checking entity registration:", e);
@@ -133,112 +133,166 @@ function PaymentGatewayContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-[#F5F5F0] text-[#333333] font-sans antialiased bg-wave-pattern">
-      <div className="glass-card w-full max-w-md p-8 shadow-2xl relative overflow-hidden">
-        
-        {/* Header Logo */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0077BB] to-[#FF8800] text-white font-black text-2xl mb-3 shadow-lg shadow-[#0077BB]/30 font-poppins">
-            B
+    <div className="min-h-screen bg-[#F5F5F0] text-[#333333] font-sans pb-20 selection:bg-[#FF8800] selection:text-white">
+      
+      {/* 1. HERO BANNER - AZUL CARIBE & NARANJA CACAO SOL */}
+      <section className="relative bg-gradient-to-br from-[#0077BB] via-[#005F96] to-slate-900 text-white py-14 px-4 sm:px-6 lg:px-8 shadow-xl overflow-hidden">
+        <div className="max-w-7xl mx-auto relative z-10 text-center space-y-3">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-bold uppercase tracking-wider border border-white/30 font-poppins">
+            <span>🛡️ Pasarela Inmutable Web3 &bull; BARLO-VENTAS</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-[#333333] font-poppins">
-            BARLO-<span className="text-[#FF8800]">VENTAS</span> Web3
+          <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight font-poppins">
+            Liquidación de Pago en <span className="text-[#FF8800]">EuroToken (EURT)</span>
           </h1>
-          <p className="text-xs font-semibold text-[#0077BB] mt-1 font-poppins">
-            Pasarela de Pago Inmutable en EuroToken (EURT)
+          <p className="text-xs sm:text-sm text-sky-100 max-w-xl mx-auto font-medium">
+            Confirme la transferencia de custodia para procesar la orden comercial y emitir su comprobante en blockchain.
           </p>
         </div>
+      </section>
 
-        {/* Order Details Summary */}
-        <div className="bg-white/80 rounded-2xl p-4 mb-6 border border-[#0077BB]/15 space-y-3 shadow-sm">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-[#A9A9A9] font-medium">Comercio Vendedor:</span>
-            <span className="font-bold text-[#333333] font-poppins">{merchantParam}</span>
+      {/* 2. SECURITY & GUARANTEE CARDS */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          <div className="glass-card p-5 space-y-2 border-l-4 border-l-[#2E8B57]">
+            <div className="flex justify-between items-center">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-[#2E8B57] text-white uppercase font-poppins">CUSTODIA ESCROW</span>
+              <span className="text-[11px] font-mono text-[#2E8B57] font-bold">100% Protegido</span>
+            </div>
+            <h3 className="text-base font-bold text-[#333333] font-poppins">Fondos Retenidos</h3>
+            <p className="text-xs text-[#A9A9A9] leading-relaxed">
+              Los EuroTokens permanecen seguros en el contrato de custodia hasta que confirme la recepción de su compra.
+            </p>
           </div>
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-[#A9A9A9] font-medium">Factura / Orden ID:</span>
-            <span className="font-mono text-[#0077BB] font-bold">#{invoiceIdParam}</span>
+
+          <div className="glass-card p-5 space-y-2 border-l-4 border-l-[#0077BB]">
+            <div className="flex justify-between items-center">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-[#0077BB] text-white uppercase font-poppins">FACTURACIÓN WEB3</span>
+              <span className="text-[11px] font-mono text-[#0077BB] font-bold">Sin Intermediarios</span>
+            </div>
+            <h3 className="text-base font-bold text-[#333333] font-poppins">Comprobante Blockchain</h3>
+            <p className="text-xs text-[#A9A9A9] leading-relaxed">
+              Factura electrónica auditada e inmutable generada directamente en Ethereum Local.
+            </p>
           </div>
-          <div className="border-t border-[#0077BB]/10 pt-2 flex justify-between items-baseline">
-            <span className="text-base font-bold text-[#333333] font-poppins">Total a Pagar:</span>
-            <span className="text-2xl font-black font-mono text-[#2E8B57]">
-              €{numericAmount.toFixed(2)} <span className="text-xs text-[#2E8B57] font-normal">EURT</span>
-            </span>
+
+          <div className="glass-card p-5 space-y-2 border-l-4 border-l-[#FF8800]">
+            <div className="flex justify-between items-center">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-[#FF8800] text-white uppercase font-poppins">DESPACHO GARANTIZADO</span>
+              <span className="text-[11px] font-mono text-[#FF8800] font-bold">15-30 Minutos</span>
+            </div>
+            <h3 className="text-base font-bold text-[#333333] font-poppins">Tracking en Vivo</h3>
+            <p className="text-xs text-[#A9A9A9] leading-relaxed">
+              Asignación inmediata de número de guía y seguimiento de transporte en tiempo real.
+            </p>
           </div>
+
         </div>
+      </section>
 
-        {/* Wallet Status */}
-        {walletAddress ? (
-          <div className="bg-[#E6F4FA] border border-[#0077BB]/30 rounded-2xl p-3.5 mb-6 flex justify-between items-center text-xs">
-            <div>
-              <span className="text-[#0077BB] font-semibold block font-poppins">Billetera Conectada:</span>
-              <span className="font-mono text-[#333333] font-bold">
-                {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
+      {/* 3. MAIN PAYMENT CONTAINER (BARLO-VENTAS GLASS-CARD STYLE) */}
+      <section className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="glass-card p-6 sm:p-8 shadow-2xl border-2 border-[#0077BB]/20 space-y-6 relative overflow-hidden">
+          
+          {/* Header Logo */}
+          <div className="text-center space-y-2 border-b border-[#0077BB]/10 pb-4">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0077BB] to-[#FF8800] text-white font-black text-2xl shadow-md font-poppins">
+              B
+            </div>
+            <h2 className="text-2xl font-black text-[#333333] font-poppins">
+              BARLO-<span className="text-[#FF8800]">VENTAS</span> Web3
+            </h2>
+            <p className="text-xs font-semibold text-[#0077BB] font-poppins">
+              Confirmación de Pago & Depósito en Custodia Escrow
+            </p>
+          </div>
+
+          {/* Order Details Summary */}
+          <div className="bg-white/90 rounded-2xl p-5 border border-[#0077BB]/15 space-y-3 shadow-xs">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-[#A9A9A9] font-medium">Comercio Vendedor:</span>
+              <span className="font-bold text-[#333333] font-poppins">{merchantParam}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-[#A9A9A9] font-medium">Factura / Orden ID:</span>
+              <span className="font-mono text-[#0077BB] font-bold">#{invoiceIdParam}</span>
+            </div>
+            <div className="border-t border-[#0077BB]/10 pt-3 flex justify-between items-baseline">
+              <span className="text-base font-bold text-[#333333] font-poppins">Total a Transferir:</span>
+              <span className="text-2xl font-black font-mono text-[#2E8B57]">
+                €{numericAmount.toFixed(2)} <span className="text-xs text-[#2E8B57] font-normal">EURT</span>
               </span>
             </div>
-            <div className="text-right">
-              <span className="text-[#0077BB] font-semibold block font-poppins">Saldo Disponible:</span>
-              <span className="font-bold font-mono text-[#2E8B57]">€{balance} EURT</span>
+          </div>
+
+          {/* Wallet Status */}
+          {walletAddress ? (
+            <div className="bg-[#E6F4FA] border border-[#0077BB]/30 rounded-2xl p-4 flex justify-between items-center text-xs">
+              <div>
+                <span className="text-[#0077BB] font-bold block font-poppins">Billetera Conectada:</span>
+                <span className="font-mono text-[#333333] font-bold">
+                  {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[#0077BB] font-bold block font-poppins">Saldo Disponible:</span>
+                <span className="font-bold font-mono text-[#2E8B57]">€{balance} EURT</span>
+              </div>
             </div>
-          </div>
-        ) : (
-          <button
-            onClick={connectWallet}
-            className="w-full py-3 mb-6 rounded-xl bg-white hover:bg-slate-50 text-[#0077BB] font-bold text-xs border border-[#0077BB]/30 transition shadow-xs flex items-center justify-center gap-2 font-poppins"
-          >
-            <svg className="w-5 h-5 fill-current text-[#0077BB]" viewBox="0 0 24 24">
-              <path d="M19 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
-            </svg>
-            Conectar MetaMask
-          </button>
-        )}
+          ) : (
+            <button
+              onClick={connectWallet}
+              className="w-full py-3 rounded-2xl bg-white hover:bg-slate-50 text-[#0077BB] font-bold text-xs border border-[#0077BB]/30 transition shadow-xs flex items-center justify-center gap-2 font-poppins"
+            >
+              <span>🦊</span> Conectar Billetera MetaMask
+            </button>
+          )}
 
-        {/* Status Messages */}
-        {status === "approving" && (
-          <div className="p-3 mb-4 rounded-xl bg-[#FFF3E5] border border-[#FF8800]/40 text-[#FF8800] text-xs text-center font-bold animate-pulse font-poppins">
-            1/2 Aprobando transferencia de EuroTokens en MetaMask...
-          </div>
-        )}
+          {/* Status Messages */}
+          {status === "approving" && (
+            <div className="p-3.5 rounded-xl bg-[#FFF3E5] border border-[#FF8800]/40 text-[#FF8800] text-xs text-center font-bold animate-pulse font-poppins">
+              1/2 Aprobando transferencia de EuroTokens en MetaMask...
+            </div>
+          )}
 
-        {status === "paying" && (
-          <div className="p-3 mb-4 rounded-xl bg-[#E6F4FA] border border-[#0077BB]/40 text-[#0077BB] text-xs text-center font-bold animate-pulse font-poppins">
-            2/2 Ejecutando pago inmutable en Blockchain...
-          </div>
-        )}
+          {status === "paying" && (
+            <div className="p-3.5 rounded-xl bg-[#E6F4FA] border border-[#0077BB]/40 text-[#0077BB] text-xs text-center font-bold animate-pulse font-poppins">
+              2/2 Ejecutando depósito en Custodia Escrow...
+            </div>
+          )}
 
-        {status === "success" && (
-          <div className="p-4 mb-4 rounded-xl bg-[#EAF5EF] border border-[#2E8B57]/40 text-[#2E8B57] text-xs text-center space-y-1">
-            <p className="font-bold text-sm font-poppins">¡Pago Completado con Éxito!</p>
-            <p className="font-mono text-[10px] text-[#A9A9A9] truncate">Tx Hash: {txHash}</p>
-            <p className="text-[#333333] pt-1">Redirigiendo a la tienda BARLO-VENTAS...</p>
-          </div>
-        )}
+          {status === "success" && (
+            <div className="p-4 rounded-xl bg-[#EAF5EF] border border-[#2E8B57]/40 text-[#2E8B57] text-xs text-center space-y-1">
+              <p className="font-bold text-sm font-poppins">¡Pago Procesado y Depositado en Custodia!</p>
+              <p className="font-mono text-[10px] text-[#A9A9A9] truncate">Tx Hash: {txHash}</p>
+              <p className="text-[#333333] pt-1 font-poppins">Redirigiendo a sus pedidos...</p>
+            </div>
+          )}
 
-        {status === "error" && (
-          <div className="p-3 mb-4 rounded-xl bg-[#FCEAEB] border border-[#CC2233]/40 text-[#CC2233] text-xs text-center font-semibold">
-            {errorMessage}
-          </div>
-        )}
+          {status === "error" && (
+            <div className="p-3.5 rounded-xl bg-[#FCEAEB] border border-[#CC2233]/40 text-[#CC2233] text-xs text-center font-semibold font-poppins">
+              {errorMessage}
+            </div>
+          )}
 
-        {/* Pay Action Button */}
-        {status !== "success" && (
-          <button
-            onClick={handleExecutePayment}
-            disabled={status === "approving" || status === "paying"}
-            className="w-full btn-cacao-pulse text-sm font-poppins uppercase tracking-wider text-center flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {status === "approving" || status === "paying" ? (
-              <span>Procesando en Red...</span>
-            ) : (
-              <span>Confirmar Pago de €{numericAmount.toFixed(2)} EURT</span>
-            )}
-          </button>
-        )}
-      </div>
+          {/* Pay Action Button with Pulse Animation */}
+          {status !== "success" && (
+            <button
+              onClick={handleExecutePayment}
+              disabled={status === "approving" || status === "paying"}
+              className="w-full btn-cacao-pulse text-sm font-poppins uppercase tracking-wider text-center flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {status === "approving" || status === "paying" ? (
+                <span>Procesando en Red Web3...</span>
+              ) : (
+                <span>Confirmar Pago de €{numericAmount.toFixed(2)} EURT ➔</span>
+              )}
+            </button>
+          )}
 
-      <footer className="mt-8 text-center text-xs text-[#A9A9A9] font-mono">
-        BARLO-VENTAS Web3 &copy; 2025 - Pasarela de Pago Descentralizada
-      </footer>
+        </div>
+      </section>
+
     </div>
   );
 }

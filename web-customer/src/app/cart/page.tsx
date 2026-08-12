@@ -43,11 +43,9 @@ export default function CartPage() {
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
-  const formatPrice = (price: bigint) => {
-    return (Number(price) / 1_000_000).toFixed(2);
-  };
-
-  const hasSufficientEurt = eurtBalance >= total;
+  const SURPLUS_BUFFER = BigInt(1_500_000); // 1.50 EURT surplus buffer (6 decimals)
+  const requiredEurt = total > BigInt(0) ? total + SURPLUS_BUFFER : BigInt(0);
+  const hasSufficientEurt = eurtBalance >= requiredEurt;
 
   // Group cart items by companyId
   const itemsByCompany = items.reduce((acc, item) => {
@@ -405,10 +403,14 @@ export default function CartPage() {
                       <span>Comisión de Transacción:</span>
                       <span className="font-mono text-[#2E8B57]">0.00 EURT (Red BARLO-VENTAS)</span>
                     </div>
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-lg font-bold text-[#333333] font-poppins">Total a Pagar</span>
+                    <div className="flex justify-between text-xs text-[#A9A9A9]">
+                      <span>Excedente Mínimo Requerido:</span>
+                      <span className="font-mono text-[#FF8800] font-bold">1.50 EURT</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-[#0077BB]/10">
+                      <span className="text-lg font-bold text-[#333333] font-poppins">Total con Excedente</span>
                       <span className="text-2xl font-black font-mono text-[#2E8B57]">
-                        €{formatPrice(total)} <span className="text-xs text-[#333333]">EURT</span>
+                        €{(Number(requiredEurt) / 1_000_000).toFixed(2)} <span className="text-xs text-[#333333]">EURT</span>
                       </span>
                     </div>
                   </div>
@@ -416,7 +418,7 @@ export default function CartPage() {
                   {!hasSufficientEurt && (
                     <div className="bg-[#FFF3E5] border border-[#FF8800]/40 rounded-xl p-3.5 space-y-2">
                       <p className="text-xs text-[#CC2233] font-bold leading-relaxed font-poppins">
-                        ⚠️ Saldo Insuficiente en EURT. Tu saldo disponible (€{formatPrice(eurtBalance)} EURT) es menor al total de la orden (€{formatPrice(total)} EURT).
+                        ⚠️ Saldo Insuficiente en EURT. Se requiere un excedente de 1.50 EURT en tu cuenta. Dispones de €{(Number(eurtBalance) / 1_000_000).toFixed(2)} EURT pero necesitas al menos €{(Number(requiredEurt) / 1_000_000).toFixed(2)} EURT.
                       </p>
                       <a
                         href="http://localhost:3003"

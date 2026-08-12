@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../../hooks/useWallet";
 import Link from "next/link";
@@ -12,7 +12,7 @@ const ECOMMERCE_ABI = [
   "function rateCompany(uint256 companyId, uint8 rating, string comment)"
 ];
 
-const ORDER_STATUS_LABELS = ["Creado", "Pagado (EURT)", "Enviado", "Entregado", "Completado"];
+const ORDER_STATUS_LABELS = ["Creado", "Pagado (Custodia EURT)", "Enviado", "Entregado & Liberado", "Completado"];
 
 export default function CustomerOrdersPage() {
   const { address, signer } = useWallet();
@@ -30,7 +30,7 @@ export default function CustomerOrdersPage() {
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
-  const fetchCustomerOrders = async () => {
+  const fetchCustomerOrders = useCallback(async () => {
     if (!address) return;
     try {
       setLoading(true);
@@ -41,8 +41,12 @@ export default function CustomerOrdersPage() {
       const orderList = Array.from(rawOrders);
       setOrders(orderList);
 
-      if (orderList.length > 0 && !selectedOrder) {
-        setSelectedOrder(orderList[0]);
+      if (orderList.length > 0) {
+        setSelectedOrder((prev: any) => {
+          if (!prev) return orderList[0];
+          const found = orderList.find((o: any) => o.invoiceId.toString() === prev.invoiceId.toString());
+          return found || orderList[0];
+        });
       }
 
       // Fetch company names
@@ -62,18 +66,19 @@ export default function CustomerOrdersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [address, signer, ecommerceAddress]);
 
   useEffect(() => {
     if (address) {
       fetchCustomerOrders();
     }
-  }, [address]);
+  }, [address, fetchCustomerOrders]);
 
+  // Confirm delivery & release funds immediately from Escrow
   const handleConfirmDelivery = async (invoiceId: string) => {
     try {
       if (!signer) {
-        alert("Por favor conecte su wallet para confirmar la entrega.");
+        alert("Por favor conecte su wallet para confirmar la entrega y liberar fondos.");
         return;
       }
 
@@ -82,15 +87,16 @@ export default function CustomerOrdersPage() {
       const tx = await contract.confirmDelivery(invoiceId);
       await tx.wait();
 
-      alert("¡Entrega confirmada con éxito!");
+      alert("¡Entrega confirmada con éxito! Se ha liberado la transferencia de fondos de custodia de inmediato a la billetera del comerciante.");
       fetchCustomerOrders();
     } catch (err: any) {
-      alert("Error confirmando entrega: " + (err?.reason || err?.message));
+      alert("Error confirmando entrega: " + (err?.reason || err?.message || String(err)));
     } finally {
       setConfirmingId(null);
     }
   };
 
+  // Submit voluntary rating
   const handleSendRating = async () => {
     try {
       if (!ratingModalCompanyId || !signer) return;
@@ -103,8 +109,35 @@ export default function CustomerOrdersPage() {
       alert("¡Gracias por enviar su valoración a la empresa!");
       setRatingModalCompanyId(null);
       setReviewComment("");
+      fetchCustomerOrders();
     } catch (err: any) {
-      alert("Error enviando valoración: " + (err?.reason || err?.message));
+      alert("Error enviando valoración: " + (err?.reason || err?.message || String(err)));
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
+
+  // Auto-default rating trigger (4/5 Stars, "Valoracion por default del cliente")
+  const handleAutoDefaultRating = async (companyIdStr: string) => {
+    try {
+      if (!signer) {
+        alert("Por favor conecte su wallet para registrar la valoración por defecto.");
+        return;
+      }
+      setSubmittingRating(true);
+
+      const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, signer);
+      const tx = await contract.rateCompany(
+        companyIdStr,
+        4,
+        "Valoracion por default del cliente"
+      );
+      await tx.wait();
+
+      alert("¡Valoración automática por defecto (4.0 ★ - Valoracion por default del cliente) registrada exitosamente en la blockchain!");
+      fetchCustomerOrders();
+    } catch (err: any) {
+      alert("Error registrando valoración por defecto: " + (err?.reason || err?.message || String(err)));
     } finally {
       setSubmittingRating(false);
     }
@@ -122,11 +155,11 @@ export default function CustomerOrdersPage() {
         <div className="glass-card p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <span className="px-3 py-1 bg-[#E6F4FA] text-[#0077BB] border border-[#0077BB]/30 text-xs font-bold rounded-full inline-block mb-2 font-poppins">
-              📦 Rastro e Historial de Pedidos
+              📦 Rastro e Historial de Pedidos (Custodia Escrow)
             </span>
             <h1 className="text-2xl font-black text-[#333333] tracking-tight font-poppins">Mis Pedidos y Despachos</h1>
             <p className="text-xs text-[#A9A9A9] mt-0.5">
-              Consulte el estado de sus órdenes en tiempo real, verifique datos de guía y confirme recepción.
+              Consulte el estado de sus órdenes, verifique datos de guía y confirme recepción para liberar los fondos en custodia.
             </p>
           </div>
 
@@ -196,7 +229,7 @@ export default function CustomerOrdersPage() {
 
                     <div className="flex justify-between items-end pt-2 border-t border-[#0077BB]/10 text-xs">
                       <div>
-                        <span className="text-[10px] text-[#A9A9A9] uppercase font-mono block">Monto Pagado</span>
+                        <span className="text-[10px] text-[#A9A9A9] uppercase font-mono block">Monto en Custodia</span>
                         <span className="font-mono font-black text-[#2E8B57] text-base">
                           €{formatPrice(ord.totalAmount)} EURT
                         </span>
@@ -245,18 +278,20 @@ export default function CustomerOrdersPage() {
                     </span>
                   </div>
 
-                  {/* REQUERIMIENTO 4: MOSTRAR DATOS IMPORTANTES DE ENVÍO CUANDO STATUS ES ENVIADO */}
+                  {/* MOSTRAR DATOS IMPORTANTES DE ENVÍO Y LIBERACIÓN */}
                   {(Number(selectedOrder.status) === 2 || Number(selectedOrder.status) === 3 || selectedOrder.trackingNumber) && (
                     <div className="bg-[#E6F4FA] border border-[#0077BB]/30 rounded-2xl p-5 space-y-3">
                       <div className="flex items-center gap-2 text-[#0077BB] font-bold text-sm font-poppins">
                         <span>🚚</span>
-                        <span>Información y Seguimiento del Envío</span>
+                        <span>Información de Envío y Fondos de Custodia</span>
                       </div>
 
                       <div className="bg-white rounded-xl p-4 border border-[#0077BB]/20 text-xs space-y-2 font-mono">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                          <span className="text-[#A9A9A9]">Estado de Entrega:</span>
-                          <span className="font-bold text-[#2E8B57]">En Tránsito a Domicilio</span>
+                          <span className="text-[#A9A9A9]">Estado de Custodia:</span>
+                          <span className="font-bold text-[#2E8B57]">
+                            {Number(selectedOrder.status) === 3 ? "✓ Fondos Liberados a Empresa" : "⏳ Retenido en Custodia Escrow"}
+                          </span>
                         </div>
                         <div>
                           <span className="text-[#A9A9A9] block">Datos de Transporte y Guía:</span>
@@ -264,21 +299,52 @@ export default function CustomerOrdersPage() {
                             {selectedOrder.trackingNumber || "Despacho Express BARLO-VENTAS (Tracking #894726)"}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center pt-1 text-[11px]">
-                          <span className="text-[#A9A9A9]">Tiempo Estimado:</span>
-                          <span className="text-[#333333] font-bold">15 - 30 minutos</span>
-                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Detalle Financiero y Blockchain */}
+                  {/* SECCIÓN DE VALORACIÓN (INMEDIATA O AUTO-DEFAULT DE 24H) */}
+                  {(Number(selectedOrder.status) === 2 || Number(selectedOrder.status) === 3) && (
+                    <div className="bg-[#FFF3E5] border border-[#FF8800]/40 rounded-2xl p-5 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-[#FF8800] uppercase tracking-wider font-poppins">
+                          ⭐ Reputación y Valoración del Cliente
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF8800] text-white font-mono">
+                          Ventana 24 Horas
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-[#333333] leading-relaxed">
+                        Puede emitir su calificación en estrellas inmediatamente. Si transcurren 24h sin valoración manual, el sistema calificará automáticamente con <strong className="text-[#FF8800]">4/5 estrellas</strong> y el comentario: <em className="font-mono text-[#0077BB]">&quot;Valoracion por default del cliente&quot;</em>.
+                      </p>
+
+                      <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                        <button
+                          onClick={() => setRatingModalCompanyId(selectedOrder.companyId.toString())}
+                          className="px-4 py-2.5 bg-[#FF8800] hover:bg-[#E07700] text-white font-bold text-xs rounded-xl shadow-sm transition font-poppins flex-1 text-center"
+                        >
+                          ⭐ Valorar Empresa Ahora
+                        </button>
+
+                        <button
+                          onClick={() => handleAutoDefaultRating(selectedOrder.companyId.toString())}
+                          disabled={submittingRating}
+                          className="px-4 py-2.5 bg-white hover:bg-slate-50 text-[#0077BB] border border-[#0077BB]/30 font-bold text-xs rounded-xl shadow-xs transition font-poppins flex-1 text-center disabled:opacity-50"
+                        >
+                          ⚡ Aplicar Valoración Automática (24h)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Resumen Financiero y Blockchain */}
                   <div className="space-y-3 text-xs">
-                    <h3 className="font-bold text-[#333333] font-poppins">Resumen Financiero</h3>
+                    <h3 className="font-bold text-[#333333] font-poppins">Resumen Financiero Escrow</h3>
 
                     <div className="bg-white/80 rounded-2xl p-4 border border-[#0077BB]/15 space-y-2 font-mono">
                       <div className="flex justify-between">
-                        <span className="text-[#A9A9A9]">Subtotal Productos:</span>
+                        <span className="text-[#A9A9A9]">Monto en Custodia:</span>
                         <span className="text-[#333333]">€{formatPrice(selectedOrder.totalAmount)} EURT</span>
                       </div>
                       <div className="flex justify-between">
@@ -286,7 +352,7 @@ export default function CustomerOrdersPage() {
                         <span className="text-[#2E8B57]">0.00 EURT</span>
                       </div>
                       <div className="flex justify-between border-t border-slate-100 pt-2 font-black text-sm text-[#2E8B57]">
-                        <span>Total Pagado:</span>
+                        <span>Total Custodiado:</span>
                         <span>€{formatPrice(selectedOrder.totalAmount)} EURT</span>
                       </div>
                     </div>
@@ -299,27 +365,23 @@ export default function CustomerOrdersPage() {
                     </div>
                   </div>
 
-                  {/* Botones de Acción */}
-                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                    {Number(selectedOrder.status) === 2 && (
+                  {/* Botón de Firma de Entrega y Liberación Inmediata de Fondos */}
+                  {Number(selectedOrder.status) === 2 && (
+                    <div className="pt-2">
                       <button
                         onClick={() => handleConfirmDelivery(selectedOrder.invoiceId.toString())}
                         disabled={confirmingId === selectedOrder.invoiceId.toString()}
-                        className="btn-cacao-pulse w-full text-xs font-poppins uppercase tracking-wider text-center"
+                        className="btn-cacao-pulse w-full text-xs font-poppins uppercase tracking-wider text-center flex items-center justify-center gap-2 disabled:opacity-50"
                       >
-                        {confirmingId === selectedOrder.invoiceId.toString() ? "Confirmando..." : "Confirmar Entrega Recibida"}
+                        <span>✍️</span>
+                        <span>
+                          {confirmingId === selectedOrder.invoiceId.toString()
+                            ? "Firmando y Liberando Fondos..."
+                            : "Firmar Entrega Recibida (Liberar Fondos Inmediatamente)"}
+                        </span>
                       </button>
-                    )}
-
-                    {(Number(selectedOrder.status) === 2 || Number(selectedOrder.status) === 3) && (
-                      <button
-                        onClick={() => setRatingModalCompanyId(selectedOrder.companyId.toString())}
-                        className="px-4 py-3 bg-white hover:bg-slate-50 text-[#FF8800] border border-[#FF8800]/40 font-bold text-xs rounded-full shadow-sm transition font-poppins w-full text-center"
-                      >
-                        ⭐ Valorar Empresa
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                 </div>
               ) : (

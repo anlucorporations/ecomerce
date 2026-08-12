@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
+import { StripeTopupModal } from '@/components/stripe-topup-modal';
 
 interface Invoice {
   invoiceId: bigint;
@@ -31,56 +32,59 @@ export default function UserFinancePage() {
   const [companyNames, setCompanyNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
+  // Stripe Modal State
+  const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
+
   const formatPrice = (price: bigint) => {
     return (Number(price) / 1_000_000).toFixed(2);
   };
 
-  useEffect(() => {
-    const fetchFinancesData = async () => {
-      if (!address) return;
+  const fetchFinancesData = useCallback(async () => {
+    if (!address) return;
+    try {
+      setLoading(true);
+      const rpcProvider = provider || new ethers.JsonRpcProvider('http://localhost:8545');
+
+      const rawEth = await rpcProvider.getBalance(address);
+      setEthBalance((Number(rawEth) / 1e18).toFixed(4));
+
+      const tokenContract = new ethers.Contract(
+        euroTokenAddress,
+        ['function balanceOf(address account) view returns (uint256)'],
+        rpcProvider
+      );
+      const rawEurt = await tokenContract.balanceOf(address);
+      setEurtBalance((Number(rawEurt) / 1e6).toFixed(2));
+
+      const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
+
       try {
-        setLoading(true);
-        const rpcProvider = provider || new ethers.JsonRpcProvider('http://localhost:8545');
+        const comps = await contract.getAllCompanies();
+        const compMap: Record<string, string> = {};
+        Array.from(comps).forEach((c: any) => {
+          compMap[c.companyId.toString()] = c.name;
+        });
+        setCompanyNames(compMap);
 
-        const rawEth = await rpcProvider.getBalance(address);
-        setEthBalance((Number(rawEth) / 1e18).toFixed(4));
-
-        const tokenContract = new ethers.Contract(
-          euroTokenAddress,
-          ['function balanceOf(address account) view returns (uint256)'],
-          rpcProvider
+        const allInv = await contract.getCompanyInvoices(BigInt(1));
+        const userInvs = Array.from(allInv).filter(
+          (inv: any) => inv.customerAddress.toLowerCase() === address.toLowerCase()
         );
-        const rawEurt = await tokenContract.balanceOf(address);
-        setEurtBalance((Number(rawEurt) / 1e6).toFixed(2));
-
-        const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
-
-        try {
-          const comps = await contract.getAllCompanies();
-          const compMap: Record<string, string> = {};
-          Array.from(comps).forEach((c: any) => {
-            compMap[c.companyId.toString()] = c.name;
-          });
-          setCompanyNames(compMap);
-
-          const allInv = await contract.getCompanyInvoices(BigInt(1));
-          const userInvs = Array.from(allInv).filter(
-            (inv: any) => inv.customerAddress.toLowerCase() === address.toLowerCase()
-          );
-          setInvoices(userInvs as Invoice[]);
-        } catch (e) {
-          console.warn("Could not fetch invoices/companies:", e);
-        }
-
+        setInvoices(userInvs as Invoice[]);
       } catch (e) {
-        console.error('Error fetching finance data:', e);
-      } finally {
-        setLoading(false);
+        console.warn("Could not fetch invoices/companies:", e);
       }
-    };
 
-    fetchFinancesData();
+    } catch (e) {
+      console.error('Error fetching finance data:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [address, provider, ecommerceAddress, euroTokenAddress]);
+
+  useEffect(() => {
+    fetchFinancesData();
+  }, [fetchFinancesData]);
 
   const totalSpentEURT = invoices
     .filter((i) => i.isPaid)
@@ -115,7 +119,7 @@ export default function UserFinancePage() {
     <div className="min-h-screen bg-[#F5F5F0] py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto space-y-8">
         
-        {/* Header */}
+        {/* Header Banner */}
         <div className="glass-card p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <span className="px-3 py-1 bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30 text-xs font-bold rounded-full inline-block mb-2 font-poppins">
@@ -123,18 +127,51 @@ export default function UserFinancePage() {
             </span>
             <h1 className="text-2xl font-black text-[#333333] tracking-tight font-poppins">Finanzas y Movimientos EURT</h1>
             <p className="text-xs text-[#A9A9A9] mt-0.5">
-              Auditoría transparente de saldos, facturación electrónica y transacciones en blockchain.
+              Auditoría transparente de saldos, facturación electrónica y recarga instantánea con Stripe.
             </p>
           </div>
 
-          <a
-            href="http://localhost:3003"
-            target="_blank"
-            rel="noreferrer"
-            className="btn-cacao-pulse text-xs font-poppins uppercase tracking-wider text-center"
+          <button
+            onClick={() => setIsStripeModalOpen(true)}
+            className="btn-cacao-pulse text-xs font-poppins uppercase tracking-wider text-center flex items-center gap-2"
           >
-            💳 Recargar EURT con Stripe ↗
-          </a>
+            <span>💳</span>
+            <span>Recargar EURT con Stripe</span>
+          </button>
+        </div>
+
+        {/* RECARGA ESTRATÉGICA CON STRIPE (PANEL INTEGRADO) */}
+        <div className="glass-card p-6 border-2 border-[#FF8800]/30 shadow-md bg-gradient-to-r from-white via-[#FFF3E5]/40 to-white flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-[#FF8800] text-white uppercase font-poppins">
+                STRIPE ON-RAMP
+              </span>
+              <span className="text-xs font-bold text-[#2E8B57] font-mono">1 EUR = 1.00 EURT</span>
+            </div>
+            <h2 className="text-lg font-black text-[#333333] font-poppins">Recarga Instantánea de EuroToken</h2>
+            <p className="text-xs text-[#A9A9A9] max-w-lg leading-relaxed">
+              Compre EuroTokens directamente a su wallet con tarjeta de crédito/débito bajo cumplimiento PCI-DSS sin comisiones de red.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {['10', '50', '100'].map((amt) => (
+              <button
+                key={amt}
+                onClick={() => setIsStripeModalOpen(true)}
+                className="px-4 py-2.5 bg-white hover:bg-slate-50 text-[#333333] border border-[#0077BB]/20 hover:border-[#0077BB] font-mono font-bold text-xs rounded-xl shadow-xs transition"
+              >
+                +€{amt}
+              </button>
+            ))}
+            <button
+              onClick={() => setIsStripeModalOpen(true)}
+              className="btn-cacao-pulse text-xs font-poppins"
+            >
+              Comprar Ahora ➔
+            </button>
+          </div>
         </div>
 
         {/* FINANCIAL SUMMARY CARDS */}
@@ -260,6 +297,14 @@ export default function UserFinancePage() {
         </div>
 
       </div>
+
+      {/* STRIPE TOP-UP MODAL */}
+      <StripeTopupModal
+        isOpen={isStripeModalOpen}
+        onClose={() => setIsStripeModalOpen(false)}
+        userAddress={address}
+        onSuccess={fetchFinancesData}
+      />
     </div>
   );
 }

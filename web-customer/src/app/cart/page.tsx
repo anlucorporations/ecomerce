@@ -6,6 +6,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { useCart } from '@/hooks/useCart';
 import { ethers } from 'ethers';
 import Link from 'next/link';
+import { StripeTopupModal } from '@/components/stripe-topup-modal';
 
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
@@ -32,6 +33,9 @@ export default function CartPage() {
 
   const [processing, setProcessing] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<string>('');
+
+  // Stripe Top-up Modal State
+  const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
 
   // Customer Registration Modal State
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -420,14 +424,13 @@ export default function CartPage() {
                       <p className="text-xs text-[#CC2233] font-bold leading-relaxed font-poppins">
                         ⚠️ Saldo Insuficiente en EURT. Se requiere un excedente de 1.50 EURT en tu cuenta. Dispones de €{(Number(eurtBalance) / 1_000_000).toFixed(2)} EURT pero necesitas al menos €{(Number(requiredEurt) / 1_000_000).toFixed(2)} EURT.
                       </p>
-                      <a
-                        href="http://localhost:3003"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => setIsStripeModalOpen(true)}
                         className="btn-cacao-pulse w-full text-xs font-poppins uppercase tracking-wider text-center block"
                       >
-                        💳 Recargar EURT con Stripe (€3003) ↗
-                      </a>
+                        💳 Recargar EURT con Stripe Ahora ➔
+                      </button>
                     </div>
                   )}
 
@@ -532,6 +535,14 @@ export default function CartPage() {
           </div>
         </div>
       )}
+
+      {/* STRIPE TOP-UP MODAL */}
+      <StripeTopupModal
+        isOpen={isStripeModalOpen}
+        onClose={() => setIsStripeModalOpen(false)}
+        userAddress={address}
+        onSuccess={refreshBalance}
+      />
     </div>
   );
 }

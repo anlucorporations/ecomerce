@@ -165,21 +165,9 @@ export function useCart(
     [ecommerceAddress, loadCart]
   );
 
-  // Add to cart
+  // Add to cart (100% Off-Chain Zero-Gas)
   const addToCart = useCallback(
     async (productId: bigint, quantity: bigint) => {
-      if (ecommerce && address) {
-        try {
-          const tx = await ecommerce.addToCart(productId, quantity);
-          await tx.wait();
-          await loadCart();
-          return;
-        } catch (e) {
-          console.warn("Contract addToCart fallback to local:", e);
-        }
-      }
-
-      // LocalStorage add fallback
       if (typeof window !== 'undefined') {
         const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
@@ -205,7 +193,7 @@ export function useCart(
         await loadCart();
       }
     },
-    [ecommerce, address, provider, ecommerceAddress, loadCart]
+    [provider, ecommerceAddress, loadCart]
   );
 
   // Remove from cart

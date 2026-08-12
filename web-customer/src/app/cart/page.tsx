@@ -394,50 +394,66 @@ export default function CartPage() {
                 )}
               </div>
 
-              {/* Order Total & Checkout Button */}
-              <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-6">
-                <div className="border-b border-slate-700 pb-4 space-y-2">
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>Subtotal Productos:</span>
-                    <span className="font-mono text-slate-200">€{formatPrice(total)} EURT</span>
+                {/* Order Total & Checkout Button */}
+                <div className="glass-card p-6 shadow-xl space-y-6">
+                  <div className="border-b border-[#0077BB]/10 pb-4 space-y-2">
+                    <div className="flex justify-between text-xs text-[#A9A9A9]">
+                      <span>Subtotal Productos:</span>
+                      <span className="font-mono text-[#333333]">€{formatPrice(total)} EURT</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-[#A9A9A9]">
+                      <span>Comisión de Transacción:</span>
+                      <span className="font-mono text-[#2E8B57]">0.00 EURT (Red BARLO-VENTAS)</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-lg font-bold text-[#333333] font-poppins">Total a Pagar</span>
+                      <span className="text-2xl font-black font-mono text-[#2E8B57]">
+                        €{formatPrice(total)} <span className="text-xs text-[#333333]">EURT</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>Comisión de Transacción:</span>
-                    <span className="font-mono text-emerald-400">0.00 EURT (Red Demo)</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="text-lg font-bold text-white">Total a Pagar</span>
-                    <span className="text-2xl font-black font-mono text-emerald-400">
-                      €{formatPrice(total)} <span className="text-xs text-slate-400">EURT</span>
-                    </span>
+
+                  {!hasSufficientEurt && (
+                    <div className="bg-[#FFF3E5] border border-[#FF8800]/40 rounded-xl p-3.5 space-y-2">
+                      <p className="text-xs text-[#CC2233] font-bold leading-relaxed font-poppins">
+                        ⚠️ Saldo Insuficiente en EURT. Tu saldo disponible (€{formatPrice(eurtBalance)} EURT) es menor al total de la orden (€{formatPrice(total)} EURT).
+                      </p>
+                      <a
+                        href="http://localhost:3003"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-cacao-pulse w-full text-xs font-poppins uppercase tracking-wider text-center block"
+                      >
+                        💳 Recargar EURT con Stripe (€3003) ↗
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Progress Feedback Indicator */}
+                  {processing && (
+                    <div className="bg-[#E6F4FA] border border-[#0077BB]/30 rounded-xl p-3.5 text-center space-y-2">
+                      <div className="inline-block w-5 h-5 border-2 border-[#0077BB] border-t-transparent rounded-full animate-spin" />
+                      <p className="text-xs font-bold text-[#0077BB] font-poppins">{checkoutStep}</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleCheckout}
+                      disabled={processing || !hasSufficientEurt}
+                      className="w-full btn-cacao-pulse text-sm font-poppins uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:animation-none text-center"
+                    >
+                      {processing ? 'Procesando Transacción...' : 'Pagar Factura en Pasarela Web3 ➔'}
+                    </button>
+
+                    <button
+                      onClick={clearCart}
+                      className="w-full bg-white hover:bg-slate-100 text-[#A9A9A9] hover:text-[#CC2233] px-6 py-2.5 rounded-xl text-xs font-bold border border-slate-200 transition font-poppins"
+                    >
+                      Vaciar Carrito
+                    </button>
                   </div>
                 </div>
-
-                {/* Progress Feedback Indicator */}
-                {processing && (
-                  <div className="bg-indigo-950/60 border border-indigo-500/40 rounded-xl p-3.5 text-center space-y-2">
-                    <div className="inline-block w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-xs font-semibold text-indigo-300">{checkoutStep}</p>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <button
-                    onClick={handleCheckout}
-                    disabled={processing}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-6 py-4 rounded-xl disabled:opacity-50 font-bold text-base shadow-xl shadow-indigo-600/30 transition transform active:scale-98"
-                  >
-                    {processing ? 'Procesando Transacción...' : 'Proceed to Payment (Pasarela Web3)'}
-                  </button>
-
-                  <button
-                    onClick={clearCart}
-                    className="w-full bg-slate-900 hover:bg-slate-700 text-slate-400 hover:text-slate-200 px-6 py-2.5 rounded-xl text-xs font-semibold border border-slate-700 transition"
-                  >
-                    Vaciar Carrito
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         )}

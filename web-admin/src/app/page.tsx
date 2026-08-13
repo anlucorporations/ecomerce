@@ -36,7 +36,7 @@ export default function DashboardHome() {
   const [contactForm, setContactForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [contactSent, setContactSent] = useState(false);
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
   useEffect(() => {
     async function loadDashboardData() {

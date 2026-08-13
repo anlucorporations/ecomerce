@@ -40,7 +40,7 @@ export default function FinancePage() {
   const [inventoryMarketCapital, setInventoryMarketCapital] = useState<number>(0);
   const [estimatedMarginEur, setEstimatedMarginEur] = useState<number>(0);
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
   useEffect(() => {

@@ -131,16 +131,18 @@ export default function UserFinancePage() {
             </p>
           </div>
 
-          <button
-            onClick={() => setIsStripeModalOpen(true)}
+          <a
+            href="http://localhost:3003"
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn-cacao-pulse text-xs font-poppins uppercase tracking-wider text-center flex items-center gap-2"
           >
             <span>💳</span>
-            <span>Recargar EURT con Stripe</span>
-          </button>
+            <span>Comprar EURT con Stripe (Puerto 3003) ↗</span>
+          </a>
         </div>
 
-        {/* RECARGA ESTRATÉGICA CON STRIPE (FORMULARIO FLOTANTE) */}
+        {/* RECARGA ESTRATÉGICA CON STRIPE (NUEVA PESTAÑA) */}
         <div className="glass-card p-6 border-2 border-[#FF8800]/30 shadow-md bg-gradient-to-r from-white via-[#FFF3E5]/40 to-white flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -151,26 +153,30 @@ export default function UserFinancePage() {
             </div>
             <h2 className="text-lg font-black text-[#333333] font-poppins">Recarga Instantánea de EuroToken</h2>
             <p className="text-xs text-[#A9A9A9] max-w-lg leading-relaxed">
-              Compre EuroTokens directamente a su wallet mediante formulario flotante con tarjeta de crédito/débito bajo cumplimiento PCI-DSS.
+              Compre EuroTokens directamente a su wallet en una nueva pestaña con tarjeta de crédito/débito bajo cumplimiento PCI-DSS.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
             {['10', '50', '100'].map((amt) => (
-              <button
+              <a
                 key={amt}
-                onClick={() => setIsStripeModalOpen(true)}
+                href="http://localhost:3003"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="px-4 py-2.5 bg-white hover:bg-slate-50 text-[#333333] border border-[#0077BB]/20 hover:border-[#0077BB] font-mono font-bold text-xs rounded-xl shadow-xs transition"
               >
                 +€{amt}
-              </button>
+              </a>
             ))}
-            <button
-              onClick={() => setIsStripeModalOpen(true)}
+            <a
+              href="http://localhost:3003"
+              target="_blank"
+              rel="noopener noreferrer"
               className="btn-cacao-pulse text-xs font-poppins"
             >
-              Comprar Ahora ➔
-            </button>
+              Comprar en Nueva Pestaña ↗
+            </a>
           </div>
         </div>
 

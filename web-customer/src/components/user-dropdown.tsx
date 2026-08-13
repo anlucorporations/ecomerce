@@ -119,15 +119,15 @@ export function UserDropdown() {
               <span className="text-[10px] font-bold uppercase text-[#0077BB] block tracking-wider font-poppins">
                 Saldos en Billetera
               </span>
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  setIsStripeModalOpen(true);
-                }}
-                className="text-[10px] font-bold text-[#FF8800] hover:underline font-poppins"
+              <a
+                href="http://localhost:3003"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsOpen(false)}
+                className="text-[10px] font-bold text-[#FF8800] hover:underline font-poppins flex items-center gap-0.5"
               >
-                + Recargar
-              </button>
+                + Recargar ↗
+              </a>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -141,16 +141,16 @@ export function UserDropdown() {
               </div>
             </div>
 
-            {/* Direct Stripe Button in Dropdown (Floating Modal) */}
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                setIsStripeModalOpen(true);
-              }}
+            {/* Direct Stripe Button in Dropdown (New Tab) */}
+            <a
+              href="http://localhost:3003"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setIsOpen(false)}
               className="w-full py-2 bg-[#FFF3E5] hover:bg-[#FFE8CC] text-[#FF8800] border border-[#FF8800]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 font-poppins"
             >
-              <span>💳</span> Recargar EURT con Stripe ➔
-            </button>
+              <span>💳</span> Recargar EURT con Stripe (Puerto 3003) ↗
+            </a>
           </div>
 
           {/* Cart Summary */}

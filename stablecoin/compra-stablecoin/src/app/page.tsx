@@ -14,9 +14,9 @@ export default function CompraStablecoinPage() {
   // Auto-detect wallet address if available
   useEffect(() => {
     async function autoDetect() {
-      if (typeof window !== "undefined" && window.ethereum) {
+      if (typeof window !== "undefined" && (window as any).ethereum) {
         try {
-          const provider = new ethers.BrowserProvider(window.ethereum as any);
+          const provider = new ethers.BrowserProvider((window as any).ethereum);
           const accounts = await provider.send("eth_accounts", []);
           if (accounts.length > 0) {
             setWalletAddress(accounts[0]);
@@ -31,11 +31,11 @@ export default function CompraStablecoinPage() {
 
   const connectWallet = async () => {
     try {
-      if (typeof window === "undefined" || !window.ethereum) {
+      if (typeof window === "undefined" || !(window as any).ethereum) {
         alert("Instale la extensión MetaMask para detectar su dirección automáticamente.");
         return;
       }
-      const provider = new ethers.BrowserProvider(window.ethereum as any);
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
       const accounts = await provider.send("eth_requestAccounts", []);
       if (accounts.length > 0) {
         setWalletAddress(accounts[0]);

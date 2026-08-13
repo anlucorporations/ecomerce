@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
 import { StripeTopupModal } from '@/components/stripe-topup-modal';
+import Link from 'next/link';
 
 interface Invoice {
   invoiceId: bigint;

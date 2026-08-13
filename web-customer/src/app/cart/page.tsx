@@ -16,8 +16,13 @@ const ECOMMERCE_ABI = [
   "function getCompany(uint256 _companyId) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))"
 ];
 
+const formatPrice = (price: bigint | number | string) => {
+  const num = typeof price === 'bigint' ? Number(price) : Number(price || 0);
+  return (num / 1000000).toFixed(2);
+};
+
 export default function CartPage() {
-  const { provider, signer, chainId, address, isConnected, connect, wallets } = useWallet();
+  const { provider, signer, chainId, address, isConnected, connect } = useWallet();
   const ecommerce = useContract('ecommerce', provider, signer, chainId);
   const {
     items,
@@ -28,14 +33,18 @@ export default function CartPage() {
     updateQuantity,
     clearCart,
     syncGuestCartToContract,
-    refreshBalance
+    refreshBalance,
   } = useCart(provider, signer, chainId, address);
 
   const [processing, setProcessing] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<string>('');
-
-  // Stripe Top-up Modal State
   const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
+  const [isKYCModalOpen, setIsKYCModalOpen] = useState(false);
+  const [kycForm, setKycForm] = useState({
+    name: '',
+    contactEmail: '',
+    shippingAddress: '',
+  });
 
   // Customer Registration Modal State
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -72,16 +81,11 @@ export default function CartPage() {
     let activeAddress = address;
 
     if (!activeAddress) {
-      if (wallets.length > 0) {
-        try {
-          await connect(wallets[0]);
-          return;
-        } catch {
-          alert('Por favor conecta tu billetera MetaMask para procesar la compra.');
-          return;
-        }
-      } else {
-        alert('Por favor conecta tu billetera Web3 para proceder.');
+      try {
+        await connect();
+        return;
+      } catch {
+        alert('Por favor conecta tu billetera MetaMask para procesar la compra.');
         return;
       }
     }

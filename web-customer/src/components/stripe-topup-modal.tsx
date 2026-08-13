@@ -81,7 +81,7 @@ export function StripeTopupModal({
       } catch {
         // Direct local node fallback for testing
         const provider = new ethers.JsonRpcProvider('http://localhost:8545');
-        const signer = await provider.getSigner(0);
+        const signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         const tokenContract = new ethers.Contract(
           euroTokenAddress,
           ['function mint(address to, uint256 amount)'],

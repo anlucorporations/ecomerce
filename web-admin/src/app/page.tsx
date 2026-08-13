@@ -43,29 +43,12 @@ export default function DashboardHome() {
       try {
         setLoading(true);
         const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
-
-        // Pre-flight check if contract is deployed on Anvil node
-        const code = await rpcProvider.getCode(ecommerceAddress).catch(() => "0x");
-        if (!code || code === "0x" || code === "0x0") {
-          console.warn(`[web-admin] Contrato no desplegado en ${ecommerceAddress}. Cargando datos fallback.`);
-          setProducts([
-            { productId: BigInt(1), companyId: BigInt(1), name: "Café Gourmet Cacao Sol", price: BigInt(18500000), stock: BigInt(50), isActive: true },
-            { productId: BigInt(2), companyId: BigInt(1), name: "Cacao Puro Verde Manglar", price: BigInt(24000000), stock: BigInt(30), isActive: true }
-          ]);
-          setInvoices([
-            { invoiceId: BigInt(101), companyId: BigInt(1), customerAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", totalAmount: BigInt(42500000), status: 1 }
-          ]);
-          setCompanyName("Empresa Cacao Sol S.A.");
-          setStatusCounts({ 0: 0, 1: 1, 2: 0, 3: 0, 4: 0 });
-          return;
-        }
-
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
         // Fetch registered companies for landing page
         try {
           const comps = await contract.getAllCompanies();
-          setPublicCompanies(Array.from(comps));
+          setPublicCompanies(comps);
         } catch (e) {
           console.warn("Error fetching public companies for landing page:", e);
         }
@@ -84,7 +67,7 @@ export default function DashboardHome() {
         if (address) {
           try {
             const allCompanies = await contract.getAllCompanies();
-            const myCompany = Array.from(allCompanies).find((c: any) => c.companyAddress.toLowerCase() === address.toLowerCase());
+            const myCompany = allCompanies.find((c: any) => c.companyAddress.toLowerCase() === address.toLowerCase());
             if (myCompany) {
               targetCompanyId = myCompany.companyId;
               setCompanyName(myCompany.name);
@@ -96,35 +79,12 @@ export default function DashboardHome() {
         setCompanyId(targetCompanyId.toString());
 
         // Fetch company products
-        try {
-          const rawProducts = await contract.getCompanyProducts(targetCompanyId);
-          setProducts(Array.from(rawProducts));
-        } catch (prodErr) {
-          console.warn("Error fetching products, using fallback:", prodErr);
-          setProducts([
-            { productId: BigInt(1), companyId: BigInt(1), name: "Café Gourmet Cacao Sol", price: BigInt(18500000), stock: BigInt(50), isActive: true }
-          ]);
-        }
+        const rawProducts = await contract.getCompanyProducts(targetCompanyId);
+        setProducts(rawProducts);
 
         // Fetch company invoices / orders
-        try {
-          const rawInvoices = await contract.getCompanyInvoices(targetCompanyId);
-          setInvoices(Array.from(rawInvoices));
-
-          const counts: { [key: number]: number } = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
-          Array.from(rawInvoices).forEach((inv: any) => {
-            const st = Number(inv.status);
-            counts[st] = (counts[st] || 0) + 1;
-          });
-
-          setStatusCounts(counts);
-        } catch (invErr) {
-          console.warn("Error fetching invoices, using fallback:", invErr);
-          setInvoices([
-            { invoiceId: BigInt(101), companyId: BigInt(1), customerAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", totalAmount: BigInt(42500000), status: 1 }
-          ]);
-          setStatusCounts({ 0: 0, 1: 1, 2: 0, 3: 0, 4: 0 });
-        }
+        const rawInvoices = await contract.getCompanyInvoices(targetCompanyId);
+        setInvoices(rawInvoices);
 
         // Fetch company rating
         try {
@@ -137,8 +97,16 @@ export default function DashboardHome() {
           setCompanyRating({ average: 5, count: 0 });
         }
 
+        // Compute status breakdown
+        const counts: { [key: number]: number } = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+        rawInvoices.forEach((inv: any) => {
+          const st = Number(inv.status);
+          counts[st] = (counts[st] || 0) + 1;
+        });
+
+        setStatusCounts(counts);
       } catch (err) {
-        console.warn("Error loading dashboard metrics:", err);
+        console.error("Error loading dashboard metrics:", err);
       } finally {
         setLoading(false);
       }

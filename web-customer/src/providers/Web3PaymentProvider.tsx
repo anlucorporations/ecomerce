@@ -28,6 +28,10 @@ const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'http://localhost:8545';
 
 const EURO_TOKEN_ABI = [
   'function balanceOf(address account) view returns (uint256)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
+  'function nonces(address owner) view returns (uint256)',
+  'function DOMAIN_SEPARATOR() view returns (bytes32)',
   'function decimals() view returns (uint8)',
 ];
 

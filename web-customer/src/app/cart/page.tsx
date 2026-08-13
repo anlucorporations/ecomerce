@@ -424,14 +424,13 @@ export default function CartPage() {
                       <p className="text-xs text-[#CC2233] font-bold leading-relaxed font-poppins">
                         ⚠️ Saldo Insuficiente en EURT. Se requiere un excedente de 1.50 EURT en tu cuenta. Dispones de €{(Number(eurtBalance) / 1_000_000).toFixed(2)} EURT pero necesitas al menos €{(Number(requiredEurt) / 1_000_000).toFixed(2)} EURT.
                       </p>
-                      <a
-                        href="http://localhost:3003"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => setIsStripeModalOpen(true)}
                         className="btn-cacao-pulse w-full text-xs font-poppins uppercase tracking-wider text-center block"
                       >
-                        💳 Recargar EURT con Stripe en Nueva Pestaña (Puerto 3003) ↗
-                      </a>
+                        💳 Recargar EURT con Stripe (Formulario Flotante) ➔
+                      </button>
                     </div>
                   )}
 

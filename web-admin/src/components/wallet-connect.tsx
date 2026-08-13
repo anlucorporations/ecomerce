@@ -35,11 +35,20 @@ export function WalletConnect() {
     async function fetchWalletDetails() {
       if (!address) return;
       try {
-        const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+        const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
 
-        // 1. Fetch ETH Balance
-        const rawEth = await rpcProvider.getBalance(address);
-        setEthBalance(parseFloat(ethers.formatEther(rawEth)).toFixed(4));
+        // 1. Fetch ETH Balance safely
+        try {
+          const rawEth = await rpcProvider.getBalance(address);
+          setEthBalance(parseFloat(ethers.formatEther(rawEth)).toFixed(4));
+        } catch {
+          if (provider) {
+            try {
+              const rawEth = await provider.getBalance(address);
+              setEthBalance(parseFloat(ethers.formatEther(rawEth)).toFixed(4));
+            } catch {}
+          }
+        }
 
         // 2. Fetch EURT Balance
         try {
@@ -47,8 +56,14 @@ export function WalletConnect() {
           const rawEurt = await euroToken.balanceOf(address);
           setEurtBalance((Number(rawEurt) / 1000000).toFixed(2));
         } catch (e) {
-          console.warn("Could not fetch EURT balance in admin navbar:", e);
-          setEurtBalance("0.00");
+          // fallback to provider if needed
+          if (provider) {
+            try {
+              const euroToken = new ethers.Contract(euroTokenAddress, EUROTOKEN_ABI, provider);
+              const rawEurt = await euroToken.balanceOf(address);
+              setEurtBalance((Number(rawEurt) / 1000000).toFixed(2));
+            } catch {}
+          }
         }
 
         // 3. Fetch Company Name
@@ -68,7 +83,7 @@ export function WalletConnect() {
           }
         }
       } catch (err) {
-        console.error("Error loading wallet dropdown details:", err);
+        console.warn("Wallet details update notice:", err);
       }
     }
 

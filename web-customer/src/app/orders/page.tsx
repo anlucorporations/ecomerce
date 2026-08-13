@@ -16,14 +16,7 @@ const ECOMMERCE_ABI = [
 const ORDER_STATUS_LABELS = ["Creado", "Pagado (Custodia EURT)", "Enviado", "Entregado & Liberado", "Completado"];
 
 export default function CustomerOrdersPage() {
-  const router = useRouter();
-  const { address, signer, isConnected } = useWallet();
-
-  useEffect(() => {
-    if (!isConnected && !address && typeof window !== "undefined") {
-      router.push("/");
-    }
-  }, [isConnected, address, router]);
+  const { address, signer } = useWallet();
   const [orders, setOrders] = useState<any[]>([]);
   const [companies, setCompanies] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<boolean>(false);
@@ -79,6 +72,8 @@ export default function CustomerOrdersPage() {
   useEffect(() => {
     if (address) {
       fetchCustomerOrders();
+      const interval = setInterval(fetchCustomerOrders, 5000);
+      return () => clearInterval(interval);
     }
   }, [address, fetchCustomerOrders]);
 

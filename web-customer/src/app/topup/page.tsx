@@ -7,14 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 export default function TopupPage() {
-  const router = useRouter();
   const { provider, address, isConnected, connect } = useWallet();
-
-  useEffect(() => {
-    if (!isConnected && !address && typeof window !== 'undefined') {
-      router.push('/');
-    }
-  }, [isConnected, address, router]);
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 
   const [amount, setAmount] = useState<string>('50');
@@ -205,6 +198,31 @@ export default function TopupPage() {
                 BARLO-VENTAS Web3 &bull; Saldo Disponible Actual: €{eurtBalance} EURT
               </p>
             </div>
+
+            {/* Wallet Connection Status Banner */}
+            {!isConnected || !address ? (
+              <div className="bg-[#E6F4FA] border border-[#0077BB]/30 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🔌</span>
+                  <div className="text-left">
+                    <span className="text-xs font-bold text-[#0077BB] block font-poppins">Billetera Web3 No Conectada</span>
+                    <span className="text-[11px] text-[#333333]">Conecte su billetera MetaMask para autollenar la dirección de destino.</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => connect()}
+                  className="btn-cacao-pulse px-4 py-2 text-xs font-bold font-poppins shrink-0"
+                >
+                  Conectar MetaMask
+                </button>
+              </div>
+            ) : (
+              <div className="bg-[#EAF5EF] border border-[#2E8B57]/30 p-3 rounded-2xl flex items-center justify-between text-xs">
+                <span className="text-[#2E8B57] font-bold font-poppins">✓ Billetera Conectada:</span>
+                <span className="font-mono font-bold text-[#333333]">{address.slice(0, 8)}...{address.slice(-6)}</span>
+              </div>
+            )}
 
             <form onSubmit={handleExecuteTopup} className="space-y-6">
               

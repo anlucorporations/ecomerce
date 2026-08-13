@@ -30,7 +30,7 @@ export default function RootLayout({
     async function checkEntityType() {
       if (address) {
         try {
-          const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+          const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
           const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
           const eType = await contract.getEntityType(address);
           const typeNum = Number(eType);

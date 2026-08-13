@@ -7,20 +7,14 @@ import { useRouter } from "next/navigation";
 
 const ECOMMERCE_ABI = [
   "function getCompanyInvoices(uint256 companyId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
+  "function getCompanyByAddress(address account) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))",
   "function shipOrder(uint256 invoiceId, string trackingNumber)"
 ];
 
 const ORDER_STATUS_LABELS = ["Creado", "Pagado (EURT)", "Enviado", "Entregado", "Completado"];
 
 export default function ShippingManagementPage() {
-  const router = useRouter();
-  const { address, signer, isConnected } = useWallet();
-
-  useEffect(() => {
-    if (!isConnected && !address && typeof window !== "undefined") {
-      router.push("/");
-    }
-  }, [isConnected, address, router]);
+  const { address, signer } = useWallet();
   const [companyId, setCompanyId] = useState<string>("1");
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -29,11 +23,28 @@ export default function ShippingManagementPage() {
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
+  useEffect(() => {
+    async function autoDetectCompany() {
+      if (!address) return;
+      try {
+        const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+        const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
+        const comp = await contract.getCompanyByAddress(address);
+        if (comp && comp.companyId > BigInt(0)) {
+          setCompanyId(comp.companyId.toString());
+        }
+      } catch (err) {
+        console.warn("Notice auto-detecting company ID:", err);
+      }
+    }
+    autoDetectCompany();
+  }, [address]);
+
   const fetchCompanyOrders = async () => {
     try {
       setLoading(true);
-      const provider = signer?.provider || new ethers.JsonRpcProvider("http://localhost:8545");
-      const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, provider);
+      const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+      const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
       const rawOrders = await contract.getCompanyInvoices(companyId);
       setOrders(rawOrders);

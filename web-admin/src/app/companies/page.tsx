@@ -70,7 +70,7 @@ export default function CompaniesPage() {
     if (!address) return;
     try {
       setLoading(true);
-      const jsonProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+      const jsonProvider = new ethers.JsonRpcProvider("http://localhost:8545");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, jsonProvider);
 
       // 1. Fetch companies

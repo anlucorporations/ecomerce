@@ -56,7 +56,7 @@ export default function FinancePage() {
       if (!address) return;
       try {
         setLoading(true);
-        const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+        const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
         const euroContract = new ethers.Contract(euroTokenAddress, EURO_TOKEN_ABI, rpcProvider);
 

@@ -12,8 +12,11 @@ import { StripeTopupModal } from '@/components/stripe-topup-modal';
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
   "function registerCustomerSelf(string _name, string _contactEmail, string _shippingAddress)",
+  "function addToCart(uint256 _productId, uint256 _quantity)",
+  "function getCart(address _customerAddress) view returns (tuple(uint256 productId, uint256 quantity, uint256 unitPrice)[])",
   "function createInvoice(address _customerAddress, uint256 _companyId) returns (uint256)",
   "function getInvoice(uint256 _invoiceId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp))",
+  "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
   "function getCompany(uint256 _companyId) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))"
 ];
 
@@ -60,12 +63,6 @@ export default function CartPage() {
 
   const SURPLUS_BUFFER = BigInt(1_500_000); // 1.50 EURT surplus buffer (6 decimals)
   const requiredEurt = total > BigInt(0) ? total + SURPLUS_BUFFER : BigInt(0);
-
-  useEffect(() => {
-    if (!isConnected && !address && typeof window !== 'undefined') {
-      router.push('/');
-    }
-  }, [isConnected, address, router]);
   const hasSufficientEurt = eurtBalance >= requiredEurt;
 
   // Group cart items by companyId
@@ -186,35 +183,76 @@ export default function CartPage() {
 
   const executeInvoiceCreation = async (customerAddr: string, activeSigner: any) => {
     try {
-      if (!activeSigner && typeof window !== "undefined" && window.ethereum) {
-        const browserProvider = new ethers.BrowserProvider(window.ethereum as any);
+      if (!activeSigner && typeof window !== "undefined" && (window as any).ethereum) {
+        const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
         activeSigner = await browserProvider.getSigner();
       }
 
-      if (!activeSigner) throw new Error("Signer not available");
+      if (!activeSigner) throw new Error("MetaMask no disponible o bloqueado.");
 
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
       const companyIds = Object.keys(itemsByCompany);
 
       if (companyIds.length === 0) throw new Error('Carrito vacío');
-
-      setCheckoutStep('Generando factura electrónica en blockchain...');
       const firstCompanyId = companyIds[0];
+
+      // 1. Ensure smart contract cart contains items before calling createInvoice
+      setCheckoutStep('Sincronizando productos en blockchain...');
+      try {
+        const currentCartOnChain = await contract.getCart(customerAddr);
+        if (!currentCartOnChain || currentCartOnChain.length === 0) {
+          for (const item of items) {
+            const syncTx = await contract.addToCart(item.productId, item.quantity);
+            await syncTx.wait();
+          }
+        }
+      } catch (syncErr) {
+        console.warn("Cart sync notice, attempting direct sync:", syncErr);
+        for (const item of items) {
+          try {
+            const syncTx = await contract.addToCart(item.productId, item.quantity);
+            await syncTx.wait();
+          } catch {}
+        }
+      }
+
+      // 2. Execute createInvoice on-chain
+      setCheckoutStep('Generando factura electrónica en blockchain...');
       const tx = await contract.createInvoice(customerAddr, BigInt(firstCompanyId));
       const receipt = await tx.wait();
 
-      const invoiceCreatedEvent = receipt.logs
-        .map((log: any) => {
-          try {
-            return contract.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((event: any) => event?.name === 'InvoiceCreated');
+      // 3. Extract Invoice ID from event logs or fallback lookup
+      let invoiceId: any = null;
+      if (receipt && receipt.logs) {
+        const invoiceCreatedEvent = receipt.logs
+          .map((log: any) => {
+            try {
+              return contract.interface.parseLog(log);
+            } catch {
+              return null;
+            }
+          })
+          .find((event: any) => event?.name === 'InvoiceCreated');
 
-      const invoiceId = invoiceCreatedEvent?.args?.invoiceId;
-      if (!invoiceId) throw new Error('Failed to get invoice ID');
+        if (invoiceCreatedEvent && invoiceCreatedEvent.args) {
+          invoiceId = invoiceCreatedEvent.args.invoiceId;
+        }
+      }
+
+      // Fallback: Query smart contract for latest customer invoice
+      if (!invoiceId) {
+        console.warn("Event log parsing returned undefined invoiceId, fetching from smart contract...");
+        try {
+          const custInvoices = await contract.getCustomerInvoices(customerAddr);
+          if (custInvoices && custInvoices.length > 0) {
+            invoiceId = custInvoices[custInvoices.length - 1].invoiceId;
+          }
+        } catch (fetchErr) {
+          console.warn("Could not fetch customer invoices:", fetchErr);
+        }
+      }
+
+      if (!invoiceId) throw new Error('No se pudo obtener el ID de la factura generada.');
 
       await clearCart();
 
@@ -231,7 +269,7 @@ export default function CartPage() {
       window.location.href = paymentUrl.toString();
     } catch (err: any) {
       console.error('Error creating invoice:', err);
-      alert('Error generando factura: ' + (err?.reason || err?.message));
+      alert('Error generando factura: ' + (err?.reason || err?.message || String(err)));
       setProcessing(false);
       setCheckoutStep('');
     }
@@ -454,13 +492,31 @@ export default function CartPage() {
                   )}
 
                   <div className="space-y-3">
-                    <button
-                      onClick={handleCheckout}
-                      disabled={processing || !hasSufficientEurt}
-                      className="w-full btn-cacao-pulse text-sm font-poppins uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:animation-none text-center"
-                    >
-                      {processing ? 'Procesando Transacción...' : 'Pagar Factura en Pasarela Web3 ➔'}
-                    </button>
+                    {!isConnected || !address ? (
+                      <div className="bg-[#E6F4FA] border border-[#0077BB]/30 p-4 rounded-2xl text-center space-y-3">
+                        <div className="flex items-center justify-center gap-2 text-[#0077BB] font-bold text-xs font-poppins">
+                          <span>🔌</span> Billetera Web3 No Conectada
+                        </div>
+                        <p className="text-xs text-[#333333]">
+                          Conecte su billetera MetaMask para generar la factura electrónica y pagar en EURT.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => connect()}
+                          className="btn-cacao-pulse w-full py-3 text-xs font-bold font-poppins uppercase tracking-wider"
+                        >
+                          Conectar MetaMask para Pagar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleCheckout}
+                        disabled={processing || !hasSufficientEurt}
+                        className="w-full btn-cacao-pulse text-sm font-poppins uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:animation-none text-center"
+                      >
+                        {processing ? 'Procesando Transacción...' : 'Pagar Factura en Pasarela Web3 ➔'}
+                      </button>
+                    )}
 
                     <button
                       onClick={clearCart}

@@ -26,7 +26,7 @@ export default function AuditPage() {
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      const jsonProvider = signer?.provider || new ethers.JsonRpcProvider("http://localhost:8545");
+      const jsonProvider = new ethers.JsonRpcProvider("http://localhost:8545");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, jsonProvider);
 
       const auditLogs = await contract.getActivityLogs();

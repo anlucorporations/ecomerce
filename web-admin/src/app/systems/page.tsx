@@ -48,16 +48,29 @@ export default function SystemsPage() {
       if (!isOwner) return;
       try {
         setLoading(true);
-        const provider = signer?.provider || new ethers.JsonRpcProvider("http://localhost:8545");
+        const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
 
-        const ecommerce = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, provider);
-        const euroToken = new ethers.Contract(euroTokenAddress, EUROTOKEN_ABI, provider);
+        const ecommerce = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
+        const euroToken = new ethers.Contract(euroTokenAddress, EUROTOKEN_ABI, rpcProvider);
 
-        // Fetch ETH Balances formatted to 4 decimals
-        const ecommerceEthBal = await provider.getBalance(ecommerceAddress);
-        const euroTokenEthBal = await provider.getBalance(euroTokenAddress);
-        const ownerEthBal = await provider.getBalance(OWNER_ADDRESS);
-        const totalSupply = await euroToken.totalSupply();
+        // Fetch ETH Balances formatted to 4 decimals safely
+        let ecommerceEthBal = BigInt(0);
+        let euroTokenEthBal = BigInt(0);
+        let ownerEthBal = BigInt(0);
+        try {
+          ecommerceEthBal = await rpcProvider.getBalance(ecommerceAddress);
+          euroTokenEthBal = await rpcProvider.getBalance(euroTokenAddress);
+          ownerEthBal = await rpcProvider.getBalance(OWNER_ADDRESS);
+        } catch (e) {
+          console.warn("Notice reading balances from RPC:", e);
+        }
+
+        let totalSupply = BigInt(0);
+        try {
+          totalSupply = await euroToken.totalSupply();
+        } catch (e) {
+          console.warn("Notice reading total supply:", e);
+        }
 
         setContractBalances({
           ecommerceEth: parseFloat(ethers.formatEther(ecommerceEthBal)).toFixed(4),

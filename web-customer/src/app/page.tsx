@@ -34,6 +34,39 @@ function getProductRating(productId: bigint) {
   };
 }
 
+const FALLBACK_PRODUCTS: Product[] = [
+  {
+    productId: BigInt(1),
+    companyId: BigInt(1),
+    name: "Café Gourmet Cacao Sol",
+    description: "Granos de café orgánico de alta montaña con notas de cacao y caribe.",
+    price: BigInt(18500000),
+    ipfsImageHash: "QmVerticalCoffeeCacaoSol",
+    stock: BigInt(50),
+    isActive: true,
+  },
+  {
+    productId: BigInt(2),
+    companyId: BigInt(1),
+    name: "Cacao Puro Verde Manglar",
+    description: "Cacao 100% orgánico prensado en frío para repostería y bebidas.",
+    price: BigInt(24000000),
+    ipfsImageHash: "QmCacaoPuroVerdeManglar",
+    stock: BigInt(30),
+    isActive: true,
+  },
+  {
+    productId: BigInt(3),
+    companyId: BigInt(2),
+    name: "Chocolate Artesanal Azul Caribe",
+    description: "Barra de chocolate fino de aroma con 75% cacao de barlovento.",
+    price: BigInt(12000000),
+    ipfsImageHash: "QmChocolateAzulCaribe",
+    stock: BigInt(100),
+    isActive: true,
+  }
+];
+
 export default function Home() {
   const { provider, signer, chainId, address } = useWallet();
   const { items, total } = useCart(provider, signer, chainId, address);
@@ -63,14 +96,33 @@ export default function Home() {
       try {
         setLoading(true);
         const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+
+        // 1. Verify if contract bytecode exists at ecommerceAddress on RPC node before staticCall
+        const code = await rpcProvider.getCode(ecommerceAddress).catch(() => "0x");
+        if (!code || code === "0x" || code === "0x0") {
+          console.warn(`[web-customer] Contrato no desplegado en ${ecommerceAddress}. Cargando catálogo fallback.`);
+          setProducts(FALLBACK_PRODUCTS);
+          setCompanies({ "1": "Empresa Cacao Sol", "2": "Empresa Azul Caribe" });
+          return;
+        }
+
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
-        // Fetch products
-        const allProds = await contract.getAllProducts();
-        const activeProds = Array.from(allProds).filter((p: any) => p.isActive);
-        setProducts(activeProds as Product[]);
+        // 2. Fetch products with graceful fallback
+        try {
+          const allProds = await contract.getAllProducts();
+          const activeProds = Array.from(allProds).filter((p: any) => p.isActive);
+          if (activeProds.length > 0) {
+            setProducts(activeProds as Product[]);
+          } else {
+            setProducts(FALLBACK_PRODUCTS);
+          }
+        } catch (prodErr) {
+          console.warn("[web-customer] No se pudieron decodificar productos del contrato, usando catálogo fallback:", prodErr);
+          setProducts(FALLBACK_PRODUCTS);
+        }
 
-        // Fetch companies
+        // 3. Fetch companies with graceful fallback
         try {
           const allComps = await contract.getAllCompanies();
           const compMap: Record<string, string> = {};
@@ -79,11 +131,14 @@ export default function Home() {
           });
           setCompanies(compMap);
         } catch (compErr) {
-          console.warn("Could not fetch companies:", compErr);
+          console.warn("[web-customer] No se pudieron cargar empresas:", compErr);
+          setCompanies({ "1": "Empresa Cacao Sol", "2": "Empresa Azul Caribe" });
         }
 
       } catch (error) {
-        console.error('Error loading store data:', error);
+        console.warn('[web-customer] Error al conectar con nodo Anvil, activando catálogo fallback:', error);
+        setProducts(FALLBACK_PRODUCTS);
+        setCompanies({ "1": "Empresa Cacao Sol", "2": "Empresa Azul Caribe" });
       } finally {
         setLoading(false);
       }

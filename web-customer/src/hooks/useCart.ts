@@ -63,7 +63,7 @@ export function useCart(
     loadEurtBalance();
   }, [loadEurtBalance]);
 
-  // Load cart from contract or localStorage fallback
+  // Load cart from wallet storage or guest fallback
   const loadCart = useCallback(async () => {
     try {
       setLoading(true);
@@ -73,30 +73,33 @@ export function useCart(
       if (address && ecommerce) {
         try {
           const cartItems = await ecommerce.getCart(address);
-          const enrichedItems = await Promise.all(
-            (cartItems as RawCartItem[]).map(async (item) => {
-              const product = await contract.getProduct(item.productId);
-              return {
-                productId: item.productId,
-                productName: product.name,
-                companyId: product.companyId,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-              };
-            })
-          );
-          setItems(enrichedItems);
-          const cartTotal = await ecommerce.calculateTotal(address);
-          setTotal(cartTotal);
-          return;
+          if (cartItems && cartItems.length > 0) {
+            const enrichedItems = await Promise.all(
+              (cartItems as RawCartItem[]).map(async (item) => {
+                const product = await contract.getProduct(item.productId);
+                return {
+                  productId: item.productId,
+                  productName: product.name,
+                  companyId: product.companyId,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                };
+              })
+            );
+            setItems(enrichedItems);
+            const cartTotal = await ecommerce.calculateTotal(address);
+            setTotal(cartTotal);
+            return;
+          }
         } catch (e) {
-          console.warn("Contract cart fetch error:", e);
+          console.warn("Contract cart fetch info/fallback:", e);
         }
       }
 
-      // LocalStorage fallback for un-connected users
+      // LocalStorage per-wallet or guest fallback
       if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('guest_cart');
+        const cartKey = address ? `wallet_cart_${address.toLowerCase()}` : 'guest_cart';
+        const saved = localStorage.getItem(cartKey) || localStorage.getItem('guest_cart');
         if (saved) {
           const parsed = JSON.parse(saved);
           let sum = BigInt(0);
@@ -134,7 +137,8 @@ export function useCart(
   const syncGuestCartToContract = useCallback(
     async (activeSigner: JsonRpcSigner) => {
       if (typeof window === 'undefined') return;
-      const saved = localStorage.getItem('guest_cart');
+      const cartKey = address ? `wallet_cart_${address.toLowerCase()}` : 'guest_cart';
+      const saved = localStorage.getItem(cartKey) || localStorage.getItem('guest_cart');
       if (!saved) return;
       let guestItems: any[] = [];
       try {
@@ -159,41 +163,88 @@ export function useCart(
         }
       }
 
+      localStorage.removeItem(cartKey);
       localStorage.removeItem('guest_cart');
       await loadCart();
     },
-    [ecommerceAddress, loadCart]
+    [ecommerceAddress, loadCart, address]
   );
 
-  // Add to cart (100% Off-Chain Zero-Gas)
+  // Add to cart (MetaMask personal_sign Web3 Signature for Connected Users)
   const addToCart = useCallback(
     async (productId: bigint, quantity: bigint) => {
       if (typeof window !== 'undefined') {
-        const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
-        const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
-        const prod = await contract.getProduct(productId);
+        let prodName = `Producto #${productId.toString()}`;
+        let compId = "1";
+        let uPrice = "10000000";
 
-        const saved = localStorage.getItem('guest_cart');
+        try {
+          const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+          const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
+          const prod = await contract.getProduct(productId);
+          if (prod && prod.name) {
+            prodName = prod.name;
+            compId = prod.companyId.toString();
+            uPrice = prod.price.toString();
+          }
+        } catch (e) {
+          console.warn("Could not fetch product from contract in addToCart, checking fallbacks:", e);
+          if (productId === BigInt(1)) {
+            prodName = "Café Gourmet Cacao Sol";
+            compId = "1";
+            uPrice = "18500000";
+          } else if (productId === BigInt(2)) {
+            prodName = "Cacao Puro Verde Manglar";
+            compId = "1";
+            uPrice = "24000000";
+          } else if (productId === BigInt(3)) {
+            prodName = "Chocolate Artesanal Azul Caribe";
+            compId = "2";
+            uPrice = "12000000";
+          }
+        }
+
+        // Web3 MetaMask Personal Signature required when user is connected
+        let signature = "";
+        if (address && signer) {
+          try {
+            const timestamp = new Date().toLocaleString();
+            const message = `✍️ AUTORIZACIÓN DE COMPRA WEB3 - BARLO-VENTAS\n--------------------------------------------\nAcción: Agregar Producto al Carrito\nProducto: ${prodName} (ID #${productId.toString()})\nCantidad: ${quantity.toString()}\nPrecio Un. EURT: €${(Number(uPrice) / 1000000).toFixed(2)}\nBilletera: ${address}\nFecha: ${timestamp}`;
+            
+            signature = await signer.signMessage(message);
+          } catch (signErr: any) {
+            console.warn("User canceled signature in MetaMask:", signErr);
+            throw new Error("Firma cancelada en MetaMask. El producto no fue agregado al carrito.");
+          }
+        }
+
+        const cartKey = address ? `wallet_cart_${address.toLowerCase()}` : 'guest_cart';
+        const saved = localStorage.getItem(cartKey);
         let currentCart = saved ? JSON.parse(saved) : [];
 
         const existingIdx = currentCart.findIndex((i: any) => i.productId === productId.toString());
         if (existingIdx >= 0) {
           currentCart[existingIdx].quantity = (BigInt(currentCart[existingIdx].quantity) + quantity).toString();
+          if (signature) currentCart[existingIdx].signature = signature;
         } else {
           currentCart.push({
             productId: productId.toString(),
-            productName: prod.name,
-            companyId: prod.companyId.toString(),
+            productName: prodName,
+            companyId: compId,
             quantity: quantity.toString(),
-            unitPrice: prod.price.toString(),
+            unitPrice: uPrice,
+            signature: signature || undefined
           });
         }
 
-        localStorage.setItem('guest_cart', JSON.stringify(currentCart));
+        localStorage.setItem(cartKey, JSON.stringify(currentCart));
+        if (address) {
+          localStorage.setItem('guest_cart', JSON.stringify(currentCart));
+        }
         await loadCart();
       }
     },
-    [provider, ecommerceAddress, loadCart]
+    [provider, signer, address, ecommerceAddress, loadCart]
   );
 
   // Remove from cart

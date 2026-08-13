@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../../hooks/useWallet";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const ECOMMERCE_ABI = [
   "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
@@ -15,7 +16,14 @@ const ECOMMERCE_ABI = [
 const ORDER_STATUS_LABELS = ["Creado", "Pagado (Custodia EURT)", "Enviado", "Entregado & Liberado", "Completado"];
 
 export default function CustomerOrdersPage() {
-  const { address, signer } = useWallet();
+  const router = useRouter();
+  const { address, signer, isConnected } = useWallet();
+
+  useEffect(() => {
+    if (!isConnected && !address && typeof window !== "undefined") {
+      router.push("/");
+    }
+  }, [isConnected, address, router]);
   const [orders, setOrders] = useState<any[]>([]);
   const [companies, setCompanies] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<boolean>(false);

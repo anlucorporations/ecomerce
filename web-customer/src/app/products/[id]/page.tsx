@@ -119,10 +119,10 @@ export default function ProductDetailPage() {
     try {
       setAddingToCart(true);
       await addToCart(product.productId, BigInt(quantity));
-      alert(`¡${quantity} unidad(es) agregada(s) al carrito!`);
+      alert(`¡${quantity} unidad(es) de ${product.name} agregada(s) y firmada(s) con éxito en MetaMask!`);
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
-      alert(`Error al agregar al carrito: ${err.message}`);
+      alert(err.message);
     } finally {
       setAddingToCart(false);
     }

@@ -4,9 +4,17 @@ import { useState, useEffect } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function TopupPage() {
+  const router = useRouter();
   const { provider, address, isConnected, connect } = useWallet();
+
+  useEffect(() => {
+    if (!isConnected && !address && typeof window !== 'undefined') {
+      router.push('/');
+    }
+  }, [isConnected, address, router]);
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 
   const [amount, setAmount] = useState<string>('50');

@@ -4,6 +4,7 @@ import './globals.css';
 import Link from 'next/link';
 import { UserDropdown } from '../components/user-dropdown';
 import { Web3PaymentProvider } from '../providers/Web3PaymentProvider';
+import { RegistrationCheck } from '../components/registration-check';
 
 export default function RootLayout({
   children,
@@ -21,6 +22,7 @@ export default function RootLayout({
       </head>
       <body className="bg-[#F5F5F0] text-[#333333] font-sans antialiased selection:bg-[#FF8800] selection:text-white bg-wave-pattern">
         <Web3PaymentProvider>
+          <RegistrationCheck />
           {/* TOP NAVIGATION NAVBAR - BARLO-VENTAS AZUL CARIBE BRANDING */}
           <header className="border-b border-white/60 bg-white/85 backdrop-blur-md sticky top-0 z-50 shadow-sm glass-panel">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">

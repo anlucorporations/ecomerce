@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useContract } from '@/hooks/useContract';
 import { useWallet } from '@/hooks/useWallet';
 import { useCart } from '@/hooks/useCart';
 import { ethers } from 'ethers';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { StripeTopupModal } from '@/components/stripe-topup-modal';
 
 const ECOMMERCE_ABI = [
@@ -22,6 +23,7 @@ const formatPrice = (price: bigint | number | string) => {
 };
 
 export default function CartPage() {
+  const router = useRouter();
   const { provider, signer, chainId, address, isConnected, connect } = useWallet();
   const ecommerce = useContract('ecommerce', provider, signer, chainId);
   const {
@@ -58,6 +60,12 @@ export default function CartPage() {
 
   const SURPLUS_BUFFER = BigInt(1_500_000); // 1.50 EURT surplus buffer (6 decimals)
   const requiredEurt = total > BigInt(0) ? total + SURPLUS_BUFFER : BigInt(0);
+
+  useEffect(() => {
+    if (!isConnected && !address && typeof window !== 'undefined') {
+      router.push('/');
+    }
+  }, [isConnected, address, router]);
   const hasSufficientEurt = eurtBalance >= requiredEurt;
 
   // Group cart items by companyId

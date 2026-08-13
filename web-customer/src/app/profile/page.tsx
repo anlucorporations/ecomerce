@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
+import { useRouter } from 'next/navigation';
 
 interface AddressItem {
   id: string;
@@ -20,7 +21,14 @@ const ECOMMERCE_ABI = [
 ];
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { provider, address, isConnected, connect } = useWallet();
+
+  useEffect(() => {
+    if (!isConnected && !address && typeof window !== 'undefined') {
+      router.push('/');
+    }
+  }, [isConnected, address, router]);
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
   const [profile, setProfile] = useState({

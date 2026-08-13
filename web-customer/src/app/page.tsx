@@ -69,7 +69,7 @@ const FALLBACK_PRODUCTS: Product[] = [
 
 export default function Home() {
   const { provider, signer, chainId, address } = useWallet();
-  const { items, total } = useCart(provider, signer, chainId, address);
+  const { items, total, addToCart } = useCart(provider, signer, chainId, address);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [companies, setCompanies] = useState<Record<string, string>>({});
@@ -380,9 +380,27 @@ export default function Home() {
                         </span>
                       </div>
 
-                      <span className="px-3 py-1.5 bg-[#FFF3E5] text-[#FF8800] font-bold text-xs rounded-xl border border-[#FF8800]/30 group-hover:bg-[#FF8800] group-hover:text-white transition font-poppins">
-                        Ver Detalle ➔
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            try {
+                              await addToCart(product.productId, BigInt(1));
+                              alert(`¡${product.name} agregado y firmado con éxito!`);
+                            } catch (err: any) {
+                              alert(err?.message || "Operación cancelada o fallida");
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-[#2E8B57] hover:bg-[#236B43] text-white font-bold text-xs rounded-xl shadow-xs transition font-poppins flex items-center gap-1"
+                        >
+                          ✍️ + Carrito
+                        </button>
+                        <span className="px-2.5 py-1.5 bg-[#FFF3E5] text-[#FF8800] font-bold text-xs rounded-xl border border-[#FF8800]/30 group-hover:bg-[#FF8800] group-hover:text-white transition font-poppins">
+                          Ver ➔
+                        </span>
+                      </div>
                     </div>
                   </div>
 

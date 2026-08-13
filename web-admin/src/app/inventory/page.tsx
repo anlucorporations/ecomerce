@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../../hooks/useWallet";
 import { useContract } from "../../hooks/useContract";
+import { useRouter } from "next/navigation";
 
 const ECOMMERCE_ABI = [
   "function getCompanyByAddress(address _address) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))",
@@ -38,7 +39,14 @@ const SHIPPING_CONDITIONS = [
 const PRESENTATIONS = ["Unidad Individual", "Caja x12", "Paquete 500g", "Suscripción Mensual", "Licencia Digital"];
 
 export default function InventoryPage() {
+  const router = useRouter();
   const { provider, signer, chainId, address, isConnected } = useWallet();
+
+  useEffect(() => {
+    if (!isConnected && !address && typeof window !== "undefined") {
+      router.push("/");
+    }
+  }, [isConnected, address, router]);
   const ecommerce = useContract("ecommerce", provider, signer, chainId);
 
   const [companyId, setCompanyId] = useState<string>("");

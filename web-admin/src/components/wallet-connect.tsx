@@ -42,9 +42,14 @@ export function WalletConnect() {
         setEthBalance(parseFloat(ethers.formatEther(rawEth)).toFixed(4));
 
         // 2. Fetch EURT Balance
-        const euroToken = new ethers.Contract(euroTokenAddress, EUROTOKEN_ABI, rpcProvider);
-        const rawEurt = await euroToken.balanceOf(address);
-        setEurtBalance((Number(rawEurt) / 1000000).toFixed(4));
+        try {
+          const euroToken = new ethers.Contract(euroTokenAddress, EUROTOKEN_ABI, rpcProvider);
+          const rawEurt = await euroToken.balanceOf(address);
+          setEurtBalance((Number(rawEurt) / 1000000).toFixed(2));
+        } catch (e) {
+          console.warn("Could not fetch EURT balance in admin navbar:", e);
+          setEurtBalance("0.00");
+        }
 
         // 3. Fetch Company Name
         if (isOwner) {
@@ -53,7 +58,7 @@ export function WalletConnect() {
           try {
             const ecommerce = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
             const comp = await ecommerce.getCompanyByAddress(address);
-            if (comp && comp.name) {
+            if (comp && comp.companyId > BigInt(0) && comp.name) {
               setCompanyName(comp.name);
             } else {
               setCompanyName("");
@@ -69,6 +74,8 @@ export function WalletConnect() {
 
     if (isConnected && address) {
       fetchWalletDetails();
+      const interval = setInterval(fetchWalletDetails, 4000);
+      return () => clearInterval(interval);
     }
   }, [address, isConnected, provider, isOwner]);
 

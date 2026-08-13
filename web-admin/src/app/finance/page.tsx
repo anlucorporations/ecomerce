@@ -5,6 +5,7 @@ import { ethers } from "ethers";
 import { useWallet } from "../../hooks/useWallet";
 import { useContract } from "../../hooks/useContract";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const ECOMMERCE_ABI = [
   "function getCompanyByAddress(address _address) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))",
@@ -21,8 +22,15 @@ const EURO_TOKEN_ABI = [
 const ORDER_STATUS_LABELS = ["Creado", "Pagado (EURT)", "Enviado", "Entregado", "Completado"];
 
 export default function FinancePage() {
+  const router = useRouter();
   const { provider, signer, chainId, address, isConnected } = useWallet();
   const ecommerce = useContract("ecommerce", provider, signer, chainId);
+
+  useEffect(() => {
+    if (!isConnected && !address && typeof window !== "undefined") {
+      router.push("/");
+    }
+  }, [isConnected, address, router]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [companyId, setCompanyId] = useState<string>("");

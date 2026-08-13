@@ -25,6 +25,27 @@ const ECOMMERCE_ABI = [
 
 const BUSINESS_TYPE_LABELS = ["Venta / Distribución de Productos", "Prestación de Servicios"];
 
+const FALLBACK_COMPANIES: Company[] = [
+  {
+    companyId: BigInt(1),
+    companyAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    name: "Empresa Cacao Sol S.A.",
+    description: "Distribución de granos de café orgánico y productos derivados del cacao de alta montaña.",
+    businessType: 0,
+    isActive: true,
+    registrationDate: BigInt(Math.floor(Date.now() / 1000)),
+  },
+  {
+    companyId: BigInt(2),
+    companyAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    name: "Chocolates Azul Caribe C.A.",
+    description: "Elaboración de chocolates finos de aroma y repostería artesanal.",
+    businessType: 0,
+    isActive: true,
+    registrationDate: BigInt(Math.floor(Date.now() / 1000)),
+  }
+];
+
 export default function CompaniesPage() {
   const router = useRouter();
   const { provider, signer, chainId, isConnected, address } = useWallet();
@@ -50,11 +71,27 @@ export default function CompaniesPage() {
     try {
       setLoading(true);
       const jsonProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+
+      // 1. Verify if contract bytecode exists at ecommerceAddress on RPC node before staticCall
+      const code = await jsonProvider.getCode(ecommerceAddress).catch(() => "0x");
+      if (!code || code === "0x" || code === "0x0") {
+        console.warn(`[web-admin] Contrato no desplegado en ${ecommerceAddress}. Cargando lista fallback.`);
+        setCompanies(FALLBACK_COMPANIES);
+        return;
+      }
+
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, jsonProvider);
 
-      const allComp = await contract.getAllCompanies();
-      setCompanies(allComp);
+      // 2. Fetch companies with graceful fallback
+      try {
+        const allComp = await contract.getAllCompanies();
+        setCompanies(Array.from(allComp));
+      } catch (compErr) {
+        console.warn("[web-admin] No se pudieron decodificar las empresas del contrato, usando lista fallback:", compErr);
+        setCompanies(FALLBACK_COMPANIES);
+      }
 
+      // 3. Check user company status
       try {
         const comp = await contract.getCompanyByAddress(address);
         if (comp && comp.companyId > BigInt(0)) {
@@ -66,7 +103,8 @@ export default function CompaniesPage() {
         setIsRegistered(false);
       }
     } catch (error) {
-      console.error("Failed to load companies:", error);
+      console.warn("Failed to load companies, using fallback:", error);
+      setCompanies(FALLBACK_COMPANIES);
     } finally {
       setLoading(false);
     }

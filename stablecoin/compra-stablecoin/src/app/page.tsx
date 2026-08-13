@@ -271,6 +271,43 @@ export default function CompraStablecoinPage() {
               : `Comprar €${amount || "0"} EURT con Stripe ➔`}
           </button>
 
+          {/* Stripe Webhook Simulator Button for Local Anvil Testing */}
+          <div className="pt-2 text-center">
+            <button
+              type="button"
+              disabled={status === "processing"}
+              onClick={async () => {
+                if (!walletAddress || !ethers.isAddress(walletAddress)) {
+                  setStatus("error");
+                  setMessage("Por favor introduzca una billetera Ethereum válida para probar la simulación.");
+                  return;
+                }
+                try {
+                  setStatus("processing");
+                  setMessage("⚡ Ejecutando Simulador de Webhook Stripe (payment_intent.succeeded)...");
+                  const res = await fetch("/api/webhooks/simulate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ amount, walletAddress })
+                  });
+                  const data = await res.json();
+                  if (!res.ok || !data.success) {
+                    throw new Error(data.error || "Falló la simulación de Webhook");
+                  }
+                  setStatus("success");
+                  setTxDetails({ stripeId: data.stripePaymentId, mintHash: data.mintTxHash });
+                  setMessage(data.message || `¡Webhook simulado! Se emitieron €${amount} EURT a ${walletAddress}.`);
+                } catch (e: any) {
+                  setStatus("error");
+                  setMessage(e.message || "Error al ejecutar el simulador de Webhook.");
+                }
+              }}
+              className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 rounded-2xl text-xs font-bold font-mono transition flex items-center justify-center gap-2"
+            >
+              <span>⚡ Simular Webhook Stripe (`payment_intent.succeeded`)</span>
+            </button>
+          </div>
+
         </form>
 
       </div>

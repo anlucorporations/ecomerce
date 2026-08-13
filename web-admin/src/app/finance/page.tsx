@@ -18,7 +18,7 @@ const EURO_TOKEN_ABI = [
   "function balanceOf(address owner) view returns (uint256)"
 ];
 
-const ORDER_STATUS_LABELS = ["Creado", "Pagado (Custodia)", "Enviado (En Tránsito)", "Entregado & Liberado", "Completado"];
+const ORDER_STATUS_LABELS = ["Creado", "Pagado (EURT)", "Enviado", "Entregado", "Completado"];
 
 export default function FinancePage() {
   const { provider, signer, chainId, address, isConnected } = useWallet();
@@ -36,12 +36,11 @@ export default function FinancePage() {
 
   // Financial Metrics
   const [totalInvoicedEur, setTotalInvoicedEur] = useState<number>(0);
-  const [totalInTransitEur, setTotalInTransitEur] = useState<number>(0); // Total EURT en Tránsito
   const [inventoryNominalCapital, setInventoryNominalCapital] = useState<number>(0);
   const [inventoryMarketCapital, setInventoryMarketCapital] = useState<number>(0);
   const [estimatedMarginEur, setEstimatedMarginEur] = useState<number>(0);
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
   useEffect(() => {
@@ -76,37 +75,25 @@ export default function FinancePage() {
 
         // Fetch Invoices
         const rawInvoices = await contract.getCompanyInvoices(compId);
-        const invoiceArray = Array.from(rawInvoices);
-        setInvoices(invoiceArray);
+        setInvoices(rawInvoices);
 
-        // Compute Total Invoiced EURT & Total In Transit EURT
+        // Compute Total Invoiced EURT (Only paid/shipped/delivered status >= 1)
         let totalPaid = 0;
-        let totalTransit = 0;
-
-        invoiceArray.forEach((inv: any) => {
-          const amt = Number(inv.totalAmount) / 1000000;
-          const statusNum = Number(inv.status);
-
-          if (inv.isPaid || statusNum >= 1) {
-            totalPaid += amt;
-          }
-          // Status 2 = Enviado / Shipped (En Tránsito, retenido en custodia hasta recepción)
-          if (statusNum === 2) {
-            totalTransit += amt;
+        rawInvoices.forEach((inv: any) => {
+          if (inv.isPaid || Number(inv.status) >= 1) {
+            totalPaid += Number(inv.totalAmount) / 1000000;
           }
         });
-
         setTotalInvoicedEur(totalPaid);
-        setTotalInTransitEur(totalTransit);
 
         // Fetch Products & Compute Inventory Capital
         const rawProducts = await contract.getCompanyProducts(compId);
-        setProducts(Array.from(rawProducts));
+        setProducts(rawProducts);
 
         let totalNominal = 0;
         let totalMarket = 0;
 
-        Array.from(rawProducts).forEach((p: any) => {
+        rawProducts.forEach((p: any) => {
           const stock = Number(p.stock);
           const price = Number(p.price) / 1000000;
           let nominalUnit = price * 0.7;
@@ -131,7 +118,7 @@ export default function FinancePage() {
         // Fetch Activity Logs for EURT / Payments
         try {
           const logs = await contract.getActivityLogs();
-          const filtered = Array.from(logs).filter(
+          const filtered = logs.filter(
             (l: any) =>
               l.userAddress.toLowerCase() === address.toLowerCase() ||
               l.actionTag.includes("PAYMENT") ||
@@ -149,7 +136,7 @@ export default function FinancePage() {
     }
 
     loadFinanceData();
-  }, [address, provider, ecommerceAddress, euroTokenAddress]);
+  }, [address, provider]);
 
   if (!isConnected || !address) {
     return (
@@ -180,52 +167,40 @@ export default function FinancePage() {
             Finanzas & Movimientos de Capital ({companyName || "Empresa Comercial"})
           </h1>
           <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-            Consolidado financiero de ingresos por facturación, saldos en tránsito en custodia Escrow y flujo de EuroTokens en blockchain.
+            Consolidado financiero de ingresos por facturación, capital en inventario almacenado y flujo de EuroTokens en blockchain.
           </p>
         </div>
       </div>
 
-      {/* KPI METRICS GRID - INCLUYENDO TOTAL EN TRÁNSITO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        
-        {/* 1. Total Facturado */}
-        <div className="admin-card p-5 border-l-4 border-l-emerald-500 bg-white">
+      {/* KPI METRICS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Total Invoiced */}
+        <div className="admin-card p-5 border-l-4 border-l-emerald-500">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">Total Facturado en EURT</span>
           <span className="text-2xl font-black text-emerald-600">€{totalInvoicedEur.toFixed(4)}</span>
-          <p className="text-xs text-slate-500 mt-1">Cobros y facturación total</p>
+          <p className="text-xs text-slate-500 mt-1">Cobros de ventas completados</p>
         </div>
 
-        {/* 2. Saldo EURT en Billetera */}
-        <div className="admin-card p-5 border-l-4 border-l-indigo-600 bg-white">
+        {/* Saldo EURT en Billetera */}
+        <div className="admin-card p-5 border-l-4 border-l-indigo-600">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">Saldo EURT Billetera</span>
           <span className="text-2xl font-black text-indigo-700">€{eurtBalance}</span>
           <p className="text-xs text-slate-500 mt-1">Fondos disponibles en wallet</p>
         </div>
 
-        {/* 3. NUEVA MÉTRICA: TOTAL EN TRÁNSITO (ENVIADOS PERO NO RECIBIDOS) */}
-        <div className="admin-card p-5 border-l-4 border-l-amber-500 bg-amber-50/40">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-800 block">Total en Tránsito</span>
-            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">🚚 Escrow</span>
-          </div>
-          <span className="text-2xl font-black text-amber-600">€{totalInTransitEur.toFixed(4)}</span>
-          <p className="text-xs text-amber-800/80 mt-1 font-medium">Pedidos enviados en tránsito (Custodia)</p>
-        </div>
-
-        {/* 4. Capital Mercado Inventario */}
-        <div className="admin-card p-5 border-l-4 border-l-purple-600 bg-white">
+        {/* Capital Mercado Inventario */}
+        <div className="admin-card p-5 border-l-4 border-l-purple-600">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">Capital Mercado Inventario</span>
           <span className="text-2xl font-black text-purple-700">€{inventoryMarketCapital.toFixed(4)}</span>
           <p className="text-xs text-slate-500 mt-1">Valor de venta en stock</p>
         </div>
 
-        {/* 5. Margen Bruto Estimado */}
-        <div className="admin-card p-5 border-l-4 border-l-cyan-600 bg-white">
+        {/* Margen Bruto Estimado */}
+        <div className="admin-card p-5 border-l-4 border-l-amber-500">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">Margen Comercial Estimado</span>
-          <span className="text-2xl font-black text-cyan-600">€{estimatedMarginEur.toFixed(4)}</span>
+          <span className="text-2xl font-black text-amber-600">€{estimatedMarginEur.toFixed(4)}</span>
           <p className="text-xs text-slate-500 mt-1">Ganancia prevista (PVP - Nominal)</p>
         </div>
-
       </div>
 
       {/* SECCIÓN 1: MOVIMIENTOS DE VENTAS Y FACTURACIÓN */}
@@ -235,12 +210,7 @@ export default function FinancePage() {
             <h3 className="font-bold text-sm text-slate-900">🧾 Movimientos de Ventas & Facturación Registrada</h3>
             <p className="text-xs text-slate-500">Historial completo de facturas emitidas y estado de cobro en EuroTokens</p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 font-mono">
-              En Tránsito: €{totalInTransitEur.toFixed(2)} EURT
-            </span>
-            <span className="text-xs font-bold text-indigo-600">Total Facturas: {invoices.length}</span>
-          </div>
+          <span className="text-xs font-bold text-indigo-600">Total Facturas: {invoices.length}</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -251,7 +221,7 @@ export default function FinancePage() {
                 <th className="px-6 py-3.5">Cliente Comprador</th>
                 <th className="px-6 py-3.5">Monto EURT</th>
                 <th className="px-6 py-3.5">Fecha</th>
-                <th className="px-6 py-3.5">Estatus de Cobro & Envío</th>
+                <th className="px-6 py-3.5">Estatus de Cobro</th>
                 <th className="px-6 py-3.5 text-right">Tx Hash Blockchain</th>
               </tr>
             </thead>
@@ -290,13 +260,9 @@ export default function FinancePage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          st === 2 ? "bg-amber-100 text-amber-800 border border-amber-300" :
-                          st === 3 ? "badge-success" :
-                          inv.isPaid || st >= 1 ? "badge-info" : "badge-amber"
+                          inv.isPaid || st >= 1 ? "badge-success" : "badge-amber"
                         }`}>
-                          {st === 2 ? "🚚 Enviado (En Tránsito)" :
-                           st === 3 ? "✓ Entregado & Liberado" :
-                           inv.isPaid || st >= 1 ? "Pagado (Custodia)" : ORDER_STATUS_LABELS[st] || "Pendiente"}
+                          {inv.isPaid || st >= 1 ? "Pagado en Bloque" : ORDER_STATUS_LABELS[st] || "Pendiente"}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right font-mono text-[11px] text-slate-400">
@@ -332,28 +298,28 @@ export default function FinancePage() {
                 <th className="px-6 py-3.5">Existencias</th>
                 <th className="px-6 py-3.5">Valor Nominal Unitario</th>
                 <th className="px-6 py-3.5">Valor Mercado Unitario</th>
-                <th className="px-6 py-3.5">Capital Mercado Total</th>
-                <th className="px-6 py-3.5 text-right">Margen Estimado</th>
+                <th className="px-6 py-3.5">Capital Invertido Total</th>
+                <th className="px-6 py-3.5 text-right">Margen Comercial Proyectado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
               {loading ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
-                    Cargando análisis de inventario...
+                    Cargando análisis financiero de inventario...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                    No se registran productos en inventario para esta empresa.
+                    No se registran productos en inventario.
                   </td>
                 </tr>
               ) : (
                 products.map((p: any) => {
                   const stock = Number(p.stock);
-                  const price = Number(p.price) / 1000000;
-                  let nominalUnit = price * 0.7;
+                  const priceMarket = Number(p.price) / 1000000;
+                  let nominalUnit = priceMarket * 0.7;
 
                   try {
                     if (p.description && p.description.startsWith("{")) {
@@ -364,8 +330,9 @@ export default function FinancePage() {
                     // fallback
                   }
 
-                  const totalMarketItem = stock * price;
-                  const marginItem = stock * (price - nominalUnit);
+                  const capitalTotal = stock * nominalUnit;
+                  const revenueTotal = stock * priceMarket;
+                  const marginTotal = revenueTotal - capitalTotal;
 
                   return (
                     <tr key={p.productId.toString()} className="hover:bg-slate-50 transition">
@@ -375,24 +342,20 @@ export default function FinancePage() {
                       <td className="px-6 py-4 font-bold text-slate-900">
                         {p.name}
                       </td>
-                      <td className="px-6 py-4 font-mono">
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                          stock > 0 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
-                        }`}>
-                          {stock} unid.
-                        </span>
+                      <td className="px-6 py-4 font-mono text-slate-800">
+                        {stock} unidades
                       </td>
-                      <td className="px-6 py-4 font-mono text-slate-500">
-                        €{nominalUnit.toFixed(2)}
+                      <td className="px-6 py-4 font-mono text-slate-600">
+                        €{nominalUnit.toFixed(4)}
+                      </td>
+                      <td className="px-6 py-4 font-mono font-bold text-indigo-700">
+                        €{priceMarket.toFixed(4)}
                       </td>
                       <td className="px-6 py-4 font-mono font-bold text-slate-900">
-                        €{price.toFixed(2)}
+                        €{capitalTotal.toFixed(4)}
                       </td>
-                      <td className="px-6 py-4 font-mono font-bold text-purple-700">
-                        €{totalMarketItem.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 font-mono font-extrabold text-right text-emerald-600">
-                        +€{marginItem.toFixed(2)}
+                      <td className="px-6 py-4 text-right font-mono font-extrabold text-emerald-600">
+                        +€{marginTotal.toFixed(4)}
                       </td>
                     </tr>
                   );
@@ -400,6 +363,45 @@ export default function FinancePage() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* SECCIÓN 3: MOVIMIENTOS DE EURT Y REGISTRO DE AUDITORÍA */}
+      <div className="admin-card overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900">💱 Movimientos de EURT & Registro de Transacciones</h3>
+            <p className="text-xs text-slate-500">Auditoría en blockchain de transferencias, pagos de facturas y recargas de la empresa</p>
+          </div>
+          <Link href="/audit" className="text-xs font-bold text-indigo-600 hover:text-indigo-800">
+            Ver Registro Completo →
+          </Link>
+        </div>
+
+        <div className="divide-y divide-slate-100 text-xs">
+          {activityLogs.length === 0 ? (
+            <p className="p-6 text-center text-slate-400">Sin eventos de movimientos de EURT recientes.</p>
+          ) : (
+            activityLogs.slice(0, 5).map((log: any, idx: number) => (
+              <div key={idx} className="p-4 flex justify-between items-center hover:bg-slate-50 transition">
+                <div className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 font-bold text-xs flex items-center justify-center border border-indigo-200">
+                    EURT
+                  </span>
+                  <div>
+                    <h4 className="font-bold text-slate-900">{log.actionTag}</h4>
+                    <p className="text-[11px] text-slate-500">{log.details}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono text-slate-400 block text-[10px]">
+                    {log.timestamp > 0 ? new Date(Number(log.timestamp) * 1000).toLocaleString() : "Reciente"}
+                  </span>
+                  <span className="font-mono text-xs font-bold text-slate-700">{log.userAddress.slice(0, 6)}...{log.userAddress.slice(-4)}</span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

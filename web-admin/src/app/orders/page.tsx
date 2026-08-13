@@ -11,39 +11,13 @@ const ECOMMERCE_ABI = [
 
 const ORDER_STATUS_LABELS = ["Creado", "Pagado (EURT)", "Enviado", "Entregado", "Completado"];
 
-interface ShippingModalData {
-  invoiceId: string;
-  courier: string;
-  trackingNumber: string;
-  shipDate: string;
-  notes: string;
-}
-
-const FALLBACK_ORDERS = [
-  {
-    invoiceId: BigInt(101),
-    companyId: BigInt(1),
-    customerAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    totalAmount: BigInt(42500000),
-    timestamp: BigInt(Math.floor(Date.now() / 1000) - 3600),
-    isPaid: true,
-    paymentTxHash: "0x8f2a...129c",
-    status: 1, // Pagado (EURT)
-    trackingNumber: "BV-TRACK-9941",
-    shippedTimestamp: BigInt(0),
-    deliveredTimestamp: BigInt(0),
-  }
-];
-
 export default function ShippingManagementPage() {
   const { address, signer } = useWallet();
   const [companyId, setCompanyId] = useState<string>("1");
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [trackingInputs, setTrackingInputs] = useState<{ [key: string]: string }>({});
   const [processingId, setProcessingId] = useState<string | null>(null);
-
-  // Modal / Dropdown Form State for Shipping Details
-  const [shippingModal, setShippingModal] = useState<ShippingModalData | null>(null);
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
@@ -51,26 +25,12 @@ export default function ShippingManagementPage() {
     try {
       setLoading(true);
       const provider = signer?.provider || new ethers.JsonRpcProvider("http://localhost:8545");
-
-      const code = await provider.getCode(ecommerceAddress).catch(() => "0x");
-      if (!code || code === "0x" || code === "0x0") {
-        console.warn(`[web-admin/orders] Contrato no desplegado en ${ecommerceAddress}. Cargando pedidos fallback.`);
-        setOrders(FALLBACK_ORDERS);
-        return;
-      }
-
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, provider);
 
-      try {
-        const rawOrders = await contract.getCompanyInvoices(companyId);
-        setOrders(Array.from(rawOrders));
-      } catch (e) {
-        console.warn("[web-admin/orders] No se pudieron decodificar facturas del contrato, usando fallback:", e);
-        setOrders(FALLBACK_ORDERS);
-      }
+      const rawOrders = await contract.getCompanyInvoices(companyId);
+      setOrders(rawOrders);
     } catch (err: any) {
-      console.warn("Error fetching company orders, activating fallback:", err);
-      setOrders(FALLBACK_ORDERS);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -80,48 +40,27 @@ export default function ShippingManagementPage() {
     fetchCompanyOrders();
   }, [companyId]);
 
-  const openShippingModal = (invoiceId: string) => {
-    const nowStr = new Date().toISOString().slice(0, 16);
-    setShippingModal({
-      invoiceId,
-      courier: "DHL Express",
-      trackingNumber: `TRACK-${Math.floor(10000000 + Math.random() * 90000000)}`,
-      shipDate: nowStr,
-      notes: "Despachado en bolsa de alta seguridad con precinto",
-    });
-  };
-
-  const handleConfirmShipOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!shippingModal) return;
-
-    const { invoiceId, courier, trackingNumber, shipDate, notes } = shippingModal;
-
-    if (!trackingNumber.trim()) {
-      alert("Por favor introduzca un número de guía de rastreo.");
-      return;
-    }
-    if (!signer) {
-      alert("Conecte su wallet de administración para firmar la orden.");
-      return;
-    }
-
+  const handleShipOrder = async (invoiceId: string) => {
     try {
+      const trackingNo = trackingInputs[invoiceId];
+      if (!trackingNo) {
+        alert("Por favor introduzca un número de seguimiento/guía.");
+        return;
+      }
+      if (!signer) {
+        alert("Conecte su wallet de administración para firmar.");
+        return;
+      }
+
       setProcessingId(invoiceId);
-
-      // Formatted tracking string incorporating Courier Company, Tracking Number, Ship Date & Notes
-      const trackingPayload = `[${courier}] Guía: ${trackingNumber} | Fecha: ${shipDate.replace('T', ' ')}${notes ? ' | Note: ' + notes : ''}`;
-
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, signer);
-      const tx = await contract.shipOrder(invoiceId, trackingPayload);
+      const tx = await contract.shipOrder(invoiceId, trackingNo);
       await tx.wait();
 
-      alert(`¡Pedido #${invoiceId} marcado como ENVIADO exitosamente!`);
-      setShippingModal(null);
+      alert(`¡Pedido #${invoiceId} marcado como enviado!`);
       fetchCompanyOrders();
     } catch (err: any) {
-      console.error("Error al enviar pedido:", err);
-      alert("Error enviando el pedido: " + (err?.reason || err?.message || String(err)));
+      alert("Error enviando el pedido: " + (err?.reason || err?.message));
     } finally {
       setProcessingId(null);
     }
@@ -133,7 +72,7 @@ export default function ShippingManagementPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Gestión de Envíos y Despachos Logísticos</h1>
-          <p className="text-xs text-slate-500 mt-1">Monitoree pedidos pagados en EURT y asigne datos completos de envío</p>
+          <p className="text-xs text-slate-500 mt-1">Monitoree pedidos pagados en EURT y asigne códigos de guía de envío</p>
         </div>
         <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
           <label className="text-xs font-bold text-slate-600">ID Empresa:</label>
@@ -189,120 +128,34 @@ export default function ShippingManagementPage() {
                   </p>
 
                   {ord.trackingNumber && (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-xl text-xs font-mono text-indigo-800">
-                      <span>🚚 Datos de Envío:</span>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-mono text-indigo-700">
+                      <span>📦 Guía de Envío:</span>
                       <span className="font-bold">{ord.trackingNumber}</span>
                     </div>
                   )}
                 </div>
 
                 {statusIdx === 1 && (
-                  <button
-                    onClick={() => openShippingModal(ord.invoiceId.toString())}
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-2"
-                  >
-                    <span>🚚 Marcar como Enviado</span>
-                  </button>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <input
+                      type="text"
+                      placeholder="Número de Guía / Tracking"
+                      value={trackingInputs[ord.invoiceId.toString()] || ""}
+                      onChange={(e) => setTrackingInputs({ ...trackingInputs, [ord.invoiceId.toString()]: e.target.value })}
+                      className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      onClick={() => handleShipOrder(ord.invoiceId.toString())}
+                      disabled={processingId === ord.invoiceId.toString()}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {processingId === ord.invoiceId.toString() ? "Procesando..." : "Marcar Enviado"}
+                    </button>
+                  </div>
                 )}
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* FORMULARIO DESPLEGABLE / MODAL DE DATOS DE ENVÍO */}
-      {shippingModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 space-y-5">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Formulario de Envío y Despacho</h3>
-                <p className="text-xs text-slate-500">Orden #{shippingModal.invoiceId}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShippingModal(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 font-black text-sm flex items-center justify-center transition"
-                title="Cerrar formulario"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleConfirmShipOrder} className="space-y-4 text-xs">
-              
-              {/* Courier Company Dropdown / Input */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Compañía de Correo / Transportista:</label>
-                <select
-                  value={shippingModal.courier}
-                  onChange={(e) => setShippingModal({ ...shippingModal, courier: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:outline-none focus:border-indigo-600"
-                >
-                  <option value="DHL Express">DHL Express</option>
-                  <option value="FedEx Express">FedEx Express</option>
-                  <option value="MRW Courier">MRW Courier</option>
-                  <option value="Zoom Envíos">Zoom Envíos</option>
-                  <option value="Despacho Propio BARLO-VENTAS">Despacho Propio BARLO-VENTAS</option>
-                </select>
-              </div>
-
-              {/* Tracking Number Input */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Número de Guía / Rastreo:</label>
-                <input
-                  type="text"
-                  value={shippingModal.trackingNumber}
-                  onChange={(e) => setShippingModal({ ...shippingModal, trackingNumber: e.target.value })}
-                  placeholder="ej. TRACK-98472610-ES"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-600"
-                  required
-                />
-              </div>
-
-              {/* Shipping Date & Time */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Fecha y Hora de Envío:</label>
-                <input
-                  type="datetime-local"
-                  value={shippingModal.shipDate}
-                  onChange={(e) => setShippingModal({ ...shippingModal, shipDate: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-900 focus:outline-none focus:border-indigo-600"
-                  required
-                />
-              </div>
-
-              {/* Additional Notes */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Notas / Instrucciones Adicionales:</label>
-                <textarea
-                  value={shippingModal.notes}
-                  onChange={(e) => setShippingModal({ ...shippingModal, notes: e.target.value })}
-                  placeholder="Instrucciones para el cliente o repartidor..."
-                  rows={3}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-900 focus:outline-none focus:border-indigo-600"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShippingModal(null)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={processingId === shippingModal.invoiceId}
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition disabled:opacity-50"
-                >
-                  {processingId === shippingModal.invoiceId ? "Confirmando en Blockchain..." : "Confirmar Envío"}
-                </button>
-              </div>
-
-            </form>
-          </div>
         </div>
       )}
     </div>

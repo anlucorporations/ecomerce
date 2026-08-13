@@ -17,45 +17,6 @@ const ECOMMERCE_ABI = [
 const ORDER_STATUS_LABELS = ["Creado", "Pagado (EURT)", "Enviado", "Entregado", "Completado"];
 const BUSINESS_TYPE_LABELS = ["Venta de Productos", "Prestación de Servicios"];
 
-const FALLBACK_ADMIN_PRODUCTS = [
-  {
-    productId: BigInt(1),
-    companyId: BigInt(1),
-    name: "Café Gourmet Cacao Sol",
-    description: "Granos de café orgánico de alta montaña con notas de cacao.",
-    price: BigInt(18500000),
-    ipfsImageHash: "QmVerticalCoffeeCacaoSol",
-    stock: BigInt(50),
-    isActive: true,
-  },
-  {
-    productId: BigInt(2),
-    companyId: BigInt(1),
-    name: "Cacao Puro Verde Manglar",
-    description: "Cacao 100% orgánico prensado en frío para repostería y bebidas.",
-    price: BigInt(24000000),
-    ipfsImageHash: "QmCacaoPuroVerdeManglar",
-    stock: BigInt(30),
-    isActive: true,
-  }
-];
-
-const FALLBACK_ADMIN_INVOICES = [
-  {
-    invoiceId: BigInt(101),
-    companyId: BigInt(1),
-    customerAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    totalAmount: BigInt(42500000),
-    timestamp: BigInt(Math.floor(Date.now() / 1000) - 3600),
-    isPaid: true,
-    paymentTxHash: "0x8f2a...129c",
-    status: 1,
-    trackingNumber: "BV-TRACK-9941",
-    shippedTimestamp: BigInt(0),
-    deliveredTimestamp: BigInt(0),
-  }
-];
-
 export default function DashboardHome() {
   const { address, isConnected, signer, provider, connect, wallets } = useWallet();
   const [loading, setLoading] = useState<boolean>(true);
@@ -83,12 +44,17 @@ export default function DashboardHome() {
         setLoading(true);
         const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
 
-        // 1. Verify if contract bytecode exists at ecommerceAddress on RPC node before staticCall
+        // Pre-flight check if contract is deployed on Anvil node
         const code = await rpcProvider.getCode(ecommerceAddress).catch(() => "0x");
         if (!code || code === "0x" || code === "0x0") {
-          console.warn(`[web-admin] Contrato no desplegado en ${ecommerceAddress}. Cargando métricas fallback.`);
-          setProducts(FALLBACK_ADMIN_PRODUCTS);
-          setInvoices(FALLBACK_ADMIN_INVOICES);
+          console.warn(`[web-admin] Contrato no desplegado en ${ecommerceAddress}. Cargando datos fallback.`);
+          setProducts([
+            { productId: BigInt(1), companyId: BigInt(1), name: "Café Gourmet Cacao Sol", price: BigInt(18500000), stock: BigInt(50), isActive: true },
+            { productId: BigInt(2), companyId: BigInt(1), name: "Cacao Puro Verde Manglar", price: BigInt(24000000), stock: BigInt(30), isActive: true }
+          ]);
+          setInvoices([
+            { invoiceId: BigInt(101), companyId: BigInt(1), customerAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", totalAmount: BigInt(42500000), status: 1 }
+          ]);
           setCompanyName("Empresa Cacao Sol S.A.");
           setStatusCounts({ 0: 0, 1: 1, 2: 0, 3: 0, 4: 0 });
           return;
@@ -129,29 +95,34 @@ export default function DashboardHome() {
         }
         setCompanyId(targetCompanyId.toString());
 
-        // Fetch company products with fallback
+        // Fetch company products
         try {
           const rawProducts = await contract.getCompanyProducts(targetCompanyId);
           setProducts(Array.from(rawProducts));
         } catch (prodErr) {
-          console.warn("[web-admin] No se pudieron decodificar productos del comercio, usando fallback:", prodErr);
-          setProducts(FALLBACK_ADMIN_PRODUCTS);
+          console.warn("Error fetching products, using fallback:", prodErr);
+          setProducts([
+            { productId: BigInt(1), companyId: BigInt(1), name: "Café Gourmet Cacao Sol", price: BigInt(18500000), stock: BigInt(50), isActive: true }
+          ]);
         }
 
-        // Fetch company invoices / orders with fallback
+        // Fetch company invoices / orders
         try {
           const rawInvoices = await contract.getCompanyInvoices(targetCompanyId);
           setInvoices(Array.from(rawInvoices));
-          
+
           const counts: { [key: number]: number } = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
           Array.from(rawInvoices).forEach((inv: any) => {
             const st = Number(inv.status);
             counts[st] = (counts[st] || 0) + 1;
           });
+
           setStatusCounts(counts);
         } catch (invErr) {
-          console.warn("[web-admin] No se pudieron decodificar facturas del comercio, usando fallback:", invErr);
-          setInvoices(FALLBACK_ADMIN_INVOICES);
+          console.warn("Error fetching invoices, using fallback:", invErr);
+          setInvoices([
+            { invoiceId: BigInt(101), companyId: BigInt(1), customerAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", totalAmount: BigInt(42500000), status: 1 }
+          ]);
           setStatusCounts({ 0: 0, 1: 1, 2: 0, 3: 0, 4: 0 });
         }
 
@@ -167,10 +138,7 @@ export default function DashboardHome() {
         }
 
       } catch (err) {
-        console.warn("[web-admin] Error cargando datos del dashboard, activando fallback:", err);
-        setProducts(FALLBACK_ADMIN_PRODUCTS);
-        setInvoices(FALLBACK_ADMIN_INVOICES);
-        setCompanyName("Empresa Cacao Sol S.A.");
+        console.warn("Error loading dashboard metrics:", err);
       } finally {
         setLoading(false);
       }

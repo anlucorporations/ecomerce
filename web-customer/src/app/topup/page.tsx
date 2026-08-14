@@ -5,6 +5,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { KycModal } from '@/components/kyc-modal';
 
 export default function TopupPage() {
   const { provider, address, isConnected, connect } = useWallet();
@@ -51,6 +52,10 @@ export default function TopupPage() {
     fetchBalance();
   }, [address, targetWallet, provider, euroTokenAddress]);
 
+  const [isKYCModalOpen, setIsKYCModalOpen] = useState<boolean>(false);
+
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318';
+
   const handleExecuteTopup = async (e: React.FormEvent) => {
     e.preventDefault();
     const dest = targetWallet || address;
@@ -65,6 +70,32 @@ export default function TopupPage() {
     if (isNaN(numericAmt) || numericAmt <= 0) {
       setStatus('error');
       setMessage('Introduzca un monto válido en Euros.');
+      return;
+    }
+
+    // Enforce KYC Check (Inscrito vs Verificado)
+    let isVerified = false;
+    try {
+      const rpcProvider = provider || new ethers.JsonRpcProvider('http://localhost:8545');
+      const contract = new ethers.Contract(
+        ecommerceAddress,
+        ['function isKYCVerified(address account) view returns (bool)'],
+        rpcProvider
+      );
+      isVerified = await contract.isKYCVerified(dest);
+    } catch (e) {
+      console.warn('isKYCVerified check warning:', e);
+    }
+
+    if (!isVerified && typeof window !== 'undefined') {
+      const localKyc = localStorage.getItem(`kyc_verified_${dest.toLowerCase()}`);
+      if (localKyc === 'true') isVerified = true;
+    }
+
+    if (!isVerified) {
+      setIsKYCModalOpen(true);
+      setStatus('error');
+      setMessage('🔒 Acceso Restringido: Su cuenta está en estado "Inscrito". Complete la Verificación KYC para habilitar la compra de EURT con Stripe.');
       return;
     }
 
@@ -391,6 +422,20 @@ export default function TopupPage() {
         </div>
 
       </div>
+
+      <KycModal
+        isOpen={isKYCModalOpen}
+        onClose={() => setIsKYCModalOpen(false)}
+        userAddress={targetWallet || address}
+        onSuccess={() => {
+          setIsKYCModalOpen(false);
+          setStatus('idle');
+          setMessage('');
+          fetchBalance();
+        }}
+        customTitle="Verificación KYC Requerida para Comprar EURT"
+        customReason="Su cuenta se encuentra actualmente en estado 'Inscrito'. Para adquirir o recargar EuroTokens (EURT) mediante Stripe PCI-DSS, debe completar la verificación de identidad."
+      />
     </div>
   );
 }

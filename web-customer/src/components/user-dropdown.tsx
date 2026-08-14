@@ -6,6 +6,7 @@ import { useCart } from '../hooks/useCart';
 import { ethers } from 'ethers';
 import Link from 'next/link';
 import { StripeTopupModal } from './stripe-topup-modal';
+import { KycModal } from './kyc-modal';
 
 export function UserDropdown() {
   const { provider, address, isConnected, isConnecting, connect, disconnect } = useWallet();
@@ -17,12 +18,17 @@ export function UserDropdown() {
   const [ethBalance, setEthBalance] = useState<string>('0.0000');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const [isKycVerified, setIsKycVerified] = useState<boolean>(false);
+  const [isKycModalOpen, setIsKycModalOpen] = useState<boolean>(false);
+
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318';
 
   const fetchBalances = useCallback(async () => {
     if (!address) {
       setEurtBalance('0.00');
       setEthBalance('0.0000');
+      setIsKycVerified(false);
       return;
     }
     try {
@@ -38,10 +44,30 @@ export function UserDropdown() {
       );
       const rawEurt = await tokenContract.balanceOf(address);
       setEurtBalance((Number(rawEurt) / 1e6).toFixed(2));
+
+      // Check KYC Verification
+      let kyc = false;
+      try {
+        const ecomContract = new ethers.Contract(
+          ecommerceAddress,
+          ['function isKYCVerified(address account) view returns (bool)'],
+          rpcProvider
+        );
+        kyc = await ecomContract.isKYCVerified(address);
+      } catch (e) {
+        console.warn('KYC check error:', e);
+      }
+
+      if (!kyc && typeof window !== 'undefined') {
+        const localKyc = localStorage.getItem(`kyc_verified_${address.toLowerCase()}`);
+        if (localKyc === 'true') kyc = true;
+      }
+      setIsKycVerified(kyc);
+
     } catch (e) {
       console.warn('Error fetching user balances:', e);
     }
-  }, [address, provider, euroTokenAddress]);
+  }, [address, provider, euroTokenAddress, ecommerceAddress]);
 
   useEffect(() => {
     fetchBalances();
@@ -108,9 +134,21 @@ export function UserDropdown() {
                 {address.slice(0, 10)}...{address.slice(-6)}
               </span>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30 font-poppins">
-              ● Red Web3
-            </span>
+            {isKycVerified ? (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30 font-poppins">
+                ✓ Verificado
+              </span>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsKycModalOpen(true);
+                }}
+                className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/40 hover:bg-[#FFE8CC] font-poppins animate-pulse"
+              >
+                ⚠️ Inscrito (KYC ➔)
+              </button>
+            )}
           </div>
 
           {/* Balances Card */}
@@ -215,6 +253,17 @@ export function UserDropdown() {
         onClose={() => setIsStripeModalOpen(false)}
         userAddress={address}
         onSuccess={fetchBalances}
+      />
+
+      {/* KYC VERIFICATION MODAL */}
+      <KycModal
+        isOpen={isKycModalOpen}
+        onClose={() => setIsKycModalOpen(false)}
+        userAddress={address}
+        onSuccess={() => {
+          setIsKycModalOpen(false);
+          fetchBalances();
+        }}
       />
     </div>
   );

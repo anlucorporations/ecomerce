@@ -8,9 +8,11 @@ import { ethers } from 'ethers';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { StripeTopupModal } from '@/components/stripe-topup-modal';
+import { KycModal } from '@/components/kyc-modal';
 
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
+  "function isKYCVerified(address account) view returns (bool)",
   "function registerCustomerSelf(string _name, string _contactEmail, string _shippingAddress)",
   "function addToCart(uint256 _productId, uint256 _quantity)",
   "function getCart(address _customerAddress) view returns (tuple(uint256 productId, uint256 quantity, uint256 unitPrice)[])",
@@ -107,6 +109,28 @@ export default function CartPage() {
       // EntityType 0: Unregistered -> Show Customer Registration Modal
       if (Number(entityType) === 0) {
         setShowRegisterModal(true);
+        setProcessing(false);
+        setCheckoutStep('');
+        return;
+      }
+
+      // Step 2b: Check KYC Status (Inscrito vs Verificado)
+      let isVerified = false;
+      try {
+        const isKyc = await contract.isKYCVerified(activeAddress);
+        if (isKyc) isVerified = true;
+      } catch (e) {
+        console.warn("isKYCVerified check warning:", e);
+      }
+
+      if (!isVerified && typeof window !== 'undefined') {
+        const localKyc = localStorage.getItem(`kyc_verified_${activeAddress.toLowerCase()}`);
+        if (localKyc === 'true') isVerified = true;
+      }
+
+      // If status is ONLY "Inscrito" (NOT Verificado), block payment and trigger KYC Modal!
+      if (!isVerified) {
+        setIsKYCModalOpen(true);
         setProcessing(false);
         setCheckoutStep('');
         return;
@@ -620,6 +644,19 @@ export default function CartPage() {
         onClose={() => setIsStripeModalOpen(false)}
         userAddress={address}
         onSuccess={refreshBalance}
+      />
+
+      {/* KYC VERIFICATION MODAL */}
+      <KycModal
+        isOpen={isKYCModalOpen}
+        onClose={() => setIsKYCModalOpen(false)}
+        userAddress={address}
+        onSuccess={() => {
+          setIsKYCModalOpen(false);
+          handleCheckout();
+        }}
+        customTitle="Verificación KYC Necesaria para Pagar Carrito"
+        customReason="Su cuenta se encuentra actualmente en estado 'Inscrito'. Para procesar el pago de su carrito de compras y generar facturas con Custodia Escrow, complete este rápido paso de verificación de identidad."
       />
     </div>
   );

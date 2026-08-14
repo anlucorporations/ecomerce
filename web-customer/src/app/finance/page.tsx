@@ -19,7 +19,7 @@ interface Invoice {
 }
 
 const ECOMMERCE_ABI = [
-  "function getCompanyInvoices(uint256 companyId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
+  "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
   "function getAllCompanies() view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate)[])"
 ];
 
@@ -68,8 +68,8 @@ export default function UserFinancePage() {
         });
         setCompanyNames(compMap);
 
-        const allInv = await contract.getCompanyInvoices(BigInt(1));
-        const userInvs = Array.from(allInv).filter(
+        const custInvs = await contract.getCustomerInvoices(address);
+        const userInvs = Array.from(custInvs).filter(
           (inv: any) => inv.customerAddress.toLowerCase() === address.toLowerCase()
         );
         setInvoices(userInvs as Invoice[]);

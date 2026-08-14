@@ -39,14 +39,7 @@ const SHIPPING_CONDITIONS = [
 const PRESENTATIONS = ["Unidad Individual", "Caja x12", "Paquete 500g", "Suscripción Mensual", "Licencia Digital"];
 
 export default function InventoryPage() {
-  const router = useRouter();
   const { provider, signer, chainId, address, isConnected } = useWallet();
-
-  useEffect(() => {
-    if (!isConnected && !address && typeof window !== "undefined") {
-      router.push("/");
-    }
-  }, [isConnected, address, router]);
   const ecommerce = useContract("ecommerce", provider, signer, chainId);
 
   const [companyId, setCompanyId] = useState<string>("");

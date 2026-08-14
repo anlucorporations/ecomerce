@@ -22,15 +22,8 @@ const EURO_TOKEN_ABI = [
 const ORDER_STATUS_LABELS = ["Creado", "Pagado (EURT)", "Enviado", "Entregado", "Completado"];
 
 export default function FinancePage() {
-  const router = useRouter();
   const { provider, signer, chainId, address, isConnected } = useWallet();
   const ecommerce = useContract("ecommerce", provider, signer, chainId);
-
-  useEffect(() => {
-    if (!isConnected && !address && typeof window !== "undefined") {
-      router.push("/");
-    }
-  }, [isConnected, address, router]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [companyId, setCompanyId] = useState<string>("");
@@ -69,68 +62,87 @@ export default function FinancePage() {
         }
 
         // Fetch Company info
-        let compId = BigInt(1);
+        let compId: bigint | null = null;
+        let isMerchant = false;
         try {
           const comp = await contract.getCompanyByAddress(address);
           if (comp && comp.companyId > BigInt(0)) {
             compId = comp.companyId;
             setCompanyName(comp.name);
+            isMerchant = true;
           }
         } catch {
           // fallback
         }
-        setCompanyId(compId.toString());
 
-        // Fetch Invoices
-        const rawInvoices = await contract.getCompanyInvoices(compId);
-        setInvoices(rawInvoices);
+        const isOwner = address.toLowerCase() === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
 
-        // Compute Total Invoiced EURT (Only paid/shipped/delivered status >= 1)
-        let totalPaid = 0;
-        rawInvoices.forEach((inv: any) => {
-          if (inv.isPaid || Number(inv.status) >= 1) {
-            totalPaid += Number(inv.totalAmount) / 1000000;
-          }
-        });
-        setTotalInvoicedEur(totalPaid);
+        if (isOwner && !compId) {
+          compId = BigInt(1);
+          setCompanyName("Super Admin Owner");
+        } else if (!compId) {
+          setCompanyId("");
+          setCompanyName("Wallet no inscrita como Empresa");
+        }
 
-        // Fetch Products & Compute Inventory Capital
-        const rawProducts = await contract.getCompanyProducts(compId);
-        setProducts(rawProducts);
+        if (compId) {
+          setCompanyId(compId.toString());
 
-        let totalNominal = 0;
-        let totalMarket = 0;
+          // Fetch Invoices for this merchant
+          const rawInvoices = await contract.getCompanyInvoices(compId);
+          setInvoices(rawInvoices);
 
-        rawProducts.forEach((p: any) => {
-          const stock = Number(p.stock);
-          const price = Number(p.price) / 1000000;
-          let nominalUnit = price * 0.7;
-
-          try {
-            if (p.description && p.description.startsWith("{")) {
-              const meta = JSON.parse(p.description);
-              if (meta.nominalValue) nominalUnit = Number(meta.nominalValue);
+          // Compute Total Invoiced EURT for this merchant
+          let totalPaid = 0;
+          rawInvoices.forEach((inv: any) => {
+            if (inv.isPaid || Number(inv.status) >= 1) {
+              totalPaid += Number(inv.totalAmount) / 1000000;
             }
-          } catch {
-            // fallback
-          }
+          });
+          setTotalInvoicedEur(totalPaid);
 
-          totalNominal += stock * nominalUnit;
-          totalMarket += stock * price;
-        });
+          // Fetch Products & Compute Inventory Capital for this merchant
+          const rawProducts = await contract.getCompanyProducts(compId);
+          setProducts(rawProducts);
 
-        setInventoryNominalCapital(totalNominal);
-        setInventoryMarketCapital(totalMarket);
-        setEstimatedMarginEur(totalMarket - totalNominal);
+          let totalNominal = 0;
+          let totalMarket = 0;
 
-        // Fetch Activity Logs for EURT / Payments
+          rawProducts.forEach((p: any) => {
+            const stock = Number(p.stock);
+            const price = Number(p.price) / 1000000;
+            let nominalUnit = price * 0.7;
+
+            try {
+              if (p.description && p.description.startsWith("{")) {
+                const meta = JSON.parse(p.description);
+                if (meta.nominalValue) nominalUnit = Number(meta.nominalValue);
+              }
+            } catch {
+              // fallback
+            }
+
+            totalNominal += stock * nominalUnit;
+            totalMarket += stock * price;
+          });
+
+          setInventoryNominalCapital(totalNominal);
+          setInventoryMarketCapital(totalMarket);
+          setEstimatedMarginEur(totalMarket - totalNominal);
+        } else {
+          setInvoices([]);
+          setProducts([]);
+          setTotalInvoicedEur(0);
+          setInventoryNominalCapital(0);
+          setInventoryMarketCapital(0);
+          setEstimatedMarginEur(0);
+        }
+
+        // Fetch Activity Logs strictly for connected wallet
         try {
           const logs = await contract.getActivityLogs();
           const filtered = logs.filter(
-            (l: any) =>
-              l.userAddress.toLowerCase() === address.toLowerCase() ||
-              l.actionTag.includes("PAYMENT") ||
-              l.actionTag.includes("INVOICE")
+            (l: any) => l.userAddress.toLowerCase() === address.toLowerCase()
           );
           setActivityLogs(filtered);
         } catch {

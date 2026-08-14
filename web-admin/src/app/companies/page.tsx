@@ -29,17 +29,8 @@ const FALLBACK_COMPANIES: Company[] = [
   {
     companyId: BigInt(1),
     companyAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-    name: "Empresa Cacao Sol S.A.",
-    description: "Distribución de granos de café orgánico y productos derivados del cacao de alta montaña.",
-    businessType: 0,
-    isActive: true,
-    registrationDate: BigInt(Math.floor(Date.now() / 1000)),
-  },
-  {
-    companyId: BigInt(2),
-    companyAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    name: "Chocolates Azul Caribe C.A.",
-    description: "Elaboración de chocolates finos de aroma y repostería artesanal.",
+    name: "Super Owner Enterprise",
+    description: "Empresa Principal del Administrador del Sistema E-Commerce",
     businessType: 0,
     isActive: true,
     registrationDate: BigInt(Math.floor(Date.now() / 1000)),
@@ -129,12 +120,6 @@ export default function CompaniesPage() {
   };
 
   useEffect(() => {
-    if (!isConnected && !address && typeof window !== "undefined") {
-      router.push("/");
-    }
-  }, [isConnected, address, router]);
-
-  useEffect(() => {
     loadCompaniesData();
   }, [provider, address]);
 
@@ -194,8 +179,9 @@ export default function CompaniesPage() {
       setUserCompany(newCompany);
       setIsRegistered(true);
 
-      alert("¡Inscripción exitosa! Su empresa ha sido registrada y su wallet verificada.");
+      alert("¡Inscripción exitosa! Su empresa ha sido registrada y su wallet verificada. Redirigiendo al Dashboard...");
       await loadCompaniesData();
+      router.push("/");
     } catch (error: any) {
       console.error("Failed to register company:", error);
       alert("Error en la inscripción: " + (error?.reason || error?.message || "Transacción cancelada o fallida"));

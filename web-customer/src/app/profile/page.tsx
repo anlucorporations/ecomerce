@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
-import { useRouter } from 'next/navigation';
+import { CustomerRegistrationModal } from '@/components/customer-registration-modal';
 
 interface AddressItem {
   id: string;
@@ -17,20 +17,23 @@ interface AddressItem {
 
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
-  "function registerCustomerSelf(string _name, string _contactEmail, string _shippingAddress)"
+  "function isCustomerRegistered(address _customer) view returns (bool)",
+  "function getCustomer(address _customer) view returns (tuple(uint256 id, address customerAddress, string name, string contactEmail, string shippingAddress, bool isKYCVerified, uint256 registrationDate))"
 ];
 
 export default function ProfilePage() {
   const { provider, address, isConnected, connect } = useWallet();
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318";
 
   const [profile, setProfile] = useState({
-    name: 'Cliente Demo BARLO-VENTAS',
+    name: 'Cliente BARLO-VENTAS',
     email: 'cliente@barloventas.com',
     phone: '+34 612 345 678',
   });
 
   const [entityType, setEntityType] = useState<number | null>(null);
+  const [isRegistered, setIsRegistered] = useState<boolean>(false);
+  const [showRegModal, setShowRegModal] = useState<boolean>(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const [addressesList, setAddressesList] = useState<AddressItem[]>([
@@ -59,17 +62,91 @@ export default function ProfilePage() {
     const fetchStatus = async () => {
       if (!address) return;
       try {
-        const rpcProvider = provider || new ethers.JsonRpcProvider('http://localhost:8545');
+        const rpcProvider = new ethers.JsonRpcProvider('http://localhost:8545');
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
-        const type = await contract.getEntityType(address);
-        setEntityType(Number(type));
+
+        let registeredOnChain = false;
+
+        // 1. Check isCustomerRegistered
+        try {
+          const isReg = await contract.isCustomerRegistered(address);
+          if (isReg) registeredOnChain = true;
+        } catch (e) {
+          console.warn('isCustomerRegistered check warning:', e);
+        }
+
+        // 2. Check getEntityType
+        try {
+          const type = await contract.getEntityType(address);
+          setEntityType(Number(type));
+          if (Number(type) > 0) registeredOnChain = true;
+        } catch (e) {
+          console.warn('Error fetching entity type:', e);
+        }
+
+        // 3. Fetch Customer Data
+        try {
+          const cust = await contract.getCustomer(address);
+          if (cust && cust.customerAddress && cust.customerAddress !== ethers.ZeroAddress) {
+            setProfile((prev) => ({
+              ...prev,
+              name: cust.name || prev.name,
+              email: cust.contactEmail || prev.email,
+            }));
+            if (cust.shippingAddress) {
+              setAddressesList([
+                {
+                  id: '1',
+                  label: 'Dirección Registrada Blockchain',
+                  street: cust.shippingAddress,
+                  city: 'Ciudad de Entrega',
+                  postalCode: '28000',
+                  instructions: 'Dirección confirmada en Smart Contract',
+                  isDefault: true,
+                },
+              ]);
+            }
+            registeredOnChain = true;
+          }
+        } catch (e) {
+          console.warn('getCustomer warning:', e);
+        }
+
+        // 4. Check LocalStorage fallback
+        if (typeof window !== 'undefined') {
+          const localReg = localStorage.getItem(`customer_reg_${address.toLowerCase()}`);
+          if (localReg) {
+            try {
+              const parsed = JSON.parse(localReg);
+              setProfile((prev) => ({
+                ...prev,
+                name: parsed.name || prev.name,
+                email: parsed.email || prev.email,
+              }));
+              registeredOnChain = true;
+            } catch (e) {
+              console.warn("Parse localReg error:", e);
+            }
+          }
+        }
+
+        setIsRegistered(registeredOnChain);
+
+        // Auto open modal if user came from redirection with ?register=true or is unregistered
+        if (typeof window !== 'undefined') {
+          const searchParams = new URLSearchParams(window.location.search);
+          if (!registeredOnChain || searchParams.get('register') === 'true') {
+            setShowRegModal(true);
+          }
+        }
+
       } catch (e) {
-        console.warn('Error fetching entity type:', e);
+        console.warn('Error in fetchStatus:', e);
       }
     };
 
     fetchStatus();
-  }, [address, provider, ecommerceAddress]);
+  }, [address, ecommerceAddress]);
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +195,7 @@ export default function ProfilePage() {
           </div>
           <h1 className="text-xl font-black text-[#333333] font-poppins">Acceso Restringido</h1>
           <p className="text-xs text-[#A9A9A9] leading-relaxed">
-            Conecte su billetera Web3 para administrar su perfil BARLO-VENTAS y direcciones de despacho.
+            Conecte su billetera Web3 para administrar su perfil BARLO-VENTAS y verificar su estado de inscripción.
           </p>
           <button
             onClick={() => connect()}
@@ -133,8 +210,42 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#F5F5F0] py-10 px-4 sm:px-6 lg:px-8">
+      <CustomerRegistrationModal
+        isOpen={showRegModal}
+        onClose={() => setShowRegModal(false)}
+        userAddress={address}
+        onSuccess={() => {
+          setIsRegistered(true);
+          setShowRegModal(false);
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        }}
+      />
+
       <div className="max-w-4xl mx-auto space-y-8">
         
+        {/* Registration Warning Callout if Unregistered */}
+        {!isRegistered && (
+          <div className="bg-[#FFF3E5] border-2 border-[#FF8800] p-6 rounded-2xl shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚠️</span>
+                <h3 className="font-extrabold text-[#333333] text-sm font-poppins">Billetera No Inscrita en BARLO-VENTAS</h3>
+              </div>
+              <p className="text-xs text-[#A9A9A9] max-w-xl">
+                Su billetera <strong className="text-[#0077BB] font-mono">{address}</strong> aún no está inscripta en el registro del Smart Contract. Complete su inscripción para operar en la plataforma.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowRegModal(true)}
+              className="px-5 py-2.5 bg-[#FF8800] hover:bg-[#E07700] text-white font-black text-xs rounded-xl shadow-md transition shrink-0 font-poppins"
+            >
+              ✍️ Inscribir Billetera Ahora
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="glass-card p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -150,9 +261,9 @@ export default function ProfilePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {entityType === 2 ? (
+            {isRegistered || entityType === 2 ? (
               <span className="px-3 py-1 bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30 text-xs font-bold rounded-full flex items-center gap-1.5 font-poppins">
-                <span>✓</span> KYC Verificado (Comprador)
+                <span>✓</span> Billetera Inscrita (Comprador)
               </span>
             ) : (
               <span className="px-3 py-1 bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30 text-xs font-bold rounded-full flex items-center gap-1.5 font-poppins">

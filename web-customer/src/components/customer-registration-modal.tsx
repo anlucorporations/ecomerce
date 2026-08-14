@@ -12,7 +12,7 @@ interface CustomerRegistrationModalProps {
 }
 
 const ECOMMERCE_ABI = [
-  "function registerCustomerSelf(string _name, string _contactEmail, string _shippingAddress)"
+  "function registerCustomerSelf(string _name, string _contactEmail, string _shippingAddress) payable"
 ];
 
 export function CustomerRegistrationModal({
@@ -21,7 +21,7 @@ export function CustomerRegistrationModal({
   userAddress,
   onSuccess
 }: CustomerRegistrationModalProps) {
-  const { signer, provider } = useWallet();
+  const { signer } = useWallet();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -29,12 +29,19 @@ export function CustomerRegistrationModal({
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x68B1D87F95878fE05B998F19b66F4baba5De1aed";
 
   if (!isOpen || !userAddress) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Mandatory Fields Validation
+    if (!formData.name.trim() || !formData.email.trim() || !formData.shippingAddress.trim()) {
+      alert("⚠️ El nombre completo, correo electrónico y dirección principal de despacho son ESTRICTAMENTE OBLIGATORIOS.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -46,25 +53,54 @@ export function CustomerRegistrationModal({
       }
 
       if (!activeSigner) {
-        alert("Por favor instale o desbloquee su extensión MetaMask para proceder.");
+        alert("Por favor instale o desbloquee su extensión MetaMask para proceder con el registro.");
         setSubmitting(false);
         return;
       }
 
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
+      const requiredWei = ethers.parseEther("3.0");
 
+      // Check User ETH Balance
+      let balanceWei = BigInt(0);
       try {
-        const tx = await contract.registerCustomerSelf(
+        if (activeSigner.provider) {
+          balanceWei = await activeSigner.provider.getBalance(userAddress);
+        }
+      } catch (e) {
+        console.warn("Could not check balance:", e);
+      }
+
+      let tx;
+      if (balanceWei >= requiredWei) {
+        try {
+          // Attempt sending with 3.0 ETH deposit
+          tx = await contract.registerCustomerSelf(
+            formData.name,
+            formData.email,
+            formData.shippingAddress,
+            { value: requiredWei }
+          );
+        } catch (valErr) {
+          console.warn("Error sending 3 ETH deposit, falling back to 0 ETH register:", valErr);
+          tx = await contract.registerCustomerSelf(
+            formData.name,
+            formData.email,
+            formData.shippingAddress
+          );
+        }
+      } else {
+        // Fallback for demo testnet accounts with lower ETH balance
+        tx = await contract.registerCustomerSelf(
           formData.name,
           formData.email,
           formData.shippingAddress
         );
-        await tx.wait();
-      } catch (txErr: any) {
-        console.warn("Transacción registrada o fallback ejecutado:", txErr);
       }
 
-      // Store local persistence for instant verification & reflection
+      await tx.wait();
+
+      // Store local persistence for instant verification
       const regObject = {
         address: userAddress,
         name: formData.name,
@@ -77,14 +113,14 @@ export function CustomerRegistrationModal({
         localStorage.setItem(`customer_reg_${userAddress.toLowerCase()}`, JSON.stringify(regObject));
       }
 
-      alert("¡Inscripción exitosa! Su billetera se encuentra registrada e inscripta en BARLO-VENTAS.");
+      alert("¡Inscripción de cliente registrada con éxito en blockchain!");
 
       if (onSuccess) onSuccess();
       onClose();
 
     } catch (error: any) {
       console.error("Error en inscripción de comprador:", error);
-      alert("Error en la inscripción: " + (error?.reason || error?.message || "Transacción cancelada"));
+      alert("Error en la inscripción: " + (error?.reason || error?.message || "Transacción cancelada o fallida"));
     } finally {
       setSubmitting(false);
     }
@@ -100,11 +136,25 @@ export function CustomerRegistrationModal({
             <span>🛵 BARLO-VENTAS Web3 &bull; Inscripción de Cliente</span>
           </div>
           <h2 className="text-2xl font-black text-[#333333] tracking-tight font-poppins">
-            Billetera No Registrada
+            Registro Obligatorio de Comprador
           </h2>
           <p className="text-xs text-[#A9A9A9] leading-relaxed">
-            Su billetera <span className="font-mono text-[#0077BB] font-bold">{userAddress.slice(0, 6)}...{userAddress.slice(-4)}</span> no está inscripta. Complete los datos iniciales para registrarse en el sistema de compras.
+            Su billetera <span className="font-mono text-[#0077BB] font-bold">{userAddress.slice(0, 6)}...{userAddress.slice(-4)}</span> debe completar la información de contacto y despacho para registrarse en el sistema.
           </p>
+        </div>
+
+        {/* Depósito Alert Badge */}
+        <div className="bg-[#FFF3E5] border border-[#FF8800]/40 p-3.5 rounded-2xl flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">💰</span>
+            <div>
+              <span className="font-bold text-[#FF8800] block font-poppins">Depósito Recomendado</span>
+              <span className="text-[11px] text-[#333333]">Garantía de cuenta en blockchain:</span>
+            </div>
+          </div>
+          <span className="px-3 py-1 bg-[#FF8800] text-white font-black text-xs rounded-xl shadow-xs font-mono">
+            3.0 ETH
+          </span>
         </div>
 
         {/* Form */}
@@ -118,35 +168,35 @@ export function CustomerRegistrationModal({
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Ej. Carlos Mendoza"
+              placeholder="Ej. Gloria Burgos"
               className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3.5 py-2.5 text-[#333333] focus:border-[#0077BB] focus:outline-none transition"
             />
           </div>
 
           <div>
             <label className="block font-bold text-[#333333] mb-1 font-poppins">
-              Correo Electrónico de Contacto *
+              Correo Electrónico de Contacto * <span className="text-rose-500 font-bold">(Obligatorio)</span>
             </label>
             <input
               type="email"
               required
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="carlos@ejemplo.com"
+              placeholder="anlucorporations@gmail.com"
               className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3.5 py-2.5 text-[#333333] focus:border-[#0077BB] focus:outline-none transition"
             />
           </div>
 
           <div>
             <label className="block font-bold text-[#333333] mb-1 font-poppins">
-              Dirección Principal de Despacho *
+              Dirección Principal de Despacho * <span className="text-rose-500 font-bold">(Obligatorio)</span>
             </label>
             <input
               type="text"
               required
               value={formData.shippingAddress}
               onChange={(e) => setFormData({ ...formData, shippingAddress: e.target.value })}
-              placeholder="Av. Francisco de Miranda, Res. Sol, Apto 4B"
+              placeholder="Av. Principal de La Urbina, Res. San Jose"
               className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3.5 py-2.5 text-[#333333] focus:border-[#0077BB] focus:outline-none transition"
             />
           </div>
@@ -155,9 +205,9 @@ export function CustomerRegistrationModal({
             <button
               type="submit"
               disabled={submitting}
-              className="w-full btn-cacao-pulse py-3 text-xs font-bold uppercase tracking-wider font-poppins disabled:opacity-50"
+              className="w-full btn-cacao-pulse py-3.5 text-xs font-black uppercase tracking-wider font-poppins disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {submitting ? 'Inscribiendo en Blockchain...' : '✍️ Inscribir y Verificar Billetera'}
+              {submitting ? 'Registrando en Blockchain...' : '✍️ Inscribir y Registrar en Blockchain'}
             </button>
           </div>
         </form>

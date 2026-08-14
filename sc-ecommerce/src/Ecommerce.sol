@@ -280,7 +280,10 @@ contract Ecommerce {
         string memory _name,
         string memory _contactEmail,
         string memory _shippingAddress
-    ) external {
+    ) external payable {
+        require(bytes(_contactEmail).length > 0, "El correo electronico es obligatorio");
+        require(bytes(_shippingAddress).length > 0, "La direccion de despacho es obligatoria");
+
         isKYCVerified[msg.sender] = true;
         emit KYCStatusUpdated(msg.sender, true);
 

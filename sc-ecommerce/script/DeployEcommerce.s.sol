@@ -48,8 +48,8 @@ contract DeployEcommerceScript is Script {
             50
         );
 
-        // 4. Owner Account #0 self-registers as Customer for full web-customer access
-        ecommerce.registerCustomerSelf(
+        // 4. Owner Account #0 self-registers as Customer sending 3.0 ETH deposit for full web-customer access
+        ecommerce.registerCustomerSelf{value: 3 ether}(
             "Super Owner Admin",
             "owner@mastercodecrypto.com",
             "Sede Central E-Commerce, Madrid"

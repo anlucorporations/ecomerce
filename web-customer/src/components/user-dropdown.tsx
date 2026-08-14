@@ -18,25 +18,29 @@ export function UserDropdown() {
   const [ethBalance, setEthBalance] = useState<string>('0.0000');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const [userName, setUserName] = useState<string>('');
   const [isKycVerified, setIsKycVerified] = useState<boolean>(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState<boolean>(false);
 
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318';
 
-  const fetchBalances = useCallback(async () => {
+  const fetchUserData = useCallback(async () => {
     if (!address) {
       setEurtBalance('0.00');
       setEthBalance('0.0000');
+      setUserName('');
       setIsKycVerified(false);
       return;
     }
     try {
       const rpcProvider = provider || new ethers.JsonRpcProvider('http://localhost:8545');
 
+      // 1. Fetch ETH Balance
       const rawEth = await rpcProvider.getBalance(address);
       setEthBalance((Number(rawEth) / 1e18).toFixed(4));
 
+      // 2. Fetch EURT Balance
       const tokenContract = new ethers.Contract(
         euroTokenAddress,
         ['function balanceOf(address account) view returns (uint256)'],
@@ -45,33 +49,60 @@ export function UserDropdown() {
       const rawEurt = await tokenContract.balanceOf(address);
       setEurtBalance((Number(rawEurt) / 1e6).toFixed(2));
 
-      // Check KYC Verification
+      // 3. Fetch User Name & KYC Verification Status on-chain
+      let fetchedName = '';
       let kyc = false;
+
       try {
         const ecomContract = new ethers.Contract(
           ecommerceAddress,
-          ['function isKYCVerified(address account) view returns (bool)'],
+          [
+            'function isKYCVerified(address account) view returns (bool)',
+            'function getCustomer(address _customer) view returns (tuple(uint256 id, address customerAddress, string name, string contactEmail, string shippingAddress, bool isKYCVerified, uint256 registrationDate))'
+          ],
           rpcProvider
         );
+
         kyc = await ecomContract.isKYCVerified(address);
+
+        const cust = await ecomContract.getCustomer(address);
+        if (cust && cust.name && cust.name.trim() !== '') {
+          fetchedName = cust.name;
+        }
       } catch (e) {
-        console.warn('KYC check error:', e);
+        console.warn('KYC/Customer fetch warning:', e);
       }
 
-      if (!kyc && typeof window !== 'undefined') {
-        const localKyc = localStorage.getItem(`kyc_verified_${address.toLowerCase()}`);
-        if (localKyc === 'true') kyc = true;
+      // 4. Check LocalStorage fallback for Name & KYC
+      if (typeof window !== 'undefined') {
+        if (!kyc) {
+          const localKyc = localStorage.getItem(`kyc_verified_${address.toLowerCase()}`);
+          if (localKyc === 'true') kyc = true;
+        }
+        if (!fetchedName) {
+          const localReg = localStorage.getItem(`customer_reg_${address.toLowerCase()}`);
+          if (localReg) {
+            try {
+              const parsed = JSON.parse(localReg);
+              if (parsed.name) fetchedName = parsed.name;
+            } catch (e) {
+              console.warn("Parse localReg error:", e);
+            }
+          }
+        }
       }
+
+      setUserName(fetchedName || `Cliente ${address.slice(0, 6)}`);
       setIsKycVerified(kyc);
 
     } catch (e) {
-      console.warn('Error fetching user balances:', e);
+      console.warn('Error fetching user data:', e);
     }
   }, [address, provider, euroTokenAddress, ecommerceAddress]);
 
   useEffect(() => {
-    fetchBalances();
-  }, [fetchBalances, isOpen]);
+    fetchUserData();
+  }, [fetchUserData, isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -101,7 +132,7 @@ export function UserDropdown() {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Trigger Button */}
+      {/* Trigger Button in Navbar */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-3 px-3.5 py-2 rounded-2xl bg-white hover:bg-slate-50 border border-[#0077BB]/20 shadow-sm transition"
@@ -110,46 +141,70 @@ export function UserDropdown() {
           {address.slice(2, 4).toUpperCase()}
         </div>
         <div className="text-left hidden sm:block">
-          <span className="text-xs font-bold text-[#333333] block leading-tight font-poppins">
-            {address.slice(0, 6)}...{address.slice(-4)}
+          <span className="text-xs font-black text-[#333333] block leading-tight font-poppins max-w-[140px] truncate">
+            {userName}
           </span>
-          <span className="text-[10px] text-[#2E8B57] font-mono font-bold">
-            €{eurtBalance} EURT
-          </span>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[10px] text-[#2E8B57] font-mono font-bold">
+              €{eurtBalance} EURT
+            </span>
+            <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${isKycVerified ? 'bg-[#EAF5EF] text-[#2E8B57]' : 'bg-[#FFF3E5] text-[#FF8800]'}`}>
+              {isKycVerified ? '✓ Verificado' : '⚠️ Inscrito'}
+            </span>
+          </div>
         </div>
         <span className="text-xs text-[#0077BB] font-bold">▾</span>
       </button>
 
       {/* DROPDOWN MENU */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 glass-card p-4 z-50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 mt-3 w-84 glass-card p-4 z-50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
           
           {/* Header */}
-          <div className="border-b border-[#0077BB]/10 pb-3 flex items-center justify-between">
-            <div>
+          <div className="border-b border-[#0077BB]/10 pb-3 flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
               <span className="text-[10px] font-bold text-[#0077BB] uppercase tracking-wider block font-poppins">
-                Usuario BARLO-VENTAS
+                Nombre de Usuario
               </span>
-              <span className="font-mono text-xs font-bold text-[#333333]">
+              <h3 className="font-black text-sm text-[#333333] truncate font-poppins">
+                {userName}
+              </h3>
+              <span className="font-mono text-[11px] text-[#A9A9A9] block">
                 {address.slice(0, 10)}...{address.slice(-6)}
               </span>
             </div>
             {isKycVerified ? (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30 font-poppins">
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30 font-poppins shrink-0">
                 ✓ Verificado
               </span>
             ) : (
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/40 font-poppins shrink-0">
+                ⚠️ Inscrito
+              </span>
+            )}
+          </div>
+
+          {/* KYC Prompt Banner if NOT Verified */}
+          {!isKycVerified && (
+            <div className="bg-[#FFF3E5] border border-[#FF8800]/40 p-3 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-[#FF8800] font-poppins">⚠️ Estado: Pendiente KYC</span>
+                <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Carrito Bloqueado</span>
+              </div>
+              <p className="text-[11px] text-[#333333] leading-tight">
+                Su cuenta está en estado <strong>Inscrito</strong>. Complete la verificación de identidad (DNI + Foto) para habilitar compras y recargas EURT.
+              </p>
               <button
                 onClick={() => {
                   setIsOpen(false);
                   setIsKycModalOpen(true);
                 }}
-                className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/40 hover:bg-[#FFE8CC] font-poppins animate-pulse"
+                className="w-full py-2 bg-[#FF8800] hover:bg-[#E07700] text-white font-black text-xs rounded-xl shadow-md transition font-poppins flex items-center justify-center gap-1.5"
               >
-                ⚠️ Inscrito (KYC ➔)
+                <span>🪪</span> Realizar Proceso de Verificación KYC ➔
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Balances Card */}
           <div className="bg-white/80 border border-[#0077BB]/15 rounded-xl p-3.5 space-y-2">
@@ -252,7 +307,7 @@ export function UserDropdown() {
         isOpen={isStripeModalOpen}
         onClose={() => setIsStripeModalOpen(false)}
         userAddress={address}
-        onSuccess={fetchBalances}
+        onSuccess={fetchUserData}
       />
 
       {/* KYC VERIFICATION MODAL */}
@@ -262,7 +317,7 @@ export function UserDropdown() {
         userAddress={address}
         onSuccess={() => {
           setIsKycModalOpen(false);
-          fetchBalances();
+          fetchUserData();
         }}
       />
     </div>

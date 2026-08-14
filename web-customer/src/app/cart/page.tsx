@@ -180,11 +180,19 @@ export default function CartPage() {
         return;
       }
 
+      if (!registerForm.name.trim() || !registerForm.email.trim() || !registerForm.shippingAddress.trim()) {
+        alert("⚠️ El nombre, correo electrónico y dirección de despacho son ESTRICTAMENTE OBLIGATORIOS.");
+        setProcessing(false);
+        setCheckoutStep('');
+        return;
+      }
+
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
       const tx = await contract.registerCustomerSelf(
         registerForm.name,
         registerForm.email,
-        registerForm.shippingAddress
+        registerForm.shippingAddress,
+        { value: ethers.parseEther("3.0") }
       );
       await tx.wait();
 

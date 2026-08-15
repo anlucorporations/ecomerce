@@ -10,7 +10,9 @@ const ECOMMERCE_ABI = [
   "function getCompanyProducts(uint256 companyId) view returns (tuple(uint256 productId, uint256 companyId, string name, string description, uint256 price, string ipfsHash, uint256 stock, bool isAvailable)[])",
   "function getCompanyInvoices(uint256 companyId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
   "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
-  "function getCustomer(address customer) view returns (tuple(address customerAddress, string name, string email, string physicalAddress, uint256 registrationDate, bool isRegistered))",
+  "function getCustomer(address customer) view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive))",
+  "function getAllCustomers() view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive)[])",
+  "function isCustomerRegistered(address customer) view returns (bool)",
   "function getActivityLogs() view returns (tuple(address user, string action, string details, uint256 timestamp)[])"
 ];
 
@@ -34,6 +36,9 @@ interface UserRecord {
   eurtBalance?: string;
   ordersCount?: number;
   totalSpentEur?: number;
+  amountInCustodyEur?: number;
+  amountPaidEur?: number;
+  invoices?: any[];
 }
 
 interface CompanyRecord {
@@ -121,8 +126,9 @@ export default function SystemsPage() {
     { name: "Compra EURT con Stripe", url: "http://localhost:3003", port: 3003, status: "TESTING", latencyMs: 0, httpStatus: 0 },
   ]);
 
-  // --- State for CRUD Modals ---
+  // --- State for CRUD & Financial Modals ---
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
+  const [financialUser, setFinancialUser] = useState<UserRecord | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyRecord | null>(null);
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318";
@@ -229,44 +235,108 @@ export default function SystemsPage() {
       }
       setCompaniesList(formattedComps);
 
-      // 3. Fetch Users (Customers)
-      const knownUserAddrs = [
-        OWNER_ADDRESS,
-        "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-        "0x3C44CdD1605346469453146e6297029461057886",
-        "0x90F79bf6EB2c4f8090654388C22413993044455f"
-      ];
-
+      // 3. Fetch Users (Customers) on-chain
       const loadedUsers: UserRecord[] = [];
-      for (const uAddr of knownUserAddrs) {
-        try {
-          const cust = await ecommerce.getCustomer(uAddr);
-          if (cust && cust.isRegistered) {
-            const rawEth = await rpcProvider.getBalance(uAddr);
-            const rawEurt = await euroToken.balanceOf(uAddr);
-            const custInvs = await ecommerce.getCustomerInvoices(uAddr);
+      try {
+        const rawCusts = await ecommerce.getAllCustomers();
+        for (const cust of rawCusts) {
+          if (cust && cust.customerAddress && cust.customerAddress !== ethers.ZeroAddress) {
+            let ethB = "0.0000";
+            let eurtB = "0.0000";
             let spent = 0;
-            custInvs.forEach((inv: any) => {
-              if (inv.isPaid) spent += Number(inv.totalAmount) / 1e6;
-            });
+            let invCount = 0;
+            let inCustody = 0;
+            let custInvs: any[] = [];
+
+            try {
+              const rawEth = await rpcProvider.getBalance(cust.customerAddress);
+              ethB = parseFloat(ethers.formatEther(rawEth)).toFixed(4);
+
+              const rawEurt = await euroToken.balanceOf(cust.customerAddress);
+              eurtB = (Number(rawEurt) / 1e6).toFixed(2);
+
+              custInvs = await ecommerce.getCustomerInvoices(cust.customerAddress);
+              invCount = custInvs.length;
+              custInvs.forEach((inv: any) => {
+                const amt = Number(inv.totalAmount) / 1e6;
+                if (inv.isPaid) {
+                  spent += amt;
+                  if (Number(inv.status) < 3) inCustody += amt;
+                }
+              });
+            } catch (e) {
+              console.warn("User detail fetch warning:", e);
+            }
 
             loadedUsers.push({
               customerAddress: cust.customerAddress,
-              name: cust.name,
-              email: cust.email,
-              physicalAddress: cust.physicalAddress,
+              name: cust.name || "Usuario Registrado",
+              email: cust.contactEmail || "usuario@mastercodecrypto.com",
+              physicalAddress: cust.shippingAddress || "Dirección Blockchain",
               registrationDate: cust.registrationDate,
-              isRegistered: cust.isRegistered,
-              ethBalance: parseFloat(ethers.formatEther(rawEth)).toFixed(4),
-              eurtBalance: (Number(rawEurt) / 1e6).toFixed(2),
-              ordersCount: custInvs.length,
-              totalSpentEur: spent
+              isRegistered: true,
+              ethBalance: ethB,
+              eurtBalance: eurtB,
+              ordersCount: invCount,
+              totalSpentEur: spent,
+              amountInCustodyEur: inCustody,
+              amountPaidEur: spent,
+              invoices: custInvs || []
             });
           }
-        } catch {
-          // ignore
+        }
+      } catch (err) {
+        console.warn("getAllCustomers on-chain fetch notice:", err);
+      }
+
+      // Check default known addresses if array was empty or needs fallback check
+      const knownUserAddrs = [
+        OWNER_ADDRESS,
+        "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "0x3C44CdD1605346469453146e6297029461057886"
+      ];
+
+      for (const uAddr of knownUserAddrs) {
+        if (!loadedUsers.some(u => u.customerAddress.toLowerCase() === uAddr.toLowerCase())) {
+          try {
+            const isReg = await ecommerce.isCustomerRegistered(uAddr);
+            if (isReg) {
+              const cust = await ecommerce.getCustomer(uAddr);
+              const rawEth = await rpcProvider.getBalance(uAddr);
+              const rawEurt = await euroToken.balanceOf(uAddr);
+              const custInvs = await ecommerce.getCustomerInvoices(uAddr);
+              let spent = 0;
+              let inCustody = 0;
+              custInvs.forEach((inv: any) => {
+                const amt = Number(inv.totalAmount) / 1e6;
+                if (inv.isPaid) {
+                  spent += amt;
+                  if (Number(inv.status) < 3) inCustody += amt;
+                }
+              });
+
+              loadedUsers.push({
+                customerAddress: uAddr,
+                name: cust.name || (uAddr.toLowerCase() === OWNER_ADDRESS.toLowerCase() ? "Super Owner Admin" : "Usuario Registrado"),
+                email: cust.contactEmail || "admin@mastercodecrypto.com",
+                physicalAddress: cust.shippingAddress || "Dirección Blockchain",
+                registrationDate: cust.registrationDate || BigInt(1700000000),
+                isRegistered: true,
+                ethBalance: parseFloat(ethers.formatEther(rawEth)).toFixed(4),
+                eurtBalance: (Number(rawEurt) / 1e6).toFixed(2),
+                ordersCount: custInvs.length,
+                totalSpentEur: spent,
+                amountInCustodyEur: inCustody,
+                amountPaidEur: spent,
+                invoices: custInvs || []
+              });
+            }
+          } catch (e) {
+            console.warn("Single user fetch warning:", e);
+          }
         }
       }
+
       setUsersList(loadedUsers);
 
       // 4. Fetch Activity Logs (Audit)
@@ -815,12 +885,20 @@ export default function SystemsPage() {
                           {usr.eurtBalance} EURT
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <button
-                            onClick={() => setEditingUser(usr)}
-                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg border border-indigo-200 transition"
-                          >
-                            ✏️ Editar Ficha
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => setFinancialUser(usr)}
+                              className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg border border-emerald-200 transition flex items-center gap-1 text-xs"
+                            >
+                              <span>📊</span> Ficha Financiera
+                            </button>
+                            <button
+                              onClick={() => setEditingUser(usr)}
+                              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg border border-indigo-200 transition text-xs"
+                            >
+                              ✏️ Editar
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1557,6 +1635,124 @@ export default function SystemsPage() {
                 className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition"
               >
                 Cerrar Detalle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: FICHA FINANCIERA DEL USUARIO (PILAR USUARIOS) */}
+      {/* ========================================================================= */}
+      {financialUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-6 border border-slate-200">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">Sistemas &bull; Pilar Usuarios</span>
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <span>📊</span> Ficha Financiera de {financialUser.name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setFinancialUser(null)}
+                className="w-8 h-8 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full flex items-center justify-center font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* User Profile Summary */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-slate-900 text-sm">{financialUser.name}</span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">✓ Web3 Registrado</span>
+              </div>
+              <p className="text-slate-500">
+                Billetera Web3: <span className="font-mono text-indigo-700 font-bold">{financialUser.customerAddress}</span>
+              </p>
+              <p className="text-slate-500">
+                Correo Electrónico: <span className="font-medium text-slate-800">{financialUser.email}</span>
+              </p>
+              <p className="text-slate-500">
+                Dirección Física: <span className="font-medium text-slate-800">{financialUser.physicalAddress}</span>
+              </p>
+            </div>
+
+            {/* FINANCIAL METRICS CARDS GRID (3 REQUIRED METRICS) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Metric 1: Monto en EURT Total */}
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-4 rounded-2xl border border-emerald-200 shadow-xs">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 block mb-1">💰 Monto EURT Total</span>
+                <span className="text-xl font-black text-emerald-900 block">€{financialUser.eurtBalance || "0.00"} EURT</span>
+                <span className="text-[10px] font-semibold text-emerald-700 block mt-1">Saldo disponible en wallet</span>
+              </div>
+
+              {/* Metric 2: Monto en Custodia (Escrow) */}
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-2xl border border-amber-200 shadow-xs">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 block mb-1">🔒 Monto en Custodia</span>
+                <span className="text-xl font-black text-amber-900 block">€{(financialUser.amountInCustodyEur || 0).toFixed(2)} EURT</span>
+                <span className="text-[10px] font-semibold text-amber-700 block mt-1">Retenido en Escrow activo</span>
+              </div>
+
+              {/* Metric 3: Monto Pagado */}
+              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-4 rounded-2xl border border-indigo-200 shadow-xs">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-800 block mb-1">🛍️ Monto Pagado</span>
+                <span className="text-xl font-black text-indigo-900 block">€{(financialUser.amountPaidEur || 0).toFixed(2)} EURT</span>
+                <span className="text-[10px] font-semibold text-indigo-700 block mt-1">Total acumulado en compras</span>
+              </div>
+            </div>
+
+            {/* Invoices Breakdown List */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Historial de Facturas y Transacciones</h4>
+              
+              {!financialUser.invoices || financialUser.invoices.length === 0 ? (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center text-xs text-slate-400">
+                  El usuario no registra facturas emitidas en el sistema.
+                </div>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                  {financialUser.invoices.map((inv: any) => {
+                    const amtEur = (Number(inv.totalAmount) / 1e6).toFixed(2);
+
+                    return (
+                      <div key={inv.invoiceId.toString()} className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-indigo-700">Factura #{inv.invoiceId.toString()}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              inv.isPaid ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-amber-100 text-amber-800 border border-amber-200"
+                            }`}>
+                              {inv.isPaid ? "✓ Pagado en Escrow" : "⚠️ Creado / Pendiente"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Fecha: {new Date(Number(inv.timestamp) * 1000).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-extrabold text-slate-900 block text-sm">€{amtEur} EURT</span>
+                          {inv.trackingNumber && (
+                            <span className="text-[10px] font-mono text-indigo-600 block">📦 Guía: {inv.trackingNumber}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 flex justify-end border-t border-slate-100">
+              <button
+                onClick={() => setFinancialUser(null)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition"
+              >
+                Cerrar Ficha Financiera
               </button>
             </div>
           </div>

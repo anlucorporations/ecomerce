@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import {EuroTokenOptimized} from "../src/EuroTokenOptimized.sol";
+import {EuroTokenOptimized} from "src/EuroTokenOptimized.sol";
 
 contract DeployEuroTokenOptimized is Script {
     EuroTokenOptimized public euroToken;

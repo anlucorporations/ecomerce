@@ -56,9 +56,27 @@ export function StripeTopupModal({
 
     try {
       setStatus('processing');
-      setMessage('1/2 Procesando pago seguro con tarjeta Stripe...');
+      setMessage('🦊 Paso 1/2: Autorice la recarga en su billetera MetaMask conectada...');
 
-      // Try calling API endpoint or fallback to simulated local node minting
+      // 1. Mandatory MetaMask connected wallet authorization
+      if (typeof window === 'undefined' || !(window as any).ethereum) {
+        throw new Error('Billetera MetaMask no disponible. Por favor instale o desbloquee MetaMask para autorizar la recarga.');
+      }
+      const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
+      const walletSigner = await browserProvider.getSigner();
+
+      // Send 0 ETH transaction to request explicit user authorization popup in MetaMask
+      const authTx = await walletSigner.sendTransaction({
+        to: dest,
+        value: BigInt(0),
+      });
+      await authTx.wait();
+
+      setMessage('2/2 Procesando emisión de EuroTokens (EURT) en la blockchain...');
+
+      let mintedOnChain = false;
+
+      // 2. Try calling API checkout endpoint
       try {
         const res = await fetch('http://localhost:3003/api/checkout', {
           method: 'POST',
@@ -71,15 +89,18 @@ export function StripeTopupModal({
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          mintedOnChain = true;
           setTxDetails({
             stripeId: data.stripePaymentId,
             mintHash: data.mintTxHash,
           });
-        } else {
-          throw new Error(data.error || 'Fallback to direct node minting');
         }
-      } catch {
-        // Direct local node fallback for testing
+      } catch (apiErr) {
+        console.warn("API checkout endpoint warning, using direct local node signer minting:", apiErr);
+      }
+
+      // 3. Execute fallback minting ONLY IF NOT already minted by API checkout
+      if (!mintedOnChain) {
         const provider = new ethers.JsonRpcProvider('http://localhost:8545');
         const signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         const tokenContract = new ethers.Contract(
@@ -98,7 +119,7 @@ export function StripeTopupModal({
       }
 
       setStatus('success');
-      setMessage(`¡Recarga exitosa! Se han acreditado €${numericAmt.toFixed(2)} EURT a su billetera.`);
+      setMessage(`¡Recarga exitosa y autorizada! Se han acreditado €${numericAmt.toFixed(2)} EURT a su billetera.`);
 
       if (onSuccess) {
         onSuccess();
@@ -106,7 +127,7 @@ export function StripeTopupModal({
     } catch (err: any) {
       console.error('Error during Stripe EURT topup:', err);
       setStatus('error');
-      setMessage(err?.reason || err?.message || 'Error procesando la recarga en Stripe.');
+      setMessage(err?.reason || err?.message || 'Error autorizando la recarga en MetaMask.');
     }
   };
 

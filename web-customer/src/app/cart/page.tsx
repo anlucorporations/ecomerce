@@ -17,6 +17,7 @@ const ECOMMERCE_ABI = [
   "function addToCart(uint256 _productId, uint256 _quantity)",
   "function getCart(address _customerAddress) view returns (tuple(uint256 productId, uint256 quantity, uint256 unitPrice)[])",
   "function createInvoice(address _customerAddress, uint256 _companyId) returns (uint256)",
+  "function processPayment(address customer, uint256 amount, uint256 invoiceId) returns (bool)",
   "function getInvoice(uint256 _invoiceId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp))",
   "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
   "function getCompany(uint256 _companyId) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))"
@@ -213,6 +214,12 @@ export default function CartPage() {
     }
   };
 
+const EURO_TOKEN_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 value) returns (bool)"
+];
+
   const executeInvoiceCreation = async (customerAddr: string, activeSigner: any) => {
     try {
       if (!activeSigner && typeof window !== "undefined" && (window as any).ethereum) {
@@ -222,7 +229,9 @@ export default function CartPage() {
 
       if (!activeSigner) throw new Error("MetaMask no disponible o bloqueado.");
 
+      const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
+      const euroToken = new ethers.Contract(euroTokenAddress, EURO_TOKEN_ABI, activeSigner);
       const companyIds = Object.keys(itemsByCompany);
 
       if (companyIds.length === 0) throw new Error('Carrito vacío');
@@ -248,8 +257,8 @@ export default function CartPage() {
         }
       }
 
-      // 2. Execute createInvoice on-chain
-      setCheckoutStep('Generando factura electrónica en blockchain...');
+      // 2. Execute createInvoice on-chain (Paso 1/3)
+      setCheckoutStep('Paso 1/3: Generando factura electrónica en blockchain...');
       const tx = await contract.createInvoice(customerAddr, BigInt(firstCompanyId));
       const receipt = await tx.wait();
 
@@ -286,22 +295,29 @@ export default function CartPage() {
 
       if (!invoiceId) throw new Error('No se pudo obtener el ID de la factura generada.');
 
+      const invoice = await contract.getInvoice(invoiceId);
+
+      // 4. Paso 2/3: Verificar y Aprobar (Allowance) EURT
+      setCheckoutStep('Paso 2/3: Autorizando débito de EURT en billetera MetaMask...');
+      const currentAllowance = await euroToken.allowance(customerAddr, ecommerceAddress);
+      if (BigInt(currentAllowance) < BigInt(invoice.totalAmount)) {
+        const approveTx = await euroToken.approve(ecommerceAddress, invoice.totalAmount);
+        await approveTx.wait();
+      }
+
+      // 5. Paso 3/3: Transferir a Custodia Escrow (processPayment)
+      setCheckoutStep('Paso 3/3: Depositando EURT en custodia Escrow en blockchain...');
+      const payTx = await contract.processPayment(customerAddr, invoice.totalAmount, invoiceId);
+      await payTx.wait();
+
+      // Clear local cart state
       await clearCart();
 
-      setCheckoutStep('Redirigiendo a Pasarela de Pago Web3...');
-      const invoice = await contract.getInvoice(invoiceId);
-      const company = await contract.getCompany(BigInt(firstCompanyId));
-
-      const paymentUrl = new URL('http://localhost:3002/');
-      paymentUrl.searchParams.set('merchant', company.name || 'Tienda E-Commerce');
-      paymentUrl.searchParams.set('amount', formatPrice(invoice.totalAmount));
-      paymentUrl.searchParams.set('invoiceId', invoiceId.toString());
-      paymentUrl.searchParams.set('redirectUrl', `${window.location.origin}/orders`);
-
-      window.location.href = paymentUrl.toString();
+      alert('¡Pago completado con éxito! El importe EURT ha sido depositado en Custodia Escrow y tu pedido ha sido confirmado en la blockchain.');
+      router.push('/orders');
     } catch (err: any) {
-      console.error('Error creating invoice:', err);
-      alert('Error generando factura: ' + (err?.reason || err?.message || String(err)));
+      console.error('Error procesando pago unificado:', err);
+      alert('Error procesando la compra: ' + (err?.reason || err?.message || String(err)));
       setProcessing(false);
       setCheckoutStep('');
     }

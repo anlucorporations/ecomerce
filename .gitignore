@@ -1,1 +1,12 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+cache/
+artifacts/
+broadcast/
+foundry-pp/
+.env*.local
+anvil.exe
 docker-build

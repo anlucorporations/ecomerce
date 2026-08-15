@@ -31,37 +31,15 @@ export function RegistrationCheck() {
     }
 
     try {
-      // 1. Check local storage persistence first
-      if (typeof window !== 'undefined') {
-        const localReg = localStorage.getItem(`customer_reg_${address.toLowerCase()}`);
-        if (localReg) {
-          setCheckedAddress(address);
-          setIsRegistered(true);
-          setShowModal(false);
-          return;
-        }
-      }
-
-      // 2. Query on-chain smart contract using direct RPC provider
+      // Query on-chain smart contract using direct RPC provider (Strict Source of Truth)
       const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
       let registered = false;
-
       try {
-        const isReg = await contract.isCustomerRegistered(address);
-        if (isReg) registered = true;
+        registered = await contract.isCustomerRegistered(address);
       } catch (e) {
         console.warn("Could not query isCustomerRegistered:", e);
-      }
-
-      if (!registered) {
-        try {
-          const entityType = await contract.getEntityType(address);
-          if (Number(entityType) > 0) registered = true;
-        } catch (e) {
-          console.warn("Could not query getEntityType:", e);
-        }
       }
 
       setCheckedAddress(address);

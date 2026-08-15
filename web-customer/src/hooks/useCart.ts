@@ -99,7 +99,7 @@ export function useCart(
       // LocalStorage per-wallet or guest fallback
       if (typeof window !== 'undefined') {
         const cartKey = address ? `wallet_cart_${address.toLowerCase()}` : 'guest_cart';
-        const saved = localStorage.getItem(cartKey) || localStorage.getItem('guest_cart');
+        const saved = localStorage.getItem(cartKey);
         if (saved) {
           const parsed = JSON.parse(saved);
           let sum = BigInt(0);

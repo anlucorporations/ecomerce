@@ -54,7 +54,7 @@ export default function TopupPage() {
 
   const [isKYCModalOpen, setIsKYCModalOpen] = useState<boolean>(false);
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318';
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707';
 
   const handleExecuteTopup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,11 +87,6 @@ export default function TopupPage() {
       console.warn('isKYCVerified check warning:', e);
     }
 
-    if (!isVerified && typeof window !== 'undefined') {
-      const localKyc = localStorage.getItem(`kyc_verified_${dest.toLowerCase()}`);
-      if (localKyc === 'true') isVerified = true;
-    }
-
     if (!isVerified) {
       setIsKYCModalOpen(true);
       setStatus('error');
@@ -101,8 +96,28 @@ export default function TopupPage() {
 
     try {
       setStatus('processing');
-      setMessage('1/2 Verificando pago seguro con tarjeta Stripe PCI-DSS...');
+      setMessage('🦊 Paso 1/2: Autorice la recarga en su billetera MetaMask conectada...');
 
+      // 1. Mandatory MetaMask connected wallet authorization
+      if (typeof window === 'undefined' || !(window as any).ethereum) {
+        throw new Error('Billetera MetaMask no disponible. Por favor instale o desbloquee MetaMask para autorizar la recarga.');
+      }
+      const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
+      const walletSigner = await browserProvider.getSigner();
+      const connectedUserAddr = await walletSigner.getAddress();
+
+      // Send 0 ETH transaction to request explicit user authorization popup in MetaMask
+      const authTx = await walletSigner.sendTransaction({
+        to: dest,
+        value: BigInt(0),
+      });
+      await authTx.wait();
+
+      setMessage('2/2 Procesando emisión de EuroTokens (EURT) en la blockchain...');
+
+      let mintedOnChain = false;
+
+      // 2. Try calling API checkout service
       try {
         const res = await fetch('http://localhost:3003/api/checkout', {
           method: 'POST',
@@ -115,16 +130,20 @@ export default function TopupPage() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          mintedOnChain = true;
           setTxDetails({
             stripeId: data.stripePaymentId,
             mintHash: data.mintTxHash,
           });
-        } else {
-          throw new Error(data.error || 'Fallback to direct node minting');
         }
-      } catch {
+      } catch (apiErr) {
+        console.warn("API checkout endpoint warning, using direct local node signer minting:", apiErr);
+      }
+
+      // 3. Execute fallback minting ONLY IF NOT already minted by API checkout
+      if (!mintedOnChain) {
         const rpcProvider = new ethers.JsonRpcProvider('http://localhost:8545');
-        const signer = await rpcProvider.getSigner(0);
+        const signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', rpcProvider);
         const tokenContract = new ethers.Contract(
           euroTokenAddress,
           ['function mint(address to, uint256 amount)'],
@@ -141,12 +160,12 @@ export default function TopupPage() {
       }
 
       setStatus('success');
-      setMessage(`¡Recarga completada! Se han emitido €${numericAmt.toFixed(2)} EURT a su billetera.`);
+      setMessage(`¡Recarga completada y autorizada con éxito! Se han emitido €${numericAmt.toFixed(2)} EURT a su billetera.`);
       fetchBalance();
     } catch (err: any) {
-      console.error('Error during Stripe EURT topup:', err);
+      console.error('Error during EURT topup:', err);
       setStatus('error');
-      setMessage(err?.reason || err?.message || 'Error procesando la recarga en Stripe.');
+      setMessage(err?.reason || err?.message || 'Error autorizando la recarga en MetaMask.');
     }
   };
 

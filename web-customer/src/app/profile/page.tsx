@@ -112,24 +112,6 @@ export default function ProfilePage() {
           console.warn('getCustomer warning:', e);
         }
 
-        // 4. Check LocalStorage fallback
-        if (typeof window !== 'undefined') {
-          const localReg = localStorage.getItem(`customer_reg_${address.toLowerCase()}`);
-          if (localReg) {
-            try {
-              const parsed = JSON.parse(localReg);
-              setProfile((prev) => ({
-                ...prev,
-                name: parsed.name || prev.name,
-                email: parsed.email || prev.email,
-              }));
-              registeredOnChain = true;
-            } catch (e) {
-              console.warn("Parse localReg error:", e);
-            }
-          }
-        }
-
         setIsRegistered(registeredOnChain);
 
         // Auto open modal if user came from redirection with ?register=true or is unregistered

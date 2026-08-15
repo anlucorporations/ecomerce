@@ -7,6 +7,7 @@ import {CustomerLib} from "./libraries/CustomerLib.sol";
 import {ShoppingCartLib} from "./libraries/ShoppingCartLib.sol";
 
 interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
 }
@@ -441,8 +442,8 @@ contract Ecommerce {
         // Get company address
         CompanyLib.Company memory company = companyStorage.getCompany(invoice.companyId);
 
-        // Transfer tokens from customer to company
-        require(euroToken.transferFrom(_customer, company.companyAddress, _amount), "Transfer failed");
+        // Transfer tokens from customer into Escrow Smart Contract custody (address(this))
+        require(euroToken.transferFrom(_customer, address(this), _amount), "Transfer to Escrow failed");
 
         // Mark invoice as paid
         invoice.isPaid = true;
@@ -460,7 +461,7 @@ contract Ecommerce {
         }
 
         emit PaymentProcessed(_invoiceId, _customer, _amount);
-        _logActivity(_customer, "PAYMENT_PROCESSED", "Paid Invoice");
+        _logActivity(_customer, "PAYMENT_PROCESSED", "Paid Invoice to Escrow Custody");
         return true;
     }
 
@@ -485,12 +486,18 @@ contract Ecommerce {
     function confirmDelivery(uint256 _invoiceId) external {
         Invoice storage invoice = invoices[_invoiceId];
         require(invoice.invoiceId != 0, "Invoice not found");
-        require(invoice.customerAddress == msg.sender, "Only buyer can confirm delivery");
+        require(invoice.customerAddress == msg.sender || msg.sender == owner, "Only buyer or owner can confirm delivery");
         require(invoice.status == OrderStatus.Shipped, "Order not shipped yet");
+
+        // Release locked funds from Escrow Smart Contract custody (address(this)) to merchant company address
+        CompanyLib.Company memory company = companyStorage.getCompany(invoice.companyId);
+        IERC20 euroToken = IERC20(euroTokenAddress);
+        require(euroToken.transfer(company.companyAddress, invoice.totalAmount), "Escrow release transfer failed");
 
         invoice.status = OrderStatus.Delivered;
         invoice.deliveredTimestamp = block.timestamp;
 
+        _logActivity(msg.sender, "CONFIRM_DELIVERY", "Escrow Released to Merchant");
         emit OrderDelivered(_invoiceId, msg.sender);
     }
 

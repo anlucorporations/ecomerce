@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 const ECOMMERCE_ABI = [
   "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
   "function getAllCompanies() view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate)[])",
+  "function getCompanyReviews(uint256 companyId) view returns (tuple(uint8 rating, string comment, address reviewer, uint256 timestamp)[])",
   "function confirmDelivery(uint256 invoiceId)",
   "function rateCompany(uint256 companyId, uint8 rating, string comment)"
 ];
@@ -21,6 +22,7 @@ export default function CustomerOrdersPage() {
   const [companies, setCompanies] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [ratedInvoices, setRatedInvoices] = useState<Record<string, boolean>>({});
 
   // Rating modal state
   const [ratingModalCompanyId, setRatingModalCompanyId] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export default function CustomerOrdersPage() {
         });
       }
 
-      // Fetch company names
+      // Fetch company names & check existing ratings
       try {
         const comps = await contract.getAllCompanies();
         const compMap: Record<string, string> = {};
@@ -58,6 +60,28 @@ export default function CustomerOrdersPage() {
           compMap[c.companyId.toString()] = c.name;
         });
         setCompanies(compMap);
+
+        const localRated: Record<string, boolean> = JSON.parse(localStorage.getItem(`rated_invoices_${address}`) || "{}");
+        const newRatedMap: Record<string, boolean> = { ...localRated };
+
+        for (const compId of Object.keys(compMap)) {
+          try {
+            const reviews = await contract.getCompanyReviews(compId);
+            const hasUserReviewed = Array.from(reviews).some(
+              (r: any) => r.reviewer && r.reviewer.toLowerCase() === address.toLowerCase()
+            );
+            if (hasUserReviewed) {
+              orderList.forEach((o: any) => {
+                if (o.companyId.toString() === compId) {
+                  newRatedMap[o.invoiceId.toString()] = true;
+                }
+              });
+            }
+          } catch (e) {
+            // ignore empty reviews error
+          }
+        }
+        setRatedInvoices(newRatedMap);
       } catch (e) {
         console.warn("Could not fetch company names:", e);
       }
@@ -99,6 +123,19 @@ export default function CustomerOrdersPage() {
     }
   };
 
+  // Mark invoice as rated in state & local storage
+  const markInvoiceAsRated = (invId?: string) => {
+    const targetId = invId || (selectedOrder ? selectedOrder.invoiceId.toString() : null);
+    if (!targetId || !address) return;
+    setRatedInvoices((prev) => {
+      const updated = { ...prev, [targetId]: true };
+      try {
+        localStorage.setItem(`rated_invoices_${address}`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
   // Submit voluntary rating
   const handleSendRating = async () => {
     try {
@@ -109,6 +146,7 @@ export default function CustomerOrdersPage() {
       const tx = await contract.rateCompany(ratingModalCompanyId, selectedStars, reviewComment || "Excelente servicio");
       await tx.wait();
 
+      markInvoiceAsRated();
       alert("¡Gracias por enviar su valoración a la empresa!");
       setRatingModalCompanyId(null);
       setReviewComment("");
@@ -137,6 +175,7 @@ export default function CustomerOrdersPage() {
       );
       await tx.wait();
 
+      markInvoiceAsRated();
       alert("¡Valoración automática por defecto (4.0 ★ - Valoracion por default del cliente) registrada exitosamente en la blockchain!");
       fetchCustomerOrders();
     } catch (err: any) {
@@ -306,39 +345,54 @@ export default function CustomerOrdersPage() {
                     </div>
                   )}
 
-                  {/* SECCIÓN DE VALORACIÓN (INMEDIATA O AUTO-DEFAULT DE 24H) */}
+                  {/* SECCIÓN DE VALORACIÓN (INMEDIATA O AUTO-DEFAULT DE 24H - SE OCULTA SI YA FUE VALORADA) */}
                   {(Number(selectedOrder.status) === 2 || Number(selectedOrder.status) === 3) && (
-                    <div className="bg-[#FFF3E5] border border-[#FF8800]/40 rounded-2xl p-5 space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-[#FF8800] uppercase tracking-wider font-poppins">
-                          ⭐ Reputación y Valoración del Cliente
-                        </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF8800] text-white font-mono">
-                          Ventana 24 Horas
+                    ratedInvoices[selectedOrder.invoiceId.toString()] ? (
+                      <div className="bg-[#EAF5EF] border border-[#2E8B57]/30 rounded-2xl p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">⭐</span>
+                          <div>
+                            <span className="text-xs font-bold text-[#2E8B57] font-poppins block">Valoración Completada</span>
+                            <span className="text-[11px] text-[#333333]">Ya ha sido registrada la calificación para esta compra. ¡Muchas gracias!</span>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 bg-[#2E8B57] text-white text-[10px] font-bold rounded-full font-poppins shadow-xs">
+                          ✓ Valorada
                         </span>
                       </div>
+                    ) : (
+                      <div className="bg-[#FFF3E5] border border-[#FF8800]/40 rounded-2xl p-5 space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-[#FF8800] uppercase tracking-wider font-poppins">
+                            ⭐ Reputación y Valoración del Cliente
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF8800] text-white font-mono">
+                            Ventana 24 Horas
+                          </span>
+                        </div>
 
-                      <p className="text-xs text-[#333333] leading-relaxed">
-                        Puede emitir su calificación en estrellas inmediatamente. Si transcurren 24h sin valoración manual, el sistema calificará automáticamente con <strong className="text-[#FF8800]">4/5 estrellas</strong> y el comentario: <em className="font-mono text-[#0077BB]">&quot;Valoracion por default del cliente&quot;</em>.
-                      </p>
+                        <p className="text-xs text-[#333333] leading-relaxed">
+                          Puede emitir su calificación en estrellas inmediatamente. Si transcurren 24h sin valoración manual, el sistema calificará automáticamente con <strong className="text-[#FF8800]">4/5 estrellas</strong> y el comentario: <em className="font-mono text-[#0077BB]">&quot;Valoracion por default del cliente&quot;</em>.
+                        </p>
 
-                      <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                        <button
-                          onClick={() => setRatingModalCompanyId(selectedOrder.companyId.toString())}
-                          className="px-4 py-2.5 bg-[#FF8800] hover:bg-[#E07700] text-white font-bold text-xs rounded-xl shadow-sm transition font-poppins flex-1 text-center"
-                        >
-                          ⭐ Valorar Empresa Ahora
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                          <button
+                            onClick={() => setRatingModalCompanyId(selectedOrder.companyId.toString())}
+                            className="px-4 py-2.5 bg-[#FF8800] hover:bg-[#E07700] text-white font-bold text-xs rounded-xl shadow-sm transition font-poppins flex-1 text-center"
+                          >
+                            ⭐ Valorar Empresa Ahora
+                          </button>
 
-                        <button
-                          onClick={() => handleAutoDefaultRating(selectedOrder.companyId.toString())}
-                          disabled={submittingRating}
-                          className="px-4 py-2.5 bg-white hover:bg-slate-50 text-[#0077BB] border border-[#0077BB]/30 font-bold text-xs rounded-xl shadow-xs transition font-poppins flex-1 text-center disabled:opacity-50"
-                        >
-                          ⚡ Aplicar Valoración Automática (24h)
-                        </button>
+                          <button
+                            onClick={() => handleAutoDefaultRating(selectedOrder.companyId.toString())}
+                            disabled={submittingRating}
+                            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-[#0077BB] border border-[#0077BB]/30 font-bold text-xs rounded-xl shadow-xs transition font-poppins flex-1 text-center disabled:opacity-50"
+                          >
+                            ⚡ Aplicar Valoración Automática (24h)
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )
                   )}
 
                   {/* Resumen Financiero y Blockchain */}

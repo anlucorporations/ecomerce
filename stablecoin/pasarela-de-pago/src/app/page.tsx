@@ -35,7 +35,7 @@ function PaymentGatewayContent() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [txHash, setTxHash] = useState<string>("");
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x610178dA211FEF7D417bC0e6FeD39F05609AD788";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
   const numericAmount = parseFloat(amountParam);
@@ -54,12 +54,6 @@ function PaymentGatewayContent() {
         regStatus = isEnt || isCust;
       } catch (e) {
         console.warn("Error checking entity registration:", e);
-      }
-
-      // Check local storage registration fallback
-      if (!regStatus && typeof window !== 'undefined') {
-        const localReg = localStorage.getItem(`customer_reg_${account.toLowerCase()}`);
-        if (localReg) regStatus = true;
       }
 
       setIsRegistered(regStatus);

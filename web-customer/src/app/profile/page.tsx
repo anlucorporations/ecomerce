@@ -200,7 +200,7 @@ export default function ProfilePage() {
           setIsRegistered(true);
           setShowRegModal(false);
           if (typeof window !== 'undefined') {
-            window.location.reload();
+            window.location.href = '/';
           }
         }}
       />

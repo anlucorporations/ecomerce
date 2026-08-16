@@ -42,6 +42,22 @@ export function RegistrationCheck() {
         console.warn("Could not query isCustomerRegistered:", e);
       }
 
+      // Check entity type fallback
+      if (!registered) {
+        try {
+          const type = await contract.getEntityType(address);
+          if (Number(type) > 0) registered = true;
+        } catch (e) {
+          console.warn("Could not query getEntityType:", e);
+        }
+      }
+
+      // Check local persistence fallback
+      if (!registered && typeof window !== 'undefined') {
+        const localReg = localStorage.getItem(`customer_reg_${address.toLowerCase()}`);
+        if (localReg) registered = true;
+      }
+
       setCheckedAddress(address);
       setIsRegistered(registered);
 
@@ -83,8 +99,9 @@ export function RegistrationCheck() {
       onSuccess={() => {
         setIsRegistered(true);
         setShowModal(false);
+        // Requirement 2: Redirect to main page (/) upon successful registration
         if (typeof window !== 'undefined') {
-          window.location.href = '/profile';
+          window.location.href = '/';
         }
       }}
     />

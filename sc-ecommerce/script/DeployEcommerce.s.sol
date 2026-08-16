@@ -46,10 +46,6 @@ contract DeployEcommerceScript is Script {
             "Sede Central BARLO-VENTAS, Madrid"
         );
 
-        // Fund customer accounts with 1 ETH for gas
-        payable(cust1Addr).transfer(1 ether);
-        payable(cust2Addr).transfer(1 ether);
-
         vm.stopBroadcast();
 
         // 2. Register Empresa 1 & Empresa 2 as Owner Admin

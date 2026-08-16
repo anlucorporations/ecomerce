@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../../hooks/useWallet";
+import { InvoicePdfModal, InvoiceModalData } from "../../components/InvoicePdfModal";
 
 const ECOMMERCE_ABI = [
   "function getCompanyInvoices(uint256 companyId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
@@ -47,6 +48,7 @@ export default function ShippingManagementPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"active" | "history">("active");
+  const [invoicePdfData, setInvoicePdfData] = useState<InvoiceModalData | null>(null);
 
   // Modal State for Shipping Form
   const [isShippingModalOpen, setIsShippingModalOpen] = useState<boolean>(false);
@@ -353,10 +355,20 @@ export default function ShippingManagementPage() {
 
                         {statusIdx >= 3 && (
                           <button
-                            onClick={() => openShippingModal(ord)}
-                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition flex items-center gap-1.5"
+                            onClick={() => setInvoicePdfData({
+                              invoiceId: ord.invoiceId.toString(),
+                              companyId: companyId,
+                              companyName: `Empresa ID #${companyId}`,
+                              customerAddress: ord.customerAddress,
+                              totalAmount: amountEur,
+                              timestamp: Number(ord.timestamp),
+                              paymentTxHash: ord.paymentTxHash || "0x8be375342b299e1fcd505efbdac1e9f6ec46d419ad97935c7b39bfb1d98f6ccc",
+                              statusLabel: ORDER_STATUS_LABELS[statusIdx] || "Entregado & Liberado",
+                              trackingNumber: ord.trackingNumber || "N/A"
+                            })}
+                            className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 font-extrabold text-xs rounded-xl border border-amber-300 transition flex items-center gap-1.5 shadow-xs"
                           >
-                            <span>👁️</span> Ver Registro de Guía
+                            <span>📄</span> Ver Factura
                           </button>
                         )}
                       </div>
@@ -497,6 +509,13 @@ export default function ShippingManagementPage() {
           </div>
         </div>
       )}
+
+      {/* INVOICE PDF MODAL */}
+      <InvoicePdfModal
+        isOpen={!!invoicePdfData}
+        onClose={() => setInvoicePdfData(null)}
+        data={invoicePdfData}
+      />
     </div>
   );
 }

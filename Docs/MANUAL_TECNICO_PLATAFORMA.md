@@ -27,17 +27,17 @@ La plataforma **BARLO-VENTAS** está estructurada bajo una arquitectura modular 
 
 ---
 
-## 📄 2. Índice de Manuales Técnicos por Servicio
+## 📄 2. Índice de Manuales Técnicos por Servicio (`Docs/`)
 
-Cada subsistema cuenta con su propio manual técnico independiente y detallado:
+Cada subsistema cuenta con su propio manual técnico independiente y detallado ubicado en su carpeta `Docs/`:
 
 | Subsistema / Servicio | Puerto Local | Archivo de Manual Técnico Dedicado |
 | :--- | :---: | :--- |
-| **1. Smart Contracts & EVM Core** | `8545` | 📄 [`sc-ecommerce/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/sc-ecommerce/MANUAL_TECNICO.md) |
-| **2. Consola Web Admin** | `3000` | 📄 [`web-admin/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/web-admin/MANUAL_TECNICO.md) |
-| **3. Portal Web Customer** | `3001` | 📄 [`web-customer/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/web-customer/MANUAL_TECNICO.md) |
-| **4. Pasarela Web3 Escrow** | `3002` | 📄 [`stablecoin/pasarela-de-pago/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/stablecoin/pasarela-de-pago/MANUAL_TECNICO.md) |
-| **5. Adquisición FIAT-EURT (Stripe)** | `3003` | 📄 [`stablecoin/compra-stablecoin/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/stablecoin/compra-stablecoin/MANUAL_TECNICO.md) |
+| **1. Smart Contracts & EVM Core** | `8545` | 📄 [`sc-ecommerce/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/sc-ecommerce/Docs/MANUAL_TECNICO.md) |
+| **2. Consola Web Admin** | `3000` | 📄 [`web-admin/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/web-admin/Docs/MANUAL_TECNICO.md) |
+| **3. Portal Web Customer** | `3001` | 📄 [`web-customer/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/web-customer/Docs/MANUAL_TECNICO.md) |
+| **4. Pasarela Web3 Escrow** | `3002` | 📄 [`stablecoin/pasarela-de-pago/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/stablecoin/pasarela-de-pago/Docs/MANUAL_TECNICO.md) |
+| **5. Adquisición FIAT-EURT (Stripe)** | `3003` | 📄 [`stablecoin/compra-stablecoin/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/stablecoin/compra-stablecoin/Docs/MANUAL_TECNICO.md) |
 
 ---
 
@@ -58,11 +58,6 @@ La gestión del ciclo de vida de la plataforma se realiza mediante el orquestado
 - **Reiniciar la Plataforma (Redespliegue Blockchain):**
   ```powershell
   .\manage-platform.ps1 -Action restart
-  ```
-- **Reiniciar Solo Un Servicio:**
-  ```powershell
-  .\manage-platform.ps1 -Action restart-service -ServiceName admin
-  # Opciones ServiceName: admin, customer, pasarela, compra, rpc
   ```
 - **Consultar Estado de Todos los Endpoints:**
   ```powershell

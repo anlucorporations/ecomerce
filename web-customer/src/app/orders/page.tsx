@@ -35,7 +35,44 @@ export default function CustomerOrdersPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [ordersTab, setOrdersTab] = useState<"active" | "history">("active");
 
+  // Selected Order Items
+  const [selectedOrderItems, setSelectedOrderItems] = useState<any[]>([]);
+  const [loadingSelectedItems, setLoadingSelectedItems] = useState<boolean>(false);
+
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+
+  useEffect(() => {
+    async function fetchOrderItems() {
+      if (!selectedOrder || !selectedOrder.invoiceId) return;
+      try {
+        setLoadingSelectedItems(true);
+        const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+        const contract = new ethers.Contract(ecommerceAddress, [
+          "function getInvoiceItems(uint256 invoiceId) view returns (tuple(uint256 productId, string productName, uint256 quantity, uint256 unitPrice, uint256 totalPrice)[])"
+        ], provider);
+
+        const rawItems = await contract.getInvoiceItems(selectedOrder.invoiceId);
+        if (rawItems && rawItems.length > 0) {
+          const parsed = Array.from(rawItems).map((it: any) => ({
+            productId: it.productId.toString(),
+            productName: it.productName || `Producto #${it.productId}`,
+            quantity: Number(it.quantity),
+            unitPrice: (Number(it.unitPrice) / 1000000).toFixed(2),
+            totalPrice: (Number(it.totalPrice) / 1000000).toFixed(2)
+          }));
+          setSelectedOrderItems(parsed);
+        } else {
+          setSelectedOrderItems([]);
+        }
+      } catch (err) {
+        console.warn("Could not fetch order items:", err);
+        setSelectedOrderItems([]);
+      } finally {
+        setLoadingSelectedItems(false);
+      }
+    }
+    fetchOrderItems();
+  }, [selectedOrder, ecommerceAddress]);
 
   const fetchCustomerOrders = useCallback(async () => {
     if (!address) return;
@@ -391,6 +428,46 @@ export default function CustomerOrdersPage() {
                     <span className="text-[#A9A9A9] font-mono text-[11px] block">
                       Identificador de Empresa: #{selectedOrder.companyId.toString()}
                     </span>
+                  </div>
+
+                  {/* DETALLE DE PRODUCTOS COMPRADOS EN LA FACTURA */}
+                  <div className="bg-[#F8FAFC] border border-slate-200 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-xs font-bold text-slate-800 font-poppins flex items-center gap-1.5">
+                        <span>🛍️</span>
+                        <span>Productos Comprados en esta Factura</span>
+                      </span>
+                      <span className="text-[10px] text-indigo-600 font-mono font-bold">
+                        {selectedOrderItems.length} {selectedOrderItems.length === 1 ? "Producto" : "Productos"}
+                      </span>
+                    </div>
+
+                    {loadingSelectedItems ? (
+                      <p className="text-xs text-slate-500 font-sans animate-pulse py-1">⏳ Cargando productos comprados desde la Blockchain...</p>
+                    ) : selectedOrderItems.length > 0 ? (
+                      <div className="divide-y divide-slate-100 text-xs font-mono">
+                        {selectedOrderItems.map((it, idx) => (
+                          <div key={idx} className="py-2.5 flex justify-between items-center">
+                            <div>
+                              <span className="font-bold text-slate-900 block font-sans text-xs">{it.productName}</span>
+                              <span className="text-[10px] text-slate-500 font-sans block mt-0.5">
+                                Cantidad: <strong>{it.quantity}</strong> &bull; Ref ID: #{it.productId} &bull; Unit: €{it.unitPrice} EURT
+                              </span>
+                            </div>
+                            <span className="font-black text-slate-900 text-sm">
+                              €{it.totalPrice} EURT
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-600 font-mono py-1">
+                        <span>Orden E-Commerce #{selectedOrder.invoiceId.toString()}</span>
+                        <span className="block text-[11px] text-slate-500 font-sans">
+                          Monto Total Facturado: <strong>€{formatPrice(selectedOrder.totalAmount)} EURT</strong>
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* BOTÓN VER / DESCARGAR FACTURA OFICIAL PDF CON QR */}

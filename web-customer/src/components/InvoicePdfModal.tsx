@@ -2,6 +2,15 @@
 
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { ethers } from "ethers";
+
+export interface InvoiceItemData {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: string; // Formatted e.g. "25.00"
+  totalPrice: string; // Formatted e.g. "50.00"
+}
 
 export interface InvoiceModalData {
   invoiceId: string;
@@ -14,6 +23,7 @@ export interface InvoiceModalData {
   paymentTxHash: string;
   statusLabel: string;
   trackingNumber?: string;
+  items?: InvoiceItemData[];
 }
 
 interface InvoicePdfModalProps {
@@ -24,6 +34,8 @@ interface InvoicePdfModalProps {
 
 export function InvoicePdfModal({ isOpen, onClose, data }: InvoicePdfModalProps) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  const [items, setItems] = useState<InvoiceItemData[]>(data?.items || []);
+  const [loadingItems, setLoadingItems] = useState<boolean>(false);
 
   useEffect(() => {
     if (data && data.paymentTxHash) {
@@ -41,6 +53,47 @@ export function InvoicePdfModal({ isOpen, onClose, data }: InvoicePdfModalProps)
         .catch((err) => console.error("Error generating QR:", err));
     }
   }, [data]);
+
+  useEffect(() => {
+    async function loadInvoiceItems() {
+      if (!isOpen || !data || !data.invoiceId) return;
+
+      if (data.items && data.items.length > 0) {
+        setItems(data.items);
+        return;
+      }
+
+      try {
+        setLoadingItems(true);
+        const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
+        const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+        const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
+        const contract = new ethers.Contract(ecommerceAddress, [
+          "function getInvoiceItems(uint256 invoiceId) view returns (tuple(uint256 productId, string productName, uint256 quantity, uint256 unitPrice, uint256 totalPrice)[])"
+        ], rpcProvider);
+
+        const rawItems = await contract.getInvoiceItems(data.invoiceId);
+        if (rawItems && rawItems.length > 0) {
+          const parsed = Array.from(rawItems).map((it: any) => ({
+            productId: it.productId.toString(),
+            productName: it.productName || `Producto #${it.productId}`,
+            quantity: Number(it.quantity),
+            unitPrice: (Number(it.unitPrice) / 1000000).toFixed(2),
+            totalPrice: (Number(it.totalPrice) / 1000000).toFixed(2)
+          }));
+          setItems(parsed);
+        } else {
+          setItems([]);
+        }
+      } catch (err) {
+        console.warn("Notice: could not load items on-chain for invoice:", err);
+        setItems([]);
+      } finally {
+        setLoadingItems(false);
+      }
+    }
+    loadInvoiceItems();
+  }, [isOpen, data]);
 
   if (!isOpen || !data) return null;
 
@@ -91,14 +144,14 @@ export function InvoicePdfModal({ isOpen, onClose, data }: InvoicePdfModalProps)
           <div className="flex items-center gap-3">
             <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-[#0077BB] hover:bg-[#005F96] text-white font-extrabold text-xs rounded-xl shadow-md transition font-poppins flex items-center gap-1.5"
+              className="px-4 py-2 bg-[#0077BB] hover:bg-[#005F96] text-white font-extrabold text-xs rounded-xl shadow-md transition font-poppins flex items-center gap-1.5 cursor-pointer"
             >
               <span>🖨️</span>
               <span>Descargar / Imprimir PDF</span>
             </button>
             <button
               onClick={onClose}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition font-poppins"
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition font-poppins cursor-pointer"
             >
               ✕ Cerrar
             </button>
@@ -174,26 +227,55 @@ export function InvoicePdfModal({ isOpen, onClose, data }: InvoicePdfModalProps)
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] font-mono">
-                  <th className="py-3 px-4">Descripción del Concepto / Producto</th>
-                  <th className="py-3 px-4 text-center">Método de Pago</th>
-                  <th className="py-3 px-4 text-right">Monto Total</th>
+                  <th className="py-3 px-4">Código / Producto Comprado</th>
+                  <th className="py-3 px-4 text-center">Cant.</th>
+                  <th className="py-3 px-4 text-center">Precio Unit.</th>
+                  <th className="py-3 px-4 text-right">Total Item</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-mono">
-                <tr>
-                  <td className="py-4 px-4 font-bold text-slate-800">
-                    Compra de Producto / Orden E-Commerce #{data.invoiceId}
-                    <span className="block text-[11px] font-normal text-slate-500 font-sans mt-0.5">
-                      Procesado bajo custodia temporal Escrow Smart Contract con EuroToken (EURT).
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-center text-slate-600">
-                    EuroToken (EURT)
-                  </td>
-                  <td className="py-4 px-4 text-right font-black text-slate-900 text-sm">
-                    €{data.totalAmount} EURT
-                  </td>
-                </tr>
+                {loadingItems ? (
+                  <tr>
+                    <td colSpan={4} className="py-4 px-4 text-center text-slate-500 font-sans">
+                      ⏳ Cargando detalle de productos desde la Blockchain...
+                    </td>
+                  </tr>
+                ) : items && items.length > 0 ? (
+                  items.map((it, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="py-3 px-4 font-bold text-slate-800">
+                        {it.productName}
+                        <span className="block text-[10px] font-normal text-slate-500 font-sans mt-0.5">
+                          Ref / ID Producto: #{it.productId}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold text-slate-700">
+                        {it.quantity}
+                      </td>
+                      <td className="py-3 px-4 text-center text-slate-600">
+                        €{it.unitPrice} EURT
+                      </td>
+                      <td className="py-3 px-4 text-right font-black text-slate-900">
+                        €{it.totalPrice} EURT
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="py-4 px-4 font-bold text-slate-800" colSpan={2}>
+                      Compra de Producto / Orden E-Commerce #{data.invoiceId}
+                      <span className="block text-[11px] font-normal text-slate-500 font-sans mt-0.5">
+                        Procesado bajo custodia temporal Escrow Smart Contract con EuroToken (EURT).
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-center text-slate-600">
+                      EuroToken (EURT)
+                    </td>
+                    <td className="py-4 px-4 text-right font-black text-slate-900 text-sm">
+                      €{data.totalAmount} EURT
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

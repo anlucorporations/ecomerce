@@ -1,0 +1,7 @@
+FROM postgres:16-alpine
+
+ENV POSTGRES_USER=anlucorporations
+ENV POSTGRES_PASSWORD=KeLuDa.2324
+ENV POSTGRES_DB=mcc_ecommerce_db
+
+EXPOSE 5432

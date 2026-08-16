@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { ethers } from "ethers";
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "";
+export const dynamic = 'force-dynamic';
+
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "sk_test_dummy";
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 const stripe = new Stripe(stripeSecretKey, {

@@ -15,51 +15,55 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Minimalist Form Controls & Button Shapes */
+/* Premium Form Controls */
 .input-minimal {
   background-color: #f8fafc;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 0.875rem;
-  padding: 0.75rem 1rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 1rem;
+  padding: 0.85rem 1.15rem;
   font-size: 0.875rem;
   color: #0f172a;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
 }
 
 .input-minimal:focus {
   background-color: #ffffff;
   border-color: #4f46e5;
-  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
   outline: none;
 }
 
+/* Primary Action Button */
 .btn-minimal-primary {
-  background-color: #4f46e5;
+  background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
   color: #ffffff;
-  font-weight: 700;
-  border-radius: 0.875rem;
-  padding: 0.875rem 1.5rem;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
-  transition: all 0.2s ease;
+  font-weight: 800;
+  border-radius: 1rem;
+  padding: 1rem 1.75rem;
+  box-shadow: 0 8px 20px -4px rgba(79, 70, 229, 0.35);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
 }
 
 .btn-minimal-primary:hover {
-  background-color: #4338ca;
-  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #4338ca 0%, #312e81 100%);
+  box-shadow: 0 12px 24px -4px rgba(79, 70, 229, 0.45);
+  transform: translateY(-1.5px);
 }
 
 .btn-minimal-primary:active {
   transform: translateY(0);
 }
 
+/* Preset Amount Pills */
 .btn-preset-pill {
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
   border: 1.5px solid #e2e8f0;
   background-color: #ffffff;
   color: #334155;
   font-weight: 700;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .btn-preset-pill:hover {
@@ -69,16 +73,16 @@ body {
 }
 
 .btn-preset-pill.active {
-  background-color: #4f46e5;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
   color: #ffffff;
-  border-color: #4f46e5;
-  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25);
+  border-color: #059669;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
 }
 
-/* Minimalist Card Container */
+/* Card Container */
 .card-minimal {
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 1.25rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
 }

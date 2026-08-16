@@ -60,7 +60,7 @@ export default function CompraStablecoinPage() {
   const connectWallet = async () => {
     try {
       if (typeof window === "undefined" || !(window as any).ethereum) {
-        alert("Instale la extensión MetaMask para detectar su dirección automáticamente.");
+        alert("Instale o desbloquee la extensión MetaMask para detectar su dirección automáticamente.");
         return;
       }
       const provider = new ethers.BrowserProvider((window as any).ethereum);
@@ -84,7 +84,7 @@ export default function CompraStablecoinPage() {
 
     try {
       setStatus("processing");
-      setMessage("1/3 Solicitando autorización en su billetera MetaMask...");
+      setMessage("🦊 1/3 Solicitando autorización y firma digital en su billetera MetaMask...");
 
       const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
       const accounts = await browserProvider.send("eth_requestAccounts", []);
@@ -107,7 +107,7 @@ export default function CompraStablecoinPage() {
         throw new Error("Solicitud cancelada: Debe autorizar y firmar la transacción en MetaMask para efectuar la recarga.");
       }
 
-      setMessage("2/3 Procesando pago seguro en Stripe PCI-DSS...");
+      setMessage("💳 2/3 Procesando pago seguro con tarjeta en Stripe PCI-DSS...");
 
       const res = await fetch("/api/checkout", {
         method: "POST",
@@ -139,77 +139,82 @@ export default function CompraStablecoinPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto">
       
-      {/* 1. HEADER HERO - MINIMALIST DESIGN */}
-      <div className="card-minimal p-6 sm:p-8 bg-white border border-slate-200/80 shadow-xs rounded-3xl relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200/60 text-indigo-700 text-xs font-bold font-poppins">
-              <span>💳 Recarga Instantánea Stripe &bull; 1 EUR = 1 EURT</span>
+      {/* BARLO-VENTAS PLATFORM HEADER BANNER */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl border border-slate-800 relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
+          
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold font-poppins">
+              <span>💳 BARLO-VENTAS &bull; Pasarela de Recarga EURT (Stripe)</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-poppins">
-              Adquisición de EuroToken (EURT)
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-poppins">
+              Adquisición de EuroTokens (EURT)
             </h1>
-            <p className="text-xs text-slate-500 max-w-lg font-medium leading-relaxed">
-              Consola minimalista para la emisión e ingreso directo de stablecoins EuroToken a su billetera Web3.
+            <p className="text-xs text-slate-300 max-w-lg font-medium leading-relaxed">
+              Consola oficial para la compra e ingreso instantáneo de EuroTokens en blockchain mediante tarjeta bancaria.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={connectWallet}
-            className="px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition font-poppins shrink-0 flex items-center justify-center gap-2"
-          >
-            <span>🦊</span>
-            <span>{walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "Conectar Wallet"}</span>
-          </button>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={connectWallet}
+              className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/30 transition font-poppins flex items-center justify-center gap-2 cursor-pointer border border-indigo-400/30"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "Conectar MetaMask"}</span>
+            </button>
+            <span className="text-[10px] font-mono text-slate-400">1 EURT = €1.00 EUR</span>
+          </div>
+
         </div>
       </div>
 
-      {/* 2. MINIMALIST KPI BADGES GRID */}
+      {/* KPI METRICS BADGES */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         
-        <div className="card-minimal p-4 text-center space-y-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Tasa Fija</span>
+        <div className="card-minimal p-4 text-center space-y-1 border-l-4 border-l-emerald-500">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Tasa de Cambio</span>
           <span className="text-base font-black text-emerald-600 block font-mono">1 EUR = 1 EURT</span>
         </div>
 
-        <div className="card-minimal p-4 text-center space-y-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Emisión On-Chain</span>
+        <div className="card-minimal p-4 text-center space-y-1 border-l-4 border-l-indigo-600">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Tiempo de Emisión</span>
           <span className="text-base font-black text-indigo-600 block font-mono">&lt; 3 Segundos</span>
         </div>
 
-        <div className="card-minimal p-4 text-center space-y-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Seguridad</span>
+        <div className="card-minimal p-4 text-center space-y-1 border-l-4 border-l-purple-600">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Seguridad Bancaria</span>
           <span className="text-base font-black text-purple-600 block font-mono">Stripe PCI-DSS</span>
         </div>
 
-        <div className="card-minimal p-4 text-center space-y-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Comisión Red</span>
+        <div className="card-minimal p-4 text-center space-y-1 border-l-4 border-l-amber-500">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Comisión de Red</span>
           <span className="text-base font-black text-amber-600 block font-mono">0.00 EURT</span>
         </div>
 
       </div>
 
-      {/* 3. MAIN FORM CONTAINER WITH DEFINED GEOMETRIC SHAPES */}
-      <div className="card-minimal p-6 sm:p-8 bg-white border border-slate-200/80 shadow-sm rounded-3xl space-y-6">
+      {/* MAIN FORM CONTAINER */}
+      <div className="card-minimal p-6 sm:p-8 bg-white border border-slate-200/80 shadow-md rounded-3xl space-y-6">
         
         <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 font-poppins">Formulario de Compra</h2>
-            <p className="text-xs text-slate-500">Seleccione el monto y complete los datos de pago.</p>
+            <h2 className="text-lg font-black text-slate-900 font-poppins">Formulario de Recarga Comercial</h2>
+            <p className="text-xs text-slate-500">Seleccione el saldo a abonar y autorice la transacción en su billetera Web3.</p>
           </div>
-          <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-mono font-bold rounded-xl border border-slate-200">
-            Paso 1 de 1
+          <span className="px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-mono font-bold rounded-xl border border-indigo-200">
+            Firma Web3 Protegida
           </span>
         </div>
 
         <form onSubmit={handleBuyTokens} className="space-y-6">
           
           {/* Preset Amount Pills */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-slate-700 font-poppins">
+          <div className="space-y-2.5">
+            <label className="block text-xs font-bold text-slate-800 font-poppins">
               Monto a Abonar en Euros (€):
             </label>
 
@@ -235,26 +240,26 @@ export default function CompraStablecoinPage() {
                 max="5000"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="Otro monto en EUR..."
-                className="input-minimal w-full font-mono font-bold text-slate-900"
+                placeholder="Otro monto personalizado en EUR..."
+                className="input-minimal w-full font-mono font-extrabold text-slate-900 text-base"
                 required
               />
-              <span className="absolute right-4 top-4 text-xs font-bold text-slate-400 font-mono">EUR</span>
+              <span className="absolute right-4 top-4.5 text-xs font-bold text-slate-400 font-mono">EUR</span>
             </div>
           </div>
 
-          {/* Wallet Address Input Box */}
+          {/* Destination Wallet Input */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <label className="block text-xs font-bold text-slate-700 font-poppins">
-                Billetera Ethereum de Destino:
+              <label className="block text-xs font-bold text-slate-800 font-poppins">
+                Billetera Ethereum Destino:
               </label>
               <button
                 type="button"
                 onClick={connectWallet}
-                className="text-[11px] text-indigo-600 font-bold hover:underline font-poppins flex items-center gap-1"
+                className="text-[11px] text-indigo-600 font-bold hover:underline font-poppins flex items-center gap-1 cursor-pointer"
               >
-                <span>🦊</span> Detectar Wallet
+                <span>🦊</span> Re-Detectar Wallet
               </button>
             </div>
 
@@ -263,17 +268,17 @@ export default function CompraStablecoinPage() {
               value={walletAddress}
               onChange={(e) => setWalletAddress(e.target.value)}
               placeholder="0x..."
-              className="input-minimal w-full font-mono text-emerald-700 font-bold"
+              className="input-minimal w-full font-mono text-emerald-700 font-extrabold"
               required
             />
           </div>
 
-          {/* Stripe Card Mockup Container */}
-          <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/80 space-y-3">
+          {/* Stripe Card Mockup */}
+          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-800 font-bold font-poppins">Tarjeta de Crédito / Débito (Stripe):</span>
+              <span className="text-slate-800 font-bold font-poppins">Tarjeta de Crédito / Débito (Stripe Simulado):</span>
               <span className="text-indigo-700 font-bold font-mono bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-200">
-                Visa / Mastercard
+                Visa / Mastercard PCI-DSS
               </span>
             </div>
 
@@ -281,51 +286,52 @@ export default function CompraStablecoinPage() {
               type="text"
               value={cardNumber}
               onChange={(e) => setCardNumber(e.target.value)}
-              className="input-minimal w-full bg-white font-mono text-slate-900 text-xs"
+              className="input-minimal w-full bg-white font-mono text-slate-900 text-xs font-bold"
             />
 
-            <div className="flex justify-between items-center text-[11px] text-slate-500 font-mono pt-0.5">
+            <div className="flex justify-between items-center text-[11px] text-slate-500 font-mono pt-1">
               <span>Vencimiento: 12 / 28</span>
               <span>CVC: 123</span>
               <span className="text-emerald-600 font-bold">✓ Cifrado SSL 256-bit</span>
             </div>
           </div>
 
-          {/* Status Feedback */}
+          {/* Status Messages */}
           {status === "processing" && (
-            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300/80 text-amber-900 text-xs text-center font-bold animate-pulse font-poppins">
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs text-center font-bold animate-pulse font-poppins">
               {message}
             </div>
           )}
 
           {status === "success" && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs space-y-2 text-center">
-              <p className="font-bold text-sm font-poppins">¡Recarga Procesada Exitosamente!</p>
-              <div className="text-[11px] text-slate-800 space-y-1 font-mono text-left bg-white p-3 rounded-xl border border-emerald-200">
-                <p><span className="text-slate-400">Stripe Payment ID:</span> {txDetails.stripeId}</p>
-                <p className="truncate"><span className="text-slate-400">Mint Tx Hash:</span> {txDetails.mintHash}</p>
+            <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs space-y-2 text-center">
+              <p className="font-bold text-sm font-poppins">🎉 ¡Recarga Procesada y Confirmada!</p>
+              <p className="text-emerald-800 font-medium">{message}</p>
+              <div className="text-[11px] text-slate-800 space-y-1 font-mono text-left bg-white p-3.5 rounded-xl border border-emerald-200 mt-2">
+                <p><span className="text-slate-400 font-semibold">Stripe Payment ID:</span> {txDetails.stripeId}</p>
+                <p className="truncate"><span className="text-slate-400 font-semibold">Mint Tx Hash:</span> {txDetails.mintHash}</p>
               </div>
             </div>
           )}
 
           {status === "error" && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs text-center font-semibold font-poppins">
-              {message}
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs text-center font-bold font-poppins">
+              ⚠️ {message}
             </div>
           )}
 
-          {/* Primary Minimalist Action Button */}
+          {/* Main Action Button */}
           <button
             type="submit"
             disabled={status === "processing"}
             className="btn-minimal-primary w-full text-xs font-poppins uppercase tracking-wider text-center flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {status === "processing"
-              ? "Procesando en Red..."
-              : `Comprar €${amount || "0"} EURT con Stripe ➔`}
+              ? "Procesando en Blockchain..."
+              : `💳 Comprar €${amount || "0"} EURT y Autorizar en MetaMask ➔`}
           </button>
 
-          {/* Stripe Webhook Simulator Button for Local Anvil Testing */}
+          {/* Stripe Webhook Simulator Button */}
           <div className="pt-2 text-center">
             <button
               type="button"
@@ -356,16 +362,15 @@ export default function CompraStablecoinPage() {
                   setMessage(e.message || "Error al ejecutar el simulador de Webhook.");
                 }
               }}
-              className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 rounded-2xl text-xs font-bold font-mono transition flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 rounded-2xl text-xs font-bold font-mono transition flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>⚡ Simular Webhook Stripe (`payment_intent.succeeded`)</span>
+              <span>⚡ Probar Simulación Webhook Stripe (Desarrollo)</span>
             </button>
           </div>
 
         </form>
 
       </div>
-
     </div>
   );
 }

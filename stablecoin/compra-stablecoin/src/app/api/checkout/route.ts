@@ -68,7 +68,7 @@ export async function POST(request: Request) {
         description: `Compra de ${amount} EURT para ${walletAddress}`,
         confirm: true,
         payment_method: paymentMethodId || "pm_card_visa",
-        return_url: "http://localhost:3003"
+        return_url: process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"
       });
       paymentIntentId = paymentIntent.id;
     } catch (stripeErr: any) {

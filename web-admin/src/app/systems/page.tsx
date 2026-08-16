@@ -141,11 +141,11 @@ export default function SystemsPage() {
 
   // --- State for Structure & Health Checks ---
   const [servicesHealth, setServicesHealth] = useState<ServiceHealth[]>([
-    { name: "Nodo Anvil Ethereum RPC", url: "http://localhost:8545", port: 8545, status: "TESTING", latencyMs: 0, httpStatus: 0 },
-    { name: "Web Admin Console", url: "http://localhost:3000", port: 3000, status: "TESTING", latencyMs: 0, httpStatus: 0 },
-    { name: "Web Customer Storefront", url: "http://localhost:3001", port: 3001, status: "TESTING", latencyMs: 0, httpStatus: 0 },
-    { name: "Pasarela Web3 Escrow", url: "http://localhost:3002", port: 3002, status: "TESTING", latencyMs: 0, httpStatus: 0 },
-    { name: "Compra EURT con Stripe", url: "http://localhost:3003", port: 3003, status: "TESTING", latencyMs: 0, httpStatus: 0 },
+    { name: "Nodo Anvil Ethereum RPC", url: process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app", port: 8545, status: "TESTING", latencyMs: 0, httpStatus: 0 },
+    { name: "Web Admin Console", url: process.env.NEXT_PUBLIC_WEB_ADMIN_URL || "https://mcc-web-admin-1095249147821.europe-west1.run.app", port: 3000, status: "TESTING", latencyMs: 0, httpStatus: 0 },
+    { name: "Web Customer Storefront", url: process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app", port: 3001, status: "TESTING", latencyMs: 0, httpStatus: 0 },
+    { name: "Pasarela Web3 Escrow", url: process.env.NEXT_PUBLIC_PASARELA_URL || "https://mcc-pasarela-1095249147821.europe-west1.run.app", port: 3002, status: "TESTING", latencyMs: 0, httpStatus: 0 },
+    { name: "Compra EURT con Stripe", url: process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app", port: 3003, status: "TESTING", latencyMs: 0, httpStatus: 0 },
   ]);
 
   // --- State for CRUD & Financial Modals ---
@@ -173,7 +173,7 @@ export default function SystemsPage() {
   const loadSystemData = async () => {
     try {
       setLoading(true);
-      const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+      const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
       const ecommerce = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
       const euroToken = new ethers.Contract(euroTokenAddress, EUROTOKEN_ABI, rpcProvider);
 

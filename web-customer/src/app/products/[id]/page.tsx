@@ -72,7 +72,7 @@ export default function ProductDetailPage() {
       if (!productIdStr) return;
       try {
         setLoading(true);
-        const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+        const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
         // Fetch current product

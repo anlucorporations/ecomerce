@@ -41,7 +41,7 @@ export default function CustomerOrdersPage() {
     if (!address) return;
     try {
       setLoading(true);
-      const provider = signer?.provider || new ethers.JsonRpcProvider("http://localhost:8545");
+      const provider = signer?.provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, provider);
 
       const rawOrders = await contract.getCustomerInvoices(address);

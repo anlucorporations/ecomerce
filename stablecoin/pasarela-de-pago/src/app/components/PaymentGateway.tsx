@@ -424,7 +424,7 @@ export default function PaymentGateway() {
               <div className="space-y-3">
                 {paymentResult.error?.includes('Saldo insuficiente') && (
                   <a
-                    href="http://localhost:6001/"
+                    href={process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block w-full bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium"

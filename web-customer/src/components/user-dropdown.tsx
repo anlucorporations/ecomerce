@@ -36,7 +36,7 @@ export function UserDropdown() {
       return;
     }
     try {
-      const rpcProvider = provider || new ethers.JsonRpcProvider('http://localhost:8545');
+      const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'https://mcc-foundry-anvil-1095249147821.europe-west1.run.app');
 
       // 1. Fetch ETH Balance
       const rawEth = await rpcProvider.getBalance(address);

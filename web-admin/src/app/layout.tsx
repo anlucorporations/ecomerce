@@ -30,7 +30,7 @@ export default function RootLayout({
     async function checkEntityType() {
       if (address) {
         try {
-          const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+          const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
           const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
           const eType = await contract.getEntityType(address);
           const typeNum = Number(eType);
@@ -125,7 +125,7 @@ export default function RootLayout({
 
               <div className="flex items-center gap-4">
                 <a
-                  href="http://localhost:3001"
+                  href={process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hidden sm:inline-flex px-4 py-2 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 font-bold text-xs rounded-xl border border-emerald-500/30 transition"

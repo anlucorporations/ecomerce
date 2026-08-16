@@ -119,7 +119,8 @@ export default function TopupPage() {
 
       // 2. Try calling API checkout service
       try {
-        const res = await fetch('http://localhost:3003/api/checkout', {
+        const compraUrl = process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || 'https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app';
+        const res = await fetch(`${compraUrl}/api/checkout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -142,7 +143,7 @@ export default function TopupPage() {
 
       // 3. Execute fallback minting ONLY IF NOT already minted by API checkout
       if (!mintedOnChain) {
-        const rpcProvider = new ethers.JsonRpcProvider('http://localhost:8545');
+        const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'https://mcc-foundry-anvil-1095249147821.europe-west1.run.app');
         const signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', rpcProvider);
         const tokenContract = new ethers.Contract(
           euroTokenAddress,

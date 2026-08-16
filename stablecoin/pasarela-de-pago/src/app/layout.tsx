@@ -24,7 +24,7 @@ export default function RootLayout({
             <div className="flex items-center justify-between gap-4">
               
               {/* 1. BARLO-VENTAS Platform Logo */}
-              <a href="http://localhost:3001" className="flex items-center gap-2.5 group shrink-0">
+              <a href={process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app"} className="flex items-center gap-2.5 group shrink-0">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#0077BB] via-[#005F96] to-[#FF8800] flex items-center justify-center text-white font-black text-xl shadow-md shadow-[#0077BB]/25 group-hover:scale-105 transition-transform">
                   B
                 </div>
@@ -39,10 +39,10 @@ export default function RootLayout({
               {/* 2. Direct Shortcuts */}
               <div className="flex items-center gap-3">
                 <a
-                  href="http://localhost:3001/orders"
+                  href={(process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app") + "/orders"}
                   className="px-4 py-2 bg-white hover:bg-slate-50 text-[#0077BB] font-bold text-xs rounded-xl border border-[#0077BB]/20 transition shadow-xs font-poppins"
                 >
-                  📦 Mis Pedidos (Puerto 3001)
+                  📦 Mis Pedidos
                 </a>
               </div>
 

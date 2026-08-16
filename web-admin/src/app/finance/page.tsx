@@ -49,7 +49,7 @@ export default function FinancePage() {
       if (!address) return;
       try {
         setLoading(true);
-        const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+        const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
         const euroContract = new ethers.Contract(euroTokenAddress, EURO_TOKEN_ABI, rpcProvider);
 

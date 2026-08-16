@@ -483,12 +483,12 @@ const EURO_TOKEN_ABI = [
                       Tu saldo actual es menor que el total de la orden (€{formatPrice(total)} EURT).
                     </p>
                     <a
-                      href="http://localhost:3003"
+                      href={process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md transition"
                     >
-                      💳 Adquirir EURT con Stripe (€3003) ↗
+                      💳 Adquirir EURT con Stripe ↗
                     </a>
                   </div>
                 )}

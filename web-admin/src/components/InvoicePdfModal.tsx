@@ -27,7 +27,8 @@ export function InvoicePdfModal({ isOpen, onClose, data }: InvoicePdfModalProps)
 
   useEffect(() => {
     if (data && data.paymentTxHash) {
-      const verifyPayload = `http://localhost:3000/systems?tx=${data.paymentTxHash}`;
+      const adminUrl = process.env.NEXT_PUBLIC_WEB_ADMIN_URL || "https://mcc-web-admin-1095249147821.europe-west1.run.app";
+      const verifyPayload = `${adminUrl}/systems?tx=${data.paymentTxHash}`;
       QRCode.toDataURL(verifyPayload, {
         width: 180,
         margin: 1,

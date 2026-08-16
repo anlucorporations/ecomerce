@@ -42,7 +42,7 @@ export default function DashboardHome() {
     async function loadDashboardData() {
       try {
         setLoading(true);
-        const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+        const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
         // Fetch registered companies for landing page
@@ -169,7 +169,7 @@ export default function DashboardHome() {
                   <span>🏢 Inscribir Mi Empresa (3.0 ETH)</span>
                 </Link>
                 <a
-                  href="http://localhost:3001"
+                  href={process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl transition flex items-center gap-2"
@@ -477,7 +477,7 @@ export default function DashboardHome() {
           Wallet Conectada: <span className="font-mono font-bold text-slate-800">{address}</span>
         </div>
         <div className="pt-2">
-          <a href="http://localhost:3001" className="inline-block px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow">
+          <a href={process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app"} className="inline-block px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow">
             Ir a la Tienda de Clientes →
           </a>
         </div>

@@ -72,7 +72,7 @@ export default function ShippingManagementPage() {
     async function autoDetectCompany() {
       if (!address) return;
       try {
-        const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+        const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
         const comp = await contract.getCompanyByAddress(address);
         if (comp && comp.companyId > BigInt(0)) {
@@ -88,7 +88,7 @@ export default function ShippingManagementPage() {
   const fetchCompanyOrders = async () => {
     try {
       setLoading(true);
-      const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+      const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
       const rawOrders = await contract.getCompanyInvoices(companyId);
@@ -155,7 +155,7 @@ export default function ShippingManagementPage() {
         } catch (payErr: any) {
           console.warn("Direct processPayment failed, proceeding with administrative ship authorization:", payErr);
           // If direct processPayment has transferFrom limitation in dev, use owner fallback signer
-          const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+          const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
           const adminWallet = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", rpcProvider);
           const adminContract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, adminWallet);
           

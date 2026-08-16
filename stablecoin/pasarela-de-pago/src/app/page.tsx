@@ -31,7 +31,8 @@ function PaymentGatewayContent() {
   const invoiceIdParam = searchParams.get("invoiceId") || "1";
   const rawMerchant = searchParams.get("merchant") || "Tienda BARLO-VENTAS";
   const merchantParam = sanitizeText(rawMerchant);
-  const redirectUrlParam = searchParams.get("redirectUrl") || "http://localhost:3001/orders";
+  const defaultCustomerOrdersUrl = (process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app") + "/orders";
+  const redirectUrlParam = searchParams.get("redirectUrl") || defaultCustomerOrdersUrl;
 
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [balance, setBalance] = useState<string>("0");
@@ -40,7 +41,7 @@ function PaymentGatewayContent() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [txHash, setTxHash] = useState<string>("");
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650";
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
   const numericAmount = parseFloat(amountParam);
@@ -48,7 +49,7 @@ function PaymentGatewayContent() {
 
   const checkWalletState = useCallback(async (account: string) => {
     try {
-      const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+      const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
       
       // 1. Check Registration
       const ecommerceContract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
@@ -144,7 +145,8 @@ function PaymentGatewayContent() {
       }
 
       if (!isRegistered) {
-        alert("Su billetera no está inscripta en BARLO-VENTAS. Por favor inscribe tu cuenta en http://localhost:3001/profile.");
+        const profileUrl = (process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app") + "/profile";
+        alert(`Su billetera no está inscripta en BARLO-VENTAS. Por favor inscribe tu cuenta en ${profileUrl}.`);
         return;
       }
 

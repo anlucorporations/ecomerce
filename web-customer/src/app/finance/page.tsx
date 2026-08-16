@@ -45,7 +45,7 @@ export default function UserFinancePage() {
     if (!address) return;
     try {
       setLoading(true);
-      const rpcProvider = provider || new ethers.JsonRpcProvider('http://localhost:8545');
+      const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'https://mcc-foundry-anvil-1095249147821.europe-west1.run.app');
 
       const rawEth = await rpcProvider.getBalance(address);
       setEthBalance((Number(rawEth) / 1e18).toFixed(4));

@@ -35,7 +35,7 @@ export function WalletConnect() {
     async function fetchWalletDetails() {
       if (!address) return;
       try {
-        const rpcProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+        const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
 
         // 1. Fetch ETH Balance safely
         try {
@@ -156,7 +156,7 @@ export function WalletConnect() {
 
             {/* Action: Recarga EURT con Stripe */}
             <a
-              href="http://localhost:3003"
+              href={process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 group"

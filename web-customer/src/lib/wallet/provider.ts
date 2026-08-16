@@ -125,7 +125,7 @@ export async function switchNetwork(chainId: number): Promise<void> {
                 symbol: 'ETH',
                 decimals: 18,
               },
-              rpcUrls: ['http://localhost:8545'],
+              rpcUrls: [process.env.NEXT_PUBLIC_RPC_URL || 'https://mcc-foundry-anvil-1095249147821.europe-west1.run.app'],
             },
           ],
         });

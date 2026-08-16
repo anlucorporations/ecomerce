@@ -95,7 +95,7 @@ export default function Home() {
     const loadStoreData = async () => {
       try {
         setLoading(true);
-        const rpcProvider = provider || new ethers.JsonRpcProvider("http://localhost:8545");
+        const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
 
         // 1. Verify if contract bytecode exists at ecommerceAddress on RPC node before staticCall
         const code = await rpcProvider.getCode(ecommerceAddress).catch(() => "0x");
@@ -219,7 +219,7 @@ export default function Home() {
             <p className="text-xs text-[#A9A9A9] leading-relaxed">
               Adquiere EuroTokens en segundos usando tarjeta de crédito a través de nuestro portal Stripe.
             </p>
-            <a href="http://localhost:3003" target="_blank" rel="noreferrer" className="inline-block text-xs font-bold text-[#FF8800] hover:underline pt-1 font-poppins">
+            <a href={process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"} target="_blank" rel="noreferrer" className="inline-block text-xs font-bold text-[#FF8800] hover:underline pt-1 font-poppins">
               Recargar Saldo Ahora ↗
             </a>
           </div>

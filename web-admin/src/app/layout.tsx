@@ -8,8 +8,11 @@ import { WalletConnect } from "../components/wallet-connect";
 import { useWallet } from "../hooks/useWallet";
 import { ethers } from "ethers";
 
+import { CompanyRegistrationModal } from "../components/company-registration-modal";
+
 const ECOMMERCE_ABI = [
-  "function getEntityType(address account) view returns (uint8)"
+  "function getEntityType(address account) view returns (uint8)",
+  "function getCompanyByAddress(address _address) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))"
 ];
 
 export default function RootLayout({
@@ -22,6 +25,7 @@ export default function RootLayout({
   const router = useRouter();
   const { address, isConnected, provider } = useWallet();
   const [entityType, setEntityType] = useState<number>(0); // 0: Unregistered, 1: Company, 2: Customer, 3: Owner
+  const [showCompanyRegModal, setShowCompanyRegModal] = useState<boolean>(false);
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
   const isOwner = address?.toLowerCase() === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
@@ -33,22 +37,57 @@ export default function RootLayout({
           const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
           const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
           const eType = await contract.getEntityType(address);
-          const typeNum = Number(eType);
+          let typeNum = Number(eType);
+
+          // Check company by address fallback
+          if (typeNum === 0 && !isOwner) {
+            try {
+              const comp = await contract.getCompanyByAddress(address);
+              if (comp && comp.companyId > BigInt(0)) {
+                typeNum = 1;
+              }
+            } catch {}
+          }
+
+          // Check local storage fallback
+          if (typeNum === 0 && typeof window !== "undefined") {
+            const localReg = localStorage.getItem(`company_reg_${address.toLowerCase()}`);
+            if (localReg) {
+              typeNum = 1;
+            }
+          }
+
+          if (isOwner) typeNum = 3;
+
           setEntityType(typeNum);
 
-          // If connected wallet is unregistered (0) and not on /companies, redirect to /companies for registration
-          if (typeNum === 0 && pathname !== "/companies") {
-            router.push("/companies");
+          // If connected wallet is unregistered (0), prompt registration modal
+          if (typeNum === 0) {
+            setShowCompanyRegModal(true);
+            if (pathname !== "/companies") {
+              router.push("/companies?register=true");
+            }
+          } else {
+            setShowCompanyRegModal(false);
           }
         } catch (e) {
           console.warn("Failed to fetch entity type in layout:", e);
         }
       } else {
         setEntityType(0);
+        setShowCompanyRegModal(false);
       }
     }
     checkEntityType();
-  }, [address, provider, pathname, router, ecommerceAddress]);
+  }, [address, provider, pathname, router, ecommerceAddress, isOwner]);
+
+  const handleCompanyRegSuccess = () => {
+    setEntityType(1);
+    setShowCompanyRegModal(false);
+    if (typeof window !== "undefined") {
+      window.location.href = "/";
+    }
+  };
 
   const navItems = [
     {
@@ -263,6 +302,13 @@ export default function RootLayout({
             </div>
           </>
         )}
+
+        <CompanyRegistrationModal
+          isOpen={showCompanyRegModal && isConnected && !isAuthorizedMerchant}
+          onClose={() => setShowCompanyRegModal(false)}
+          userAddress={address}
+          onSuccess={handleCompanyRegSuccess}
+        />
       </body>
     </html>
   );

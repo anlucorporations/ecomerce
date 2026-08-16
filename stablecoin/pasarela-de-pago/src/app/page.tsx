@@ -21,11 +21,16 @@ const ECOMMERCE_ABI = [
   "function isCustomerRegistered(address _customer) view returns (bool)"
 ];
 
+function sanitizeText(str: string): string {
+  return str.replace(/[<>]/g, "").trim().substring(0, 100);
+}
+
 function PaymentGatewayContent() {
   const searchParams = useSearchParams();
   const amountParam = searchParams.get("amount") || "10.00";
   const invoiceIdParam = searchParams.get("invoiceId") || "1";
-  const merchantParam = searchParams.get("merchant") || "Tienda BARLO-VENTAS";
+  const rawMerchant = searchParams.get("merchant") || "Tienda BARLO-VENTAS";
+  const merchantParam = sanitizeText(rawMerchant);
   const redirectUrlParam = searchParams.get("redirectUrl") || "http://localhost:3001/orders";
 
   const [walletAddress, setWalletAddress] = useState<string | null>(null);

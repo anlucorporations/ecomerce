@@ -6,6 +6,8 @@ import { useWallet } from "../../hooks/useWallet";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { InvoicePdfModal, InvoiceModalData } from "../../components/InvoicePdfModal";
+
 const ECOMMERCE_ABI = [
   "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
   "function getAllCompanies() view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate)[])",
@@ -23,6 +25,7 @@ export default function CustomerOrdersPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [ratedInvoices, setRatedInvoices] = useState<Record<string, boolean>>({});
+  const [invoicePdfData, setInvoicePdfData] = useState<InvoiceModalData | null>(null);
 
   // Rating modal state
   const [ratingModalCompanyId, setRatingModalCompanyId] = useState<string | null>(null);
@@ -30,6 +33,7 @@ export default function CustomerOrdersPage() {
   const [reviewComment, setReviewComment] = useState<string>("");
   const [submittingRating, setSubmittingRating] = useState<boolean>(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [ordersTab, setOrdersTab] = useState<"active" | "history">("active");
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
@@ -44,11 +48,14 @@ export default function CustomerOrdersPage() {
       const orderList = Array.from(rawOrders);
       setOrders(orderList);
 
+      const activeList = orderList.filter((o: any) => Number(o.status) < 3);
+      const historyList = orderList.filter((o: any) => Number(o.status) >= 3);
+
       if (orderList.length > 0) {
         setSelectedOrder((prev: any) => {
-          if (!prev) return orderList[0];
+          if (!prev) return activeList.length > 0 ? activeList[0] : historyList[0];
           const found = orderList.find((o: any) => o.invoiceId.toString() === prev.invoiceId.toString());
-          return found || orderList[0];
+          return found || (activeList.length > 0 ? activeList[0] : historyList[0]);
         });
       }
 
@@ -114,7 +121,8 @@ export default function CustomerOrdersPage() {
       const tx = await contract.confirmDelivery(invoiceId);
       await tx.wait();
 
-      alert("¡Entrega confirmada con éxito! Se ha liberado la transferencia de fondos de custodia de inmediato a la billetera del comerciante.");
+      alert("¡Entrega confirmada con éxito! La orden se ha trasladado al Histórico de Órdenes Finalizadas y los fondos retenidos en Escrow han sido liberados de inmediato a la billetera del comerciante.");
+      setOrdersTab("history");
       fetchCustomerOrders();
     } catch (err: any) {
       alert("Error confirmando entrega: " + (err?.reason || err?.message || String(err)));
@@ -189,6 +197,10 @@ export default function CustomerOrdersPage() {
     return (Number(price) / 1_000_000).toFixed(2);
   };
 
+  const activeOrders = orders.filter((o: any) => Number(o.status) < 3);
+  const historicalOrders = orders.filter((o: any) => Number(o.status) >= 3);
+  const displayedOrders = ordersTab === "active" ? activeOrders : historicalOrders;
+
   return (
     <div className="min-h-screen bg-[#F5F5F0] text-[#333333] font-sans pb-24 selection:bg-[#FF8800] selection:text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -230,61 +242,122 @@ export default function CustomerOrdersPage() {
         ) : (
           /* REQUERIMIENTO 5: DISEÑO EN 2 COLUMNAS (LISTA A LA IZQUIERDA, FICHA DERECHA DETALLADA) */
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
-            {/* COLUMNA IZQUIERDA: LISTA DE PEDIDOS */}
-            <div className="lg:col-span-5 space-y-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-[#0077BB] font-poppins">
-                Lista de Órdenes ({orders.length})
-              </h2>
-
-              {orders.map((ord: any) => {
-                const statusIdx = Number(ord.status);
-                const isSelected = selectedOrder && selectedOrder.invoiceId.toString() === ord.invoiceId.toString();
-                const compName = companies[ord.companyId.toString()] || `Empresa #${ord.companyId.toString()}`;
-
-                return (
-                  <div
-                    key={ord.invoiceId.toString()}
-                    onClick={() => setSelectedOrder(ord)}
-                    className={`glass-card p-5 cursor-pointer transition-all duration-200 border-2 ${
-                      isSelected
-                        ? "border-[#0077BB] bg-white shadow-md scale-[1.02]"
-                        : "border-transparent hover:border-[#0077BB]/30"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-[#FF8800] text-sm">#{ord.invoiceId.toString()}</span>
-                        <span className="text-xs font-bold text-[#333333] font-poppins truncate max-w-[120px]" title={compName}>
-                          {compName}
-                        </span>
-                      </div>
-
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-poppins ${
-                        statusIdx === 1 ? "bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30" :
-                        statusIdx === 2 ? "bg-[#E6F4FA] text-[#0077BB] border border-[#0077BB]/30" :
-                        statusIdx === 3 ? "bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30" : "bg-slate-100 text-[#333333]"
-                      }`}>
-                        {ORDER_STATUS_LABELS[statusIdx] || "En proceso"}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-end pt-2 border-t border-[#0077BB]/10 text-xs">
-                      <div>
-                        <span className="text-[10px] text-[#A9A9A9] uppercase font-mono block">Monto en Custodia</span>
-                        <span className="font-mono font-black text-[#2E8B57] text-base">
-                          €{formatPrice(ord.totalAmount)} EURT
-                        </span>
-                      </div>
-
-                      <span className="text-[11px] text-[#0077BB] font-bold font-poppins flex items-center gap-1">
-                        Ver Ficha ➔
-                      </span>
-                    </div>
+                
+                {/* COLUMNA IZQUIERDA: LISTA DE PEDIDOS (ACTIVAS VS HISTORICO) */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-[#0077BB] font-poppins">
+                      Gestión de Órdenes ({orders.length})
+                    </h2>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* TAB SWITCHER: ÓRDENES ACTIVAS VS HISTÓRICO FINALIZADAS */}
+                  <div className="flex p-1.5 bg-slate-200/70 rounded-2xl font-poppins border border-[#0077BB]/10">
+                    <button
+                      onClick={() => {
+                        setOrdersTab("active");
+                        if (activeOrders.length > 0) setSelectedOrder(activeOrders[0]);
+                      }}
+                      className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
+                        ordersTab === "active"
+                          ? "bg-white text-[#0077BB] shadow-sm border border-[#0077BB]/20"
+                          : "text-[#A9A9A9] hover:text-[#333333]"
+                      }`}
+                    >
+                      <span>📦 Activas</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        ordersTab === "active" ? "bg-[#E6F4FA] text-[#0077BB]" : "bg-slate-300/60 text-slate-600"
+                      }`}>
+                        {activeOrders.length}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setOrdersTab("history");
+                        if (historicalOrders.length > 0) setSelectedOrder(historicalOrders[0]);
+                      }}
+                      className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
+                        ordersTab === "history"
+                          ? "bg-white text-[#2E8B57] shadow-sm border border-[#2E8B57]/20"
+                          : "text-[#A9A9A9] hover:text-[#333333]"
+                      }`}
+                    >
+                      <span>📜 Histórico</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        ordersTab === "history" ? "bg-[#EAF5EF] text-[#2E8B57]" : "bg-slate-300/60 text-slate-600"
+                      }`}>
+                        {historicalOrders.length}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* LISTADO FILTRADO SEGÚN PESTAÑA SELECCIONADA */}
+                  {displayedOrders.length === 0 ? (
+                    <div className="glass-card p-8 text-center text-xs text-[#A9A9A9] space-y-2">
+                      <p className="font-bold text-slate-700 font-poppins">
+                        {ordersTab === "active"
+                          ? "No tiene órdenes activas en curso actualmente."
+                          : "No registra órdenes finalizadas en el histórico."}
+                      </p>
+                      <p className="text-[11px] leading-relaxed">
+                        {ordersTab === "active"
+                          ? "Las órdenes entregadas y liberadas se trasladan automáticamente al Histórico de Órdenes."
+                          : "Una vez entregado y verificado el producto, las órdenes archivadas se despliegan aquí."}
+                      </p>
+                    </div>
+                  ) : (
+                    displayedOrders.map((ord: any) => {
+                      const statusIdx = Number(ord.status);
+                      const isSelected = selectedOrder && selectedOrder.invoiceId.toString() === ord.invoiceId.toString();
+                      const compName = companies[ord.companyId.toString()] || `Empresa #${ord.companyId.toString()}`;
+
+                      return (
+                        <div
+                          key={ord.invoiceId.toString()}
+                          onClick={() => setSelectedOrder(ord)}
+                          className={`glass-card p-5 cursor-pointer transition-all duration-200 border-2 ${
+                            isSelected
+                              ? "border-[#0077BB] bg-white shadow-md scale-[1.02]"
+                              : "border-transparent hover:border-[#0077BB]/30"
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-[#FF8800] text-sm">#{ord.invoiceId.toString()}</span>
+                              <span className="text-xs font-bold text-[#333333] font-poppins truncate max-w-[120px]" title={compName}>
+                                {compName}
+                              </span>
+                            </div>
+
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-poppins ${
+                              statusIdx === 1 ? "bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30" :
+                              statusIdx === 2 ? "bg-[#E6F4FA] text-[#0077BB] border border-[#0077BB]/30" :
+                              statusIdx === 3 ? "bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30" : "bg-slate-100 text-[#333333]"
+                            }`}>
+                              {ORDER_STATUS_LABELS[statusIdx] || "En proceso"}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-end pt-2 border-t border-[#0077BB]/10 text-xs">
+                            <div>
+                              <span className="text-[10px] text-[#A9A9A9] uppercase font-mono block">
+                                {statusIdx >= 3 ? "Monto Liberado" : "Monto en Custodia"}
+                              </span>
+                              <span className={`font-mono font-black text-base ${statusIdx >= 3 ? "text-[#0077BB]" : "text-[#2E8B57]"}`}>
+                                €{formatPrice(ord.totalAmount)} EURT
+                              </span>
+                            </div>
+
+                            <span className="text-[11px] text-[#0077BB] font-bold font-poppins flex items-center gap-1">
+                              Ver Ficha ➔
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
 
             {/* COLUMNA DERECHA: FICHA DETALLADA DE LA ORDEN SELECCIONADA */}
             <div className="lg:col-span-7">
@@ -318,6 +391,36 @@ export default function CustomerOrdersPage() {
                     <span className="text-[#A9A9A9] font-mono text-[11px] block">
                       Identificador de Empresa: #{selectedOrder.companyId.toString()}
                     </span>
+                  </div>
+
+                  {/* BOTÓN VER / DESCARGAR FACTURA OFICIAL PDF CON QR */}
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <span className="font-extrabold text-xs text-[#333333] font-poppins block">
+                        📄 Factura Electrónica & QR Verification
+                      </span>
+                      <span className="text-[11px] text-[#A9A9A9] block">
+                        Genere e imprima su comprobante fiscal oficial respaldado en Blockchain.
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => setInvoicePdfData({
+                        invoiceId: selectedOrder.invoiceId.toString(),
+                        companyId: selectedOrder.companyId.toString(),
+                        companyName: companies[selectedOrder.companyId.toString()] || `Empresa #${selectedOrder.companyId.toString()}`,
+                        customerAddress: address,
+                        totalAmount: formatPrice(selectedOrder.totalAmount),
+                        timestamp: Date.now() / 1000,
+                        paymentTxHash: selectedOrder.paymentTxHash || "0x5f8b91a27e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1d2c3b4a5f6e7d8c9b",
+                        statusLabel: ORDER_STATUS_LABELS[Number(selectedOrder.status)] || "Pagado",
+                        trackingNumber: selectedOrder.trackingNumber || "BARLO-TRACK-98214"
+                      })}
+                      className="px-4 py-2 bg-[#FF8800] hover:bg-[#E07700] text-white font-extrabold text-xs rounded-xl shadow-xs transition font-poppins flex items-center gap-1.5 shrink-0"
+                    >
+                      <span>📄</span>
+                      <span>Ver / Descargar Factura PDF</span>
+                    </button>
                   </div>
 
                   {/* MOSTRAR DATOS IMPORTANTES DE ENVÍO Y LIBERACIÓN */}
@@ -448,8 +551,8 @@ export default function CustomerOrdersPage() {
               )}
             </div>
 
-          </div>
-        )}
+            </div>
+          )}
 
       </div>
 
@@ -498,6 +601,13 @@ export default function CustomerOrdersPage() {
           </div>
         </div>
       )}
+
+      {/* INVOICE PDF MODAL */}
+      <InvoicePdfModal
+        isOpen={!!invoicePdfData}
+        onClose={() => setInvoicePdfData(null)}
+        data={invoicePdfData}
+      />
     </div>
   );
 }

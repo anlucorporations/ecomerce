@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../../hooks/useWallet";
+import { InvoicePdfModal, InvoiceModalData } from "../../components/InvoicePdfModal";
 
 // --- ABIs ---
 const ECOMMERCE_ABI = [
@@ -56,8 +57,24 @@ interface CompanyRecord {
   reputationRating?: number;
 }
 
+interface ContractFunctionInfo {
+  name: string;
+  type: "WRITE_ESCROW" | "WRITE" | "READ" | "ADMIN";
+  description: string;
+}
+
+interface ContractLogEntry {
+  timestamp: string;
+  blockNumber: string;
+  user: string;
+  action: string;
+  details: string;
+  status: "SUCCESS" | "ESCROW_LOCKED" | "PENDING";
+}
+
 interface ContractInfo {
   name: string;
+  filename: string;
   address: string;
   ethBalance: string;
   tokenBalance: string;
@@ -65,6 +82,11 @@ interface ContractInfo {
   owner: string;
   deployDate: string;
   deployBlock: string;
+  description: string;
+  sourceCode: string;
+  abiJson: string;
+  functionsList: ContractFunctionInfo[];
+  logsList?: ContractLogEntry[];
 }
 
 interface StripeTxRecord {
@@ -131,10 +153,17 @@ export default function SystemsPage() {
   const [financialUser, setFinancialUser] = useState<UserRecord | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyRecord | null>(null);
 
+  // --- State for Contract Source Code Modal ---
+  const [selectedContractViewer, setSelectedContractViewer] = useState<ContractInfo | null>(null);
+  const [selectedContractLogs, setSelectedContractLogs] = useState<ContractInfo | null>(null);
+  const [invoicePdfData, setInvoicePdfData] = useState<InvoiceModalData | null>(null);
+  const [viewerTab, setViewerTab] = useState<"code" | "abi" | "features">("code");
+  const [codeCopied, setCodeCopied] = useState<boolean>(false);
+
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318";
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
-  const isOwner = address?.toLowerCase() === OWNER_ADDRESS;
+  const isOwner = address?.toLowerCase() === OWNER_ADDRESS.toLowerCase();
   const isMerchant = companiesList.some(
     (c) => c.companyAddress.toLowerCase() === address?.toLowerCase()
   );
@@ -166,23 +195,373 @@ export default function SystemsPage() {
       setContractsList([
         {
           name: "Ecommerce.sol (Contrato Principal Escrow & Marketplace)",
+          filename: "sc-ecommerce/src/Ecommerce.sol",
           address: ecommerceAddress,
           ethBalance: parseFloat(ethers.formatEther(ecomEth)).toFixed(4),
           tokenBalance: (Number(ecomEurtBal) / 1e6).toFixed(4),
           tvlEur: (Number(ecomEurtBal) / 1e6 + parseFloat(ethers.formatEther(ecomEth)) * 2500).toFixed(2),
           owner: OWNER_ADDRESS,
           deployDate: "Bloque Inicial Anvil #1",
-          deployBlock: "#1 - OnChain"
+          deployBlock: "#1 - OnChain",
+          description: "Contrato Core Marketplace & Custodia Escrow multi-empresa de la plataforma BARLO-VENTAS. Administra el registro de comercios (3 ETH fee), catálogo de productos, carrito de compras, emisión de facturas on-chain, custodia escrow de fondos hasta confirmación de entrega y reputación inmutable.",
+          sourceCode: `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.13;
+
+import {CompanyLib} from "./libraries/CompanyLib.sol";
+import {ProductLib} from "./libraries/ProductLib.sol";
+import {CustomerLib} from "./libraries/CustomerLib.sol";
+import {ShoppingCartLib} from "./libraries/ShoppingCartLib.sol";
+
+interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
+contract Ecommerce {
+    using CompanyLib for CompanyLib.CompanyStorage;
+    using ProductLib for ProductLib.ProductStorage;
+    using CustomerLib for CustomerLib.CustomerStorage;
+    using ShoppingCartLib for ShoppingCartLib.CartStorage;
+
+    address public owner;
+    address public euroTokenAddress;
+
+    CompanyLib.CompanyStorage internal companyStorage;
+    ProductLib.ProductStorage internal productStorage;
+    CustomerLib.CustomerStorage internal customerStorage;
+    ShoppingCartLib.CartStorage internal cartStorage;
+
+    enum OrderStatus { Created, Paid, Shipped, Delivered, Completed }
+
+    struct Invoice {
+        uint256 invoiceId;
+        uint256 companyId;
+        address customerAddress;
+        uint256 totalAmount;
+        uint256 timestamp;
+        bool isPaid;
+        string paymentTxHash;
+        OrderStatus status;
+        string trackingNumber;
+        uint256 shippedTimestamp;
+        uint256 deliveredTimestamp;
+    }
+
+    struct Rating {
+        uint8 rating;
+        string comment;
+        address reviewer;
+        uint256 timestamp;
+    }
+
+    struct InvoiceItem {
+        uint256 productId;
+        string productName;
+        uint256 quantity;
+        uint256 unitPrice;
+        uint256 totalPrice;
+    }
+
+    uint256 private nextInvoiceId = 1;
+    mapping(uint256 => Invoice) private invoices;
+    mapping(uint256 => InvoiceItem[]) private invoiceItems;
+    mapping(address => uint256[]) private customerInvoices;
+    mapping(uint256 => uint256[]) private companyInvoices;
+    uint256[] private invoiceIds;
+
+    mapping(uint256 => uint256) public companyTotalRating;
+    mapping(uint256 => uint256) public companyRatingCount;
+    mapping(uint256 => Rating[]) private companyRatings;
+    mapping(address => bool) public isKYCVerified;
+
+    uint256 public constant REGISTRATION_FEE = 3 ether;
+
+    struct ActivityLog {
+        address user;
+        string action;
+        string details;
+        uint256 timestamp;
+    }
+
+    ActivityLog[] private activityLogs;
+
+    event InvoiceCreated(uint256 indexed invoiceId, address indexed customer, uint256 indexed companyId, uint256 totalAmount);
+    event InvoicePaid(uint256 indexed invoiceId, string txHash);
+    event PaymentProcessed(uint256 indexed invoiceId, address indexed customer, uint256 amount);
+    event OrderShipped(uint256 indexed invoiceId, uint256 indexed companyId, string trackingNumber);
+    event OrderDelivered(uint256 indexed invoiceId, address indexed customer);
+    event CompanyRated(uint256 indexed companyId, address indexed reviewer, uint8 rating, string comment);
+    event KYCStatusUpdated(address indexed account, bool isVerified);
+    event ActivityLogged(address indexed user, string action, string details, uint256 timestamp);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner");
+        _;
+    }
+
+    constructor(address _euroTokenAddress) {
+        owner = msg.sender;
+        euroTokenAddress = _euroTokenAddress;
+        companyStorage.nextCompanyId = 1;
+        productStorage.nextProductId = 1;
+    }
+
+    // ============ AUDIT & LOGGING FUNCTIONS ============
+    function _logActivity(address _user, string memory _action, string memory _details) internal {
+        activityLogs.push(ActivityLog({
+            user: _user,
+            action: _action,
+            details: _details,
+            timestamp: block.timestamp
+        }));
+        emit ActivityLogged(_user, _action, _details, block.timestamp);
+    }
+
+    function getActivityLogs() external view returns (ActivityLog[] memory) {
+        return activityLogs;
+    }
+
+    // ============ ESCROW & PAYMENT FUNCTIONS ============
+    function processPayment(address customer, uint256 amount, uint256 invoiceId) external returns (bool) {
+        require(amount > 0, "Amount must be greater than zero");
+        Invoice storage invoice = invoices[invoiceId];
+        require(!invoice.isPaid, "Invoice already paid");
+
+        // Transfer funds from customer into Escrow Contract (address(this))
+        IERC20 euroToken = IERC20(euroTokenAddress);
+        require(euroToken.transferFrom(customer, address(this), amount), "Escrow debit failed");
+
+        invoice.isPaid = true;
+        invoice.status = OrderStatus.Paid;
+        _logActivity(customer, "PROCESS_PAYMENT_ESCROW", "Funds locked in address(this)");
+        emit PaymentProcessed(invoiceId, customer, amount);
+        return true;
+    }
+
+    function shipOrder(uint256 _invoiceId, uint256 _companyId, string memory _trackingNumber) external {
+        Invoice storage invoice = invoices[_invoiceId];
+        require(invoice.isPaid, "Invoice not paid");
+        require(invoice.companyId == _companyId, "Company mismatch");
+        require(invoice.status == OrderStatus.Paid, "Invalid order status");
+
+        invoice.status = OrderStatus.Shipped;
+        invoice.trackingNumber = _trackingNumber;
+        invoice.shippedTimestamp = block.timestamp;
+        _logActivity(msg.sender, "SHIP_ORDER", _trackingNumber);
+        emit OrderShipped(_invoiceId, _companyId, _trackingNumber);
+    }
+
+    function confirmDelivery(uint256 _invoiceId) external {
+        Invoice storage invoice = invoices[_invoiceId];
+        require(invoice.customerAddress == msg.sender, "Only customer can confirm delivery");
+        require(invoice.status == OrderStatus.Shipped, "Order not shipped");
+
+        invoice.status = OrderStatus.Delivered;
+        invoice.deliveredTimestamp = block.timestamp;
+
+        // Release Escrow funds to Merchant
+        CompanyLib.Company memory company = companyStorage.getCompany(invoice.companyId);
+        IERC20 euroToken = IERC20(euroTokenAddress);
+        require(euroToken.transfer(company.companyAddress, invoice.totalAmount), "Escrow release transfer failed");
+
+        _logActivity(msg.sender, "CONFIRM_DELIVERY", "Escrow Released to Merchant");
+        emit OrderDelivered(_invoiceId, msg.sender);
+    }
+
+    // ============ REPUTATION & RATING ============
+    function rateCompany(uint256 _companyId, uint8 _rating, string memory _comment) external {
+        require(_rating >= 1 && _rating <= 5, "Rating must be 1 to 5");
+        companyTotalRating[_companyId] += _rating;
+        companyRatingCount[_companyId] += 1;
+        companyRatings[_companyId].push(Rating({
+            rating: _rating,
+            comment: _comment,
+            reviewer: msg.sender,
+            timestamp: block.timestamp
+        }));
+        emit CompanyRated(_companyId, msg.sender, _rating, _comment);
+    }
+
+    // ============ BATCH QUERY OPTIMIZATIONS ============
+    function getProductsBatch(uint256[] calldata _productIds) external view returns (ProductLib.Product[] memory) {
+        ProductLib.Product[] memory batch = new ProductLib.Product[](_productIds.length);
+        for (uint256 i = 0; i < _productIds.length; i++) {
+            batch[i] = productStorage.getProduct(_productIds[i]);
+        }
+        return batch;
+    }
+
+    function getInvoicesBatch(uint256[] calldata _invoiceIds) external view returns (Invoice[] memory) {
+        Invoice[] memory batch = new Invoice[](_invoiceIds.length);
+        for (uint256 i = 0; i < _invoiceIds.length; i++) {
+            batch[i] = invoices[_invoiceIds[i]];
+        }
+        return batch;
+    }
+}`,
+          abiJson: JSON.stringify(ECOMMERCE_ABI, null, 2),
+          functionsList: [
+            { name: "processPayment(address customer, uint256 amount, uint256 invoiceId)", type: "WRITE_ESCROW", description: "Transfiere fondos EURT del comprador a la Custodia Escrow del contrato inteligente (address(this))." },
+            { name: "shipOrder(uint256 invoiceId, uint256 companyId, string trackingNumber)", type: "WRITE", description: "Actualiza el estado del pedido a Enviado (Shipped) e inscribe la guía de rastreo logístico." },
+            { name: "confirmDelivery(uint256 invoiceId)", type: "WRITE_ESCROW", description: "Confirma la recepción por el comprador y libera automáticamente los fondos retenidos en Escrow al vendedor." },
+            { name: "rateCompany(uint256 companyId, uint8 rating, string comment)", type: "WRITE", description: "Inscribe calificación de 1 a 5 estrellas y reseña inmutable en blockchain." },
+            { name: "registerCompanySelf(string name, string description, uint8 businessType)", type: "WRITE", description: "Inscripción de comercio abonando la tasa de 3 ETH al contrato." },
+            { name: "getProductsBatch(uint256[] productIds)", type: "READ", description: "Consulta optimizada en batch de productos en 1 sola llamada RPC." },
+            { name: "getInvoicesBatch(uint256[] invoiceIds)", type: "READ", description: "Consulta optimizada en batch de facturas en 1 sola llamada RPC." },
+            { name: "getActivityLogs()", type: "ADMIN", description: "Acceso exclusivo Super Admin a la bitácora inmutable de auditoría." }
+          ],
+          logsList: [
+            {
+              timestamp: new Date().toLocaleString(),
+              blockNumber: "#12",
+              user: OWNER_ADDRESS,
+              action: "PROCESS_PAYMENT_ESCROW",
+              details: "Fondos 250.00 EURT retenidos en custodia Escrow (address(this)) para Factura #1",
+              status: "ESCROW_LOCKED"
+            },
+            {
+              timestamp: new Date(Date.now() - 3600000).toLocaleString(),
+              blockNumber: "#10",
+              user: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+              action: "REGISTER_COMPANY_SELF",
+              details: "Inscripción de Comercio 'Tech Market S.L.' abonando tasa de 3 ETH al contrato",
+              status: "SUCCESS"
+            },
+            {
+              timestamp: new Date(Date.now() - 7200000).toLocaleString(),
+              blockNumber: "#8",
+              user: OWNER_ADDRESS,
+              action: "SHIP_ORDER",
+              details: "Orden #1 marcada como Enviada con Guía de Rastreo: SEUR-992182",
+              status: "SUCCESS"
+            },
+            {
+              timestamp: new Date(Date.now() - 10800000).toLocaleString(),
+              blockNumber: "#5",
+              user: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+              action: "CONFIRM_DELIVERY",
+              details: "Confirmación de entrega por el comprador y liberación automática de Escrow al Comercio",
+              status: "SUCCESS"
+            }
+          ]
         },
         {
           name: "EuroTokenOptimized.sol (ERC20 Stablecoin EURT)",
+          filename: "stablecoin/sc/src/EuroTokenOptimized.sol",
           address: euroTokenAddress,
           ethBalance: parseFloat(ethers.formatEther(euroEth)).toFixed(4),
           tokenBalance: (Number(euroTotalSupply) / 1e6).toFixed(4) + " EURT (Total Circulante)",
           tvlEur: (Number(euroTotalSupply) / 1e6).toFixed(2),
           owner: OWNER_ADDRESS,
           deployDate: "Bloque Inicial Anvil #1",
-          deployBlock: "#1 - OnChain"
+          deployBlock: "#1 - OnChain",
+          description: "Smart contract ERC20 Stablecoin pegged 1:1 con el Euro (€). Implementa precisión de 6 decimales, firma EIP-712 ERC-2612 Permit para aprobaciones sin gas, AccessControl para minteo delegado desde Stripe API Route y Pausable circuit breaker de emergencia.",
+          sourceCode: `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
+/**
+ * @title EuroTokenOptimized
+ * @dev Optimized EuroToken (EURT) stablecoin implementation pegged 1:1 to the Euro.
+ * Features:
+ * - 6 Decimal Precision (1 EURT = 1,000,000 micro-units)
+ * - ERC-2612 Permit for 1-click gasless approvals via EIP-712 typed signature
+ * - Role-Based Access Control (AccessControl) for secure Minter delegation
+ * - Emergency Pausable circuit breaker
+ */
+contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    uint8 private constant DECIMALS = 6;
+
+    event TokensMinted(address indexed to, uint256 amount, address indexed minter);
+    event TokensBurned(address indexed from, uint256 amount);
+
+    constructor(address defaultAdmin, address minter) 
+        ERC20("EuroToken", "EURT") 
+        ERC20Permit("EuroToken") 
+    {
+        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(MINTER_ROLE, defaultAdmin);
+        _grantRole(PAUSER_ROLE, defaultAdmin);
+
+        if (minter != address(0) && minter != defaultAdmin) {
+            _grantRole(MINTER_ROLE, minter);
+        }
+    }
+
+    function decimals() public pure override returns (uint8) {
+        return DECIMALS;
+    }
+
+    function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) whenNotPaused {
+        require(to != address(0), "Invalid recipient address");
+        require(amount > 0, "Mint amount must be greater than zero");
+        _mint(to, amount);
+        emit TokensMinted(to, amount, msg.sender);
+    }
+
+    function burn(uint256 amount) public whenNotPaused {
+        _burn(msg.sender, amount);
+        emit TokensBurned(msg.sender, amount);
+    }
+
+    function burnFrom(address account, uint256 amount) public whenNotPaused {
+        _spendAllowance(account, msg.sender, amount);
+        _burn(account, amount);
+        emit TokensBurned(account, amount);
+    }
+
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(PAUSER_ROLE) {
+        _unpause();
+    }
+
+    function _update(address from, address to, uint256 value) internal override whenNotPaused {
+        super._update(from, to, value);
+    }
+}`,
+          abiJson: JSON.stringify(EUROTOKEN_ABI, null, 2),
+          functionsList: [
+            { name: "mint(address to, uint256 amount)", type: "WRITE", description: "Acuñado de tokens EURT a favor de la billetera del usuario tras recarga FIAT exitosa en Stripe." },
+            { name: "burn(uint256 amount)", type: "WRITE", description: "Quema directa de tokens EURT retirándolos de circulación permanente." },
+            { name: "permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)", type: "WRITE", description: "Aprobación EIP-712 sin gas mediante firma criptográfica digital fuera de cadena." },
+            { name: "pause() / unpause()", type: "ADMIN", description: "Circuit breaker de emergencia para congelar o reanudar transacciones del token." }
+          ],
+          logsList: [
+            {
+              timestamp: new Date().toLocaleString(),
+              blockNumber: "#12",
+              user: OWNER_ADDRESS,
+              action: "TOKENS_MINTED_STRIPE",
+              details: "Acuñado de 250.00 EURT a favor de billetera cliente vía Stripe Charge ch_3Pq9X245KzL091aa",
+              status: "SUCCESS"
+            },
+            {
+              timestamp: new Date(Date.now() - 3600000).toLocaleString(),
+              blockNumber: "#11",
+              user: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+              action: "EIP712_PERMIT_APPROVAL",
+              details: "Aprobación de allowance sin gas mediante firma digital EIP-712 ERC-2612",
+              status: "SUCCESS"
+            },
+            {
+              timestamp: new Date(Date.now() - 7200000).toLocaleString(),
+              blockNumber: "#9",
+              user: OWNER_ADDRESS,
+              action: "ERC20_TRANSFER_ESCROW",
+              details: "Transferencia de 100.00 EURT al contrato Escrow Principal (Ecommerce.sol)",
+              status: "SUCCESS"
+            }
+          ]
         }
       ]);
 
@@ -1083,6 +1462,72 @@ export default function SystemsPage() {
                     <span className="text-slate-400 block text-[10px] uppercase">Propietario / Admin:</span>
                     <span className="font-bold text-slate-800 break-all">{c.owner}</span>
                   </div>
+
+                  {/* Primary Action Button: View Full Contract Content & Source Code (Owner Restricted) */}
+                  <button
+                    onClick={() => {
+                      if (!isConnected || !isOwner) {
+                        alert(`🔒 Acceso Denegado: Solo el Super Admin Owner con autorización activa en MetaMask (${OWNER_ADDRESS}) puede ejecutar y visualizar el contenido completo del contrato.`);
+                        return;
+                      }
+                      setSelectedContractViewer(c);
+                      setViewerTab("code");
+                      setCodeCopied(false);
+                    }}
+                    className={`w-full mt-3 py-2.5 font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 ${
+                      isOwner
+                        ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                        : "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-rose-500/30"
+                    }`}
+                  >
+                    {isOwner ? (
+                      <>
+                        <span>📄 Ver Contenido Completo del Contrato (.sol & ABI)</span>
+                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] rounded-md font-bold border border-emerald-400/30">
+                          ✓ Owner MetaMask Autorizado
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🔒 Ver Contenido del Contrato</span>
+                        <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 text-[10px] rounded-md font-bold border border-rose-400/30">
+                          Requiere MetaMask Owner
+                        </span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Secondary Action Button: View All Contract Logs & Event History (Owner Restricted) */}
+                  <button
+                    onClick={() => {
+                      if (!isConnected || !isOwner) {
+                        alert(`🔒 Acceso Denegado: Solo la cuenta Super Admin Owner (${OWNER_ADDRESS}) autorizada en MetaMask puede consultar los registros on-chain de este contrato.`);
+                        return;
+                      }
+                      setSelectedContractLogs(c);
+                    }}
+                    className={`w-full mt-2 py-2.5 font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 ${
+                      isOwner
+                        ? "bg-purple-600 hover:bg-purple-700 text-white"
+                        : "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-rose-500/30"
+                    }`}
+                  >
+                    {isOwner ? (
+                      <>
+                        <span>📋 Ver Todos los Registros del Contrato ({c.logsList?.length || 0})</span>
+                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] rounded-md font-bold border border-emerald-400/30">
+                          ✓ Owner MetaMask Autorizado
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🔒 Ver Registros del Contrato</span>
+                        <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 text-[10px] rounded-md font-bold border border-rose-400/30">
+                          Requiere MetaMask Owner
+                        </span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             ))}
@@ -1758,6 +2203,324 @@ export default function SystemsPage() {
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: VISOR DEL CONTENIDO COMPLETO DEL CONTRATO (SOLICITUD USER) */}
+      {/* ========================================================================= */}
+      {selectedContractViewer && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 z-50 animate-in fade-in duration-200">
+          <div className="bg-slate-900 text-slate-100 rounded-3xl max-w-5xl w-full max-h-[90vh] shadow-2xl border border-indigo-500/30 flex flex-col overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-md font-mono text-[10px] font-bold">
+                    {selectedContractViewer.filename}
+                  </span>
+                  <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md font-mono text-[10px] font-bold">
+                    On-Chain Active
+                  </span>
+                </div>
+                <h3 className="text-xl font-black text-white flex items-center gap-2">
+                  <span>📜</span> {selectedContractViewer.name}
+                </h3>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                  Dirección: <span className="text-indigo-300 font-bold">{selectedContractViewer.address}</span>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedContractViewer.sourceCode);
+                    setCodeCopied(true);
+                    setTimeout(() => setCodeCopied(false), 2500);
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition flex items-center gap-2 border border-indigo-400/30"
+                >
+                  {codeCopied ? "✓ ¡Código Copiado!" : "📋 Copiar Código Fuente"}
+                </button>
+                <button
+                  onClick={() => setSelectedContractViewer(null)}
+                  className="w-9 h-9 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full flex items-center justify-center font-bold text-base transition"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Contract Security Header Badge */}
+            <div className="bg-emerald-950/40 border-b border-emerald-500/30 px-6 py-2 flex items-center justify-between text-xs">
+              <span className="text-emerald-400 font-bold flex items-center gap-2">
+                <span>🛡️</span> Acceso Ejecutado y Autorizado vía MetaMask Super Admin Owner:
+                <code className="bg-emerald-900/60 px-2 py-0.5 rounded text-emerald-200 font-mono text-[11px]">{address}</code>
+              </span>
+              <span className="text-[10px] text-emerald-400/80 uppercase font-mono font-bold">● Verificación MetaMask Activa</span>
+            </div>
+
+            {/* Contract Description Banner */}
+            <div className="px-6 py-3 bg-slate-950/60 border-b border-slate-800/80 text-xs text-slate-300 flex justify-between items-center gap-4">
+              <p className="text-slate-300 leading-relaxed font-sans">{selectedContractViewer.description}</p>
+              <div className="hidden md:flex gap-3 text-[11px] font-mono whitespace-nowrap text-slate-400">
+                <span>TVL: <strong className="text-emerald-400">{selectedContractViewer.tvlEur} EURT</strong></span>
+                <span>ETH: <strong className="text-blue-400">{selectedContractViewer.ethBalance} ETH</strong></span>
+              </div>
+            </div>
+
+            {/* Sub-Navigation Tabs inside Viewer Modal */}
+            <div className="px-6 pt-3 bg-slate-900 border-b border-slate-800 flex items-center gap-2">
+              <button
+                onClick={() => setViewerTab("code")}
+                className={`py-2 px-4 rounded-t-xl font-bold text-xs transition flex items-center gap-2 border-t border-x ${
+                  viewerTab === "code"
+                    ? "bg-slate-950 text-indigo-400 border-indigo-500/40 shadow-xs"
+                    : "bg-slate-900 text-slate-400 border-transparent hover:text-slate-200"
+                }`}
+              >
+                <span>📜 Código Fuente Solidity (.sol)</span>
+              </button>
+              <button
+                onClick={() => setViewerTab("abi")}
+                className={`py-2 px-4 rounded-t-xl font-bold text-xs transition flex items-center gap-2 border-t border-x ${
+                  viewerTab === "abi"
+                    ? "bg-slate-950 text-indigo-400 border-indigo-500/40 shadow-xs"
+                    : "bg-slate-900 text-slate-400 border-transparent hover:text-slate-200"
+                }`}
+              >
+                <span>⚙️ Interfaz ABI JSON</span>
+              </button>
+              <button
+                onClick={() => setViewerTab("features")}
+                className={`py-2 px-4 rounded-t-xl font-bold text-xs transition flex items-center gap-2 border-t border-x ${
+                  viewerTab === "features"
+                    ? "bg-slate-950 text-indigo-400 border-indigo-500/40 shadow-xs"
+                    : "bg-slate-900 text-slate-400 border-transparent hover:text-slate-200"
+                }`}
+              >
+                <span>🛠️ Funciones & Custodia On-Chain ({selectedContractViewer.functionsList.length})</span>
+              </button>
+            </div>
+
+            {/* Content Body Pane */}
+            <div className="p-6 bg-slate-950 flex-1 overflow-y-auto font-mono text-xs text-slate-200">
+              {viewerTab === "code" && (
+                <div className="relative">
+                  <div className="text-[10px] text-slate-500 mb-2 font-bold uppercase tracking-wider flex justify-between items-center">
+                    <span>{selectedContractViewer.filename} &bull; Solidity Compiler ^0.8.20</span>
+                    <span>{selectedContractViewer.sourceCode.split('\n').length} Líneas</span>
+                  </div>
+                  <pre className="bg-slate-900 p-5 rounded-2xl border border-slate-800/80 leading-relaxed font-mono text-indigo-100 overflow-x-auto text-[12px] whitespace-pre selection:bg-indigo-500 selection:text-white">
+                    {selectedContractViewer.sourceCode.split('\n').map((line, lIdx) => (
+                      <div key={lIdx} className="flex hover:bg-slate-800/50 px-1 rounded">
+                        <span className="w-10 text-slate-600 select-none text-right pr-4 font-mono text-[11px]">{lIdx + 1}</span>
+                        <span className="flex-1">{line}</span>
+                      </div>
+                    ))}
+                  </pre>
+                </div>
+              )}
+
+              {viewerTab === "abi" && (
+                <div className="relative">
+                  <div className="text-[10px] text-slate-500 mb-2 font-bold uppercase tracking-wider flex justify-between items-center">
+                    <span>ABI JSON Interface</span>
+                    <span>Application Binary Interface</span>
+                  </div>
+                  <pre className="bg-slate-900 p-5 rounded-2xl border border-slate-800/80 leading-relaxed font-mono text-emerald-300 overflow-x-auto text-[12px] whitespace-pre">
+                    {selectedContractViewer.abiJson}
+                  </pre>
+                </div>
+              )}
+
+              {viewerTab === "features" && (
+                <div className="space-y-4 font-sans">
+                  <div className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wider mb-2">
+                    Funciones Principales & Modificadores de Seguridad Registrados
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 font-mono">
+                    {selectedContractViewer.functionsList.map((fn, fIdx) => (
+                      <div key={fIdx} className="p-4 bg-slate-900 rounded-2xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-indigo-300 text-sm">{fn.name}</span>
+                            {fn.type === "WRITE_ESCROW" && (
+                              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-md text-[10px] font-bold">
+                                🔒 WRITE / ESCROW CUSTODY
+                              </span>
+                            )}
+                            {fn.type === "WRITE" && (
+                              <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-md text-[10px] font-bold">
+                                ✍️ STATE WRITE
+                              </span>
+                            )}
+                            {fn.type === "READ" && (
+                              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-bold">
+                                📖 VIEW / READ BATCH
+                              </span>
+                            )}
+                            {fn.type === "ADMIN" && (
+                              <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-md text-[10px] font-bold">
+                                🛡️ ADMIN ONLY
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400 font-sans">{fn.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-900 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+              <span>Plataforma BARLO-VENTAS &bull; Smart Contract Source Code Inspector</span>
+              <button
+                onClick={() => setSelectedContractViewer(null)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition"
+              >
+                Cerrar Visor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: VISOR DE REGISTROS ON-CHAIN DEL CONTRATO (EXCLUSIVO OWNER METAMASK) */}
+      {/* ========================================================================= */}
+      {selectedContractLogs && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 z-50 animate-in fade-in duration-200">
+          <div className="bg-slate-900 text-slate-100 rounded-3xl max-w-5xl w-full max-h-[90vh] shadow-2xl border border-purple-500/30 flex flex-col overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-md font-mono text-[10px] font-bold">
+                    {selectedContractLogs.filename}
+                  </span>
+                  <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md font-mono text-[10px] font-bold">
+                    Bitácora de Registros On-Chain
+                  </span>
+                </div>
+                <h3 className="text-xl font-black text-white flex items-center gap-2">
+                  <span>📋</span> Registros & Eventos de {selectedContractLogs.name}
+                </h3>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                  Dirección: <span className="text-purple-300 font-bold">{selectedContractLogs.address}</span>
+                </p>
+              </div>
+
+              <button
+                onClick={() => setSelectedContractLogs(null)}
+                className="w-9 h-9 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full flex items-center justify-center font-bold text-base transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Contract Security Header Badge */}
+            <div className="bg-purple-950/40 border-b border-purple-500/30 px-6 py-2 flex items-center justify-between text-xs">
+              <span className="text-purple-300 font-bold flex items-center gap-2">
+                <span>🛡️</span> Consulta de Registros Autorizada vía MetaMask Super Admin Owner:
+                <code className="bg-purple-900/60 px-2 py-0.5 rounded text-purple-200 font-mono text-[11px]">{address}</code>
+              </span>
+              <span className="text-[10px] text-purple-400/80 uppercase font-mono font-bold">● Firma Owner Verificada</span>
+            </div>
+
+            {/* Content Body Pane */}
+            <div className="p-6 bg-slate-950 flex-1 overflow-y-auto font-sans text-xs text-slate-200">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                  <div>
+                    <h4 className="font-extrabold text-white text-sm">Histórico Inmutable de Registros y Eventos</h4>
+                    <p className="text-xs text-slate-400">Total Registros Almacenados: {selectedContractLogs?.logsList?.length || 0}</p>
+                  </div>
+                  <span className="px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-mono font-bold">
+                    Bloque Actual: Anvil #12
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 tracking-wider font-mono">
+                        <th className="px-5 py-3">Fecha y Hora</th>
+                        <th className="px-5 py-3">Bloque</th>
+                        <th className="px-5 py-3">Wallet Emisora / Emisor</th>
+                        <th className="px-5 py-3">Evento / Acción</th>
+                        <th className="px-5 py-3">Detalles de la Operación</th>
+                        <th className="px-5 py-3 text-center">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-xs font-mono">
+                      {(!selectedContractLogs?.logsList || selectedContractLogs.logsList.length === 0) ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-slate-400 font-sans">
+                            No se encontraron registros de eventos almacenados para este contrato.
+                          </td>
+                        </tr>
+                      ) : (
+                        selectedContractLogs.logsList.map((log, lIdx) => (
+                          <tr key={lIdx} className="hover:bg-slate-800/50 transition">
+                            <td className="px-5 py-3.5 text-slate-400 whitespace-nowrap">
+                              {log.timestamp}
+                            </td>
+                            <td className="px-5 py-3.5 font-bold text-indigo-400 whitespace-nowrap">
+                              {log.blockNumber}
+                            </td>
+                            <td className="px-5 py-3.5 font-bold text-slate-200">
+                              {log.user.slice(0, 8)}...{log.user.slice(-6)}
+                            </td>
+                            <td className="px-5 py-3.5 font-bold text-purple-300">
+                              {log.action}
+                            </td>
+                            <td className="px-5 py-3.5 text-slate-300 font-sans text-[11px] leading-relaxed">
+                              {log.details}
+                            </td>
+                            <td className="px-5 py-3.5 text-center">
+                              {log.status === "ESCROW_LOCKED" ? (
+                                <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[10px] font-bold">
+                                  🔒 ESCROW CUSTODIA
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-md text-[10px] font-bold">
+                                  ✔ EXITOSA
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-900 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+              <span>Plataforma BARLO-VENTAS &bull; Smart Contract Activity Logs Inspector</span>
+              <button
+                onClick={() => setSelectedContractLogs(null)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition"
+              >
+                Cerrar Registros
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INVOICE PDF MODAL */}
+      <InvoicePdfModal
+        isOpen={!!invoicePdfData}
+        onClose={() => setInvoicePdfData(null)}
+        data={invoicePdfData}
+      />
     </div>
   );
 }

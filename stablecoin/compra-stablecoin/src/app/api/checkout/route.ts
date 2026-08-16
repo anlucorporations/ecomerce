@@ -11,16 +11,22 @@ const EURO_TOKEN_ABI = [
   "function mint(address to, uint256 amount) external"
 ];
 
+const ECOMMERCE_ABI = [
+  "function isRegisteredEntity(address account) view returns (bool)",
+  "function isCustomerRegistered(address _customer) view returns (bool)"
+];
+
 // Anvil Default Deployer Private Key (#0 Owner)
 const ANVIL_PRIVATE_KEY = process.env.ANVIL_PRIVATE_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "http://localhost:8545";
 const EURO_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 const ECOMMERCE_MAIN_ADDRESS = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
-const ECOMMERCE_ABI = [
-  "function isRegisteredEntity(address account) view returns (bool)",
-  "function isCustomerRegistered(address _customer) view returns (bool)"
-];
+// Singleton Provider & Relayer Wallet Instances (Optimized Backend Performance)
+const globalProvider = new ethers.JsonRpcProvider(RPC_URL);
+const relayerWallet = new ethers.Wallet(ANVIL_PRIVATE_KEY, globalProvider);
+const ecommerceContract = new ethers.Contract(ECOMMERCE_MAIN_ADDRESS, ECOMMERCE_ABI, globalProvider);
+const euroTokenContract = new ethers.Contract(EURO_TOKEN_ADDRESS, EURO_TOKEN_ABI, relayerWallet);
 
 export async function POST(request: Request) {
   try {
@@ -31,10 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Faltan parámetros requeridos (amount, walletAddress)" }, { status: 400 });
     }
 
-    // 0. Check destination wallet platform registration
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
-    const ecommerceContract = new ethers.Contract(ECOMMERCE_MAIN_ADDRESS, ECOMMERCE_ABI, provider);
-    
+    // 0. Check destination wallet platform registration using cached instances
     let isRegistered = false;
     try {
       const isEnt = await ecommerceContract.isRegisteredEntity(walletAddress);
@@ -72,11 +75,7 @@ export async function POST(request: Request) {
       console.warn("Stripe live call warning, proceeding with demo fulfillment:", stripeErr?.message);
     }
 
-    // 2. Execute On-Chain EuroToken (EURT) Minting to User Wallet
-    const wallet = new ethers.Wallet(ANVIL_PRIVATE_KEY, provider);
-    const euroTokenContract = new ethers.Contract(EURO_TOKEN_ADDRESS, EURO_TOKEN_ABI, wallet);
-
-    // Amount in 6 decimals (1 EURT = 1,000,000 units)
+    // 2. Execute On-Chain EuroToken (EURT) Minting using cached relayer instance
     const rawMintAmount = BigInt(Math.round(parseFloat(amount) * 1000000));
     const mintTx = await euroTokenContract.mint(walletAddress, rawMintAmount);
     const receipt = await mintTx.wait();

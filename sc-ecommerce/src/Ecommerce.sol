@@ -532,10 +532,21 @@ contract Ecommerce {
         return companyRatings[_companyId];
     }
 
-    // ============ KYC CONTROL FUNCTIONS ============
+    // ============ BATCH QUERY OPTIMIZATIONS ============
 
-    function setKYCStatus(address _account, bool _isVerified) external onlyOwner {
-        isKYCVerified[_account] = _isVerified;
-        emit KYCStatusUpdated(_account, _isVerified);
+    function getProductsBatch(uint256[] calldata _productIds) external view returns (ProductLib.Product[] memory) {
+        ProductLib.Product[] memory batch = new ProductLib.Product[](_productIds.length);
+        for (uint256 i = 0; i < _productIds.length; i++) {
+            batch[i] = productStorage.getProduct(_productIds[i]);
+        }
+        return batch;
+    }
+
+    function getInvoicesBatch(uint256[] calldata _invoiceIds) external view returns (Invoice[] memory) {
+        Invoice[] memory batch = new Invoice[](_invoiceIds.length);
+        for (uint256 i = 0; i < _invoiceIds.length; i++) {
+            batch[i] = invoices[_invoiceIds[i]];
+        }
+        return batch;
     }
 }

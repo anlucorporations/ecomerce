@@ -103,13 +103,23 @@ contract IntegrationTest is Test {
         assertEq(laptop.stock, 9);
         assertEq(mouse.stock, 98);
 
-        // 8. Verify company received payment
-        uint256 companyBalance = euroToken.balanceOf(company1);
-        assertEq(companyBalance, expectedTotal);
+        // 8. Verify funds are held in Escrow contract balance
+        assertEq(euroToken.balanceOf(address(ecommerce)), expectedTotal);
+        assertEq(euroToken.balanceOf(company1), 0);
 
         // 9. Verify customer balance decreased
         uint256 customerBalance = euroToken.balanceOf(customer1);
         assertEq(customerBalance, 5000000000 - expectedTotal);
+
+        // 10. Ship order and confirm delivery to release Escrow funds
+        vm.prank(company1);
+        ecommerce.shipOrder(invoiceId, "DHL-12345");
+
+        vm.prank(customer1);
+        ecommerce.confirmDelivery(invoiceId);
+
+        // 11. Verify company received released Escrow funds
+        assertEq(euroToken.balanceOf(company1), expectedTotal);
     }
 
     function test_MultipleCompaniesFlow() public {
@@ -157,7 +167,23 @@ contract IntegrationTest is Test {
         ecommerce.processPayment(customer1, inv2.totalAmount, invoice2);
         vm.stopPrank();
 
-        // Verify both companies received their payments
+        // Verify Escrow holds total payment
+        assertEq(euroToken.balanceOf(address(ecommerce)), 1000000000 + 30000000);
+        assertEq(euroToken.balanceOf(company1), 0);
+        assertEq(euroToken.balanceOf(company2), 0);
+
+        // Ship and confirm delivery for both invoices
+        vm.prank(company1);
+        ecommerce.shipOrder(invoice1, "DHL-001");
+        vm.prank(company2);
+        ecommerce.shipOrder(invoice2, "FEDEX-002");
+
+        vm.startPrank(customer1);
+        ecommerce.confirmDelivery(invoice1);
+        ecommerce.confirmDelivery(invoice2);
+        vm.stopPrank();
+
+        // Verify both companies received their released Escrow payments
         assertEq(euroToken.balanceOf(company1), 1000000000);
         assertEq(euroToken.balanceOf(company2), 30000000);
     }

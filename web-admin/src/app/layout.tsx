@@ -61,12 +61,9 @@ export default function RootLayout({
 
           setEntityType(typeNum);
 
-          // If connected wallet is unregistered (0), prompt registration modal
+          // If connected wallet is unregistered (0), prompt registration modal in place
           if (typeNum === 0) {
             setShowCompanyRegModal(true);
-            if (pathname !== "/companies") {
-              router.push("/companies?register=true");
-            }
           } else {
             setShowCompanyRegModal(false);
           }

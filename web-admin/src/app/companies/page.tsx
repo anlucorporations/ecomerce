@@ -190,16 +190,48 @@ export default function CompaniesPage() {
     }
   };
 
-  if (!isConnected && !address) {
+  if (!isConnected || !address) {
     return (
-      <div className="admin-card p-12 text-center max-w-xl mx-auto space-y-4">
-        <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-bold text-2xl mx-auto">
+      <div className="admin-card p-12 text-center max-w-xl mx-auto space-y-4 my-8">
+        <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-bold text-2xl mx-auto border border-indigo-200">
           🔒
         </div>
         <h2 className="text-xl font-bold text-slate-900">Acceso Restringido al Web Administrador</h2>
         <p className="text-xs text-slate-500">
-          Por favor conecte su billetera Web3 usando el botón superior "Conectar Wallet Admin".
+          Por favor conecte la billetera del Super Owner usando el botón superior "Conectar Wallet Admin".
         </p>
+      </div>
+    );
+  }
+
+  // STRICT ACCESS CONTROL: Only Super Owner address 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266 is allowed
+  if (!isOwner) {
+    return (
+      <div className="admin-card p-10 text-center max-w-xl mx-auto space-y-4 my-8 bg-white border border-rose-200 shadow-xl rounded-3xl">
+        <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center font-bold text-3xl mx-auto border border-rose-200">
+          🔒
+        </div>
+        <div className="inline-block px-3 py-1 bg-rose-100 text-rose-800 text-xs font-bold rounded-full border border-rose-200">
+          Acceso Exclusivo al Super Owner (Admin)
+        </div>
+        <h2 className="text-2xl font-extrabold text-slate-900 font-poppins">Acceso Restringido a /companies</h2>
+        <p className="text-xs text-slate-600 leading-relaxed font-medium">
+          El Directorio General y Gestión de Comercios (<code className="bg-slate-100 px-1.5 py-0.5 rounded text-rose-600 font-mono">/companies</code>) está reservado estrictamente para la dirección del Super Administrador del Smart Contract:
+        </p>
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono font-bold text-indigo-600 break-all">
+          0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+        </div>
+        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 font-medium">
+          Billetera Conectada Actual: <span className="font-mono font-bold break-all">{address}</span> (No Autorizado)
+        </div>
+        <div className="pt-2 flex justify-center gap-3">
+          <Link href="/" className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition font-poppins">
+            🏠 Volver al Dashboard Principal
+          </Link>
+          <Link href="/inventory" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition font-poppins">
+            📦 Ir a Mi Inventario
+          </Link>
+        </div>
       </div>
     );
   }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
+import { CompanyRegistrationModal } from "../components/company-registration-modal";
 
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
@@ -21,6 +22,7 @@ export default function DashboardHome() {
   const { address, isConnected, signer, provider, connect, wallets } = useWallet();
   const [loading, setLoading] = useState<boolean>(true);
   const [entityType, setEntityType] = useState<number>(0); // 0: Unregistered, 1: Company, 2: Customer, 3: Owner
+  const [showCompanyRegModal, setShowCompanyRegModal] = useState<boolean>(false);
 
   const [companyId, setCompanyId] = useState<string>("1");
   const [companyName, setCompanyName] = useState<string>("");
@@ -162,12 +164,18 @@ export default function DashboardHome() {
                 >
                   <span>🚀 Conectar Wallet de Empresa</span>
                 </button>
-                <Link
-                  href="/companies"
-                  className="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm rounded-xl border border-white/20 transition flex items-center gap-2"
+                <button
+                  onClick={() => {
+                    if (isConnected && address) {
+                      setShowCompanyRegModal(true);
+                    } else {
+                      handleConnectWalletBtn();
+                    }
+                  }}
+                  className="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm rounded-xl border border-white/20 transition flex items-center gap-2 cursor-pointer"
                 >
                   <span>🏢 Inscribir Mi Empresa (3.0 ETH)</span>
-                </Link>
+                </button>
                 <a
                   href={process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app"}
                   target="_blank"
@@ -486,26 +494,39 @@ export default function DashboardHome() {
   }
 
   // =========================================================================
-  // VIEW 2.5: CONNECTED WALLET IS UNREGISTERED (REDIRECT TO REGISTRATION)
+  // VIEW 2.5: CONNECTED WALLET IS UNREGISTERED (NOT COMPANY & NOT CUSTOMER) -> ALLOW REGISTRATION
   // =========================================================================
   if (isConnected && entityType === 0) {
     return (
-      <div className="admin-card p-12 text-center max-w-xl mx-auto space-y-5 border-2 border-indigo-200 bg-indigo-50/50 my-12 shadow-xl">
-        <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center font-bold text-2xl mx-auto">
+      <div className="admin-card p-12 text-center max-w-xl mx-auto space-y-5 border-2 border-indigo-200 bg-white my-12 shadow-2xl rounded-3xl">
+        <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-bold text-2xl mx-auto border border-indigo-200">
           🏢
         </div>
-        <h2 className="text-xl font-bold text-indigo-950">Inscripción Comercial Requerida</h2>
-        <p className="text-xs text-indigo-800 leading-relaxed">
-          Su billetera está conectada pero aún <strong>NO está inscrita como Empresa Comercial</strong> en la plataforma. Para acceder al Dashboard de administración debe completar su inscripción (Tarifa única: <strong>3.0 ETH</strong>).
+        <div className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-full border border-indigo-200 font-poppins">
+          ✨ Billetera Libre No Inscrita
+        </div>
+        <h2 className="text-2xl font-black text-slate-900 font-poppins">Inscripción de Empresa Comercial</h2>
+        <p className="text-xs text-slate-600 leading-relaxed font-medium">
+          Su billetera no se encuentra registrada previamente como <strong>Usuario Cliente</strong> ni como <strong>Empresa Comercial</strong>. Puede completar la inscripción de su negocio en la Blockchain para acceder al panel de administración (Tarifa de inscripción: <strong>3.0 ETH</strong>).
         </p>
         <div className="pt-1 text-xs text-slate-500 font-mono">
-          Wallet Conectada: <span className="font-bold text-slate-800">{address}</span>
+          Billetera Conectada: <span className="font-bold text-indigo-600 break-all">{address}</span>
         </div>
         <div className="pt-3 flex justify-center gap-3">
-          <Link href="/companies" className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition">
-            Ir al Proceso de Inscripción de Empresa (3.0 ETH) →
-          </Link>
+          <button
+            onClick={() => setShowCompanyRegModal(true)}
+            className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white font-extrabold text-xs rounded-2xl shadow-xl transition flex items-center gap-2 cursor-pointer font-poppins"
+          >
+            <span>✍️ Completar Formulario de Inscripción (3.0 ETH) →</span>
+          </button>
         </div>
+
+        <CompanyRegistrationModal
+          isOpen={showCompanyRegModal}
+          onClose={() => setShowCompanyRegModal(false)}
+          userAddress={address}
+          onSuccess={() => window.location.reload()}
+        />
       </div>
     );
   }

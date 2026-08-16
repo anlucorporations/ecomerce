@@ -46,6 +46,31 @@ export function CompanyRegistrationModal({
     setSubmitting(true);
 
     try {
+      // 1. Verify entity type on-chain: Must NOT be a customer (2) or company (1)
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
+      const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
+      const checkContract = new ethers.Contract(ecommerceAddress, ["function getEntityType(address account) view returns (uint8)"], rpcProvider);
+      
+      let eTypeNum = 0;
+      try {
+        eTypeNum = Number(await checkContract.getEntityType(userAddress));
+      } catch (err) {
+        console.warn("Could not check entity type on-chain, proceeding:", err);
+      }
+
+      if (eTypeNum === 2) {
+        alert("⚠️ Esta billetera se encuentra registrada como Usuario / Cliente en la plataforma. La inscripción de una nueva Empresa únicamente se permite cuando la billetera conectada NO está inscrita como empresa ni como usuario. Por favor utilice una billetera nueva no inscrita.");
+        setSubmitting(false);
+        return;
+      }
+
+      if (eTypeNum === 1) {
+        alert("ℹ️ Esta billetera ya se encuentra registrada como Empresa Comercial en la blockchain.");
+        if (onSuccess) onSuccess();
+        onClose();
+        return;
+      }
+
       let activeSigner = signer;
 
       if (!activeSigner && typeof window !== 'undefined' && (window as any).ethereum) {

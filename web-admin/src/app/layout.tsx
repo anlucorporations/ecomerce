@@ -172,6 +172,26 @@ export default function RootLayout({
               </div>
             </header>
 
+            {/* Customer Wallet Warning Banner if connected with entityType === 2 */}
+            {isConnected && entityType === 2 && (
+              <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-3 text-amber-200 text-xs flex flex-col sm:flex-row justify-between items-center gap-2">
+                <div className="flex items-center gap-2 font-medium">
+                  <span className="text-base">⚠️</span>
+                  <span>
+                    <strong>Billetera Inscrita como Cliente / Usuario:</strong> La billetera conectada (<code className="font-mono bg-amber-500/20 px-1 py-0.5 rounded text-amber-300">{address?.slice(0, 6)}...{address?.slice(-4)}</code>) se encuentra registrada como Usuario Cliente. La inscripción de empresas únicamente está permitida para billeteras no inscritas previamente.
+                  </span>
+                </div>
+                <a
+                  href={process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs transition shrink-0"
+                >
+                  🛒 Ir a Tienda de Clientes →
+                </a>
+              </div>
+            )}
+
             {/* Public Landing Body Container */}
             <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
               {children}

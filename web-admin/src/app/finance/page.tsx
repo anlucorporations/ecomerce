@@ -99,11 +99,13 @@ export default function FinancePage() {
           rawInvoices.forEach((inv: any) => {
             const st = Number(inv.status);
             const amt = Number(inv.totalAmount) / 1000000;
+            const isPaidInEscrow = inv.isPaid || st >= 1;
+
             if (st === 4) {
-              // Ordenes Liberadas (Completadas)
+              // Ordenes Liberadas (Completadas y entregadas a la empresa)
               totalLiberated += amt;
-            } else {
-              // Ordenes No Liberadas (En Custodia Escrow)
+            } else if (isPaidInEscrow && st < 4) {
+              // Ordenes en Custodia Escrow (Pagadas por cliente pero aún no liberadas)
               totalCustody += amt;
             }
           });
@@ -169,7 +171,11 @@ export default function FinancePage() {
     loadFinanceData();
   }, [address, provider]);
 
-  const unreleasedInvoices = invoices.filter((inv: any) => Number(inv.status) < 4);
+  const unreleasedInvoices = invoices.filter((inv: any) => {
+    const st = Number(inv.status);
+    const isPaidInEscrow = inv.isPaid || st >= 1;
+    return isPaidInEscrow && st < 4;
+  });
 
   const handleCustodyClick = () => {
     setShowCustodyOrders(true);

@@ -75,23 +75,49 @@ export default function CompraStablecoinPage() {
 
   const handleBuyTokens = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!walletAddress || !ethers.isAddress(walletAddress)) {
+
+    if (typeof window === "undefined" || !(window as any).ethereum) {
       setStatus("error");
-      setMessage("Por favor introduzca o conecte una dirección de wallet Ethereum válida.");
+      setMessage("Por favor instale o desbloquee la extensión MetaMask para autorizar la recarga.");
       return;
     }
 
     try {
       setStatus("processing");
-      setMessage("1/2 Verificando pago seguro en Stripe PCI-DSS...");
+      setMessage("1/3 Solicitando autorización en su billetera MetaMask...");
+
+      const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
+      const accounts = await browserProvider.send("eth_requestAccounts", []);
+      
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No se detectó ninguna cuenta activa en MetaMask.");
+      }
+
+      const activeSigner = await browserProvider.getSigner();
+      const targetAddress = await activeSigner.getAddress();
+      setWalletAddress(targetAddress);
+
+      const timestamp = Math.floor(Date.now() / 1000);
+      const authMessage = `Autorizacion de Recarga EURT - BARLO-VENTAS\n\nMonto a recargar: ${amount} EURT\nBilletera destino: ${targetAddress}\nTimestamp: ${timestamp}`;
+      
+      let signature = "";
+      try {
+        signature = await activeSigner.signMessage(authMessage);
+      } catch (sigErr: any) {
+        throw new Error("Solicitud cancelada: Debe autorizar y firmar la transacción en MetaMask para efectuar la recarga.");
+      }
+
+      setMessage("2/3 Procesando pago seguro en Stripe PCI-DSS...");
 
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount,
-          walletAddress,
-          paymentMethodId: "pm_card_visa"
+          walletAddress: targetAddress,
+          paymentMethodId: "pm_card_visa",
+          signature,
+          authMessage
         })
       });
 
@@ -105,7 +131,7 @@ export default function CompraStablecoinPage() {
         stripeId: data.stripePaymentId,
         mintHash: data.mintTxHash
       });
-      setMessage(`¡Recarga exitosa! Se han emitido €${amount} EURT a su billetera.`);
+      setMessage(`¡Recarga autorizada y exitosa! Se han emitido €${amount} EURT a su billetera tras confirmación en MetaMask.`);
     } catch (err: any) {
       setStatus("error");
       setMessage(err.message || "Error procesando la solicitud.");

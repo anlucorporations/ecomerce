@@ -31,10 +31,26 @@ const euroTokenContract = new ethers.Contract(EURO_TOKEN_ADDRESS, EURO_TOKEN_ABI
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { amount, walletAddress, paymentMethodId } = body;
+    const { amount, walletAddress, paymentMethodId, signature, authMessage } = body;
 
     if (!amount || !walletAddress) {
       return NextResponse.json({ error: "Faltan parámetros requeridos (amount, walletAddress)" }, { status: 400 });
+    }
+
+    // Optional: Verify signature if provided
+    if (signature && authMessage) {
+      try {
+        const recoveredAddress = ethers.verifyMessage(authMessage, signature);
+        if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+          return NextResponse.json({
+            error: "La firma de autorización de MetaMask no coincide con la billetera destino."
+          }, { status: 401 });
+        }
+      } catch (sigErr) {
+        return NextResponse.json({
+          error: "Firma de autorización de MetaMask inválida o corrupta."
+        }, { status: 400 });
+      }
     }
 
     // 0. Check destination wallet platform registration using cached instances

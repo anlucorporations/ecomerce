@@ -836,6 +836,20 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+
+    const inputEmailLower = editingUser.email.trim().toLowerCase();
+    const isDuplicate = usersList.some(
+      (u) =>
+        u.customerAddress.toLowerCase() !== editingUser.customerAddress.toLowerCase() &&
+        u.email &&
+        u.email.trim().toLowerCase() === inputEmailLower
+    );
+
+    if (isDuplicate) {
+      alert(`⚠️ El correo electrónico "${editingUser.email}" ya se encuentra asignado a otro usuario en la plataforma. No se permiten correos duplicados.`);
+      return;
+    }
+
     setUsersList((prev) =>
       prev.map((u) => (u.customerAddress.toLowerCase() === editingUser.customerAddress.toLowerCase() ? editingUser : u))
     );

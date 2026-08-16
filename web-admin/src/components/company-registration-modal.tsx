@@ -26,6 +26,7 @@ export function CompanyRegistrationModal({
   const { signer } = useWallet();
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
     description: '',
     businessType: 0 // 0: Venta de Productos, 1: Prestacion de Servicios
   });
@@ -38,8 +39,8 @@ export function CompanyRegistrationModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim() || !formData.description.trim()) {
-      alert("⚠️ El nombre comercial y la descripción de la empresa son ESTRICTAMENTE OBLIGATORIOS.");
+    if (!formData.name.trim() || !formData.email.trim() || !formData.description.trim()) {
+      alert("⚠️ El nombre comercial, correo electrónico de contacto y la descripción de la empresa son ESTRICTAMENTE OBLIGATORIOS.");
       return;
     }
 
@@ -49,7 +50,10 @@ export function CompanyRegistrationModal({
       // 1. Verify entity type on-chain: Must NOT be a customer (2) or company (1)
       const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
       const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
-      const checkContract = new ethers.Contract(ecommerceAddress, ["function getEntityType(address account) view returns (uint8)"], rpcProvider);
+      const checkContract = new ethers.Contract(ecommerceAddress, [
+        "function getEntityType(address account) view returns (uint8)",
+        "function getAllCustomers() view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive)[])"
+      ], rpcProvider);
       
       let eTypeNum = 0;
       try {
@@ -69,6 +73,24 @@ export function CompanyRegistrationModal({
         if (onSuccess) onSuccess();
         onClose();
         return;
+      }
+
+      // Check email uniqueness across all existing customers on-chain
+      try {
+        const allCustomers = await checkContract.getAllCustomers();
+        const inputEmailLower = formData.email.trim().toLowerCase();
+        const existingCust = Array.from(allCustomers).find((c: any) => 
+          c.contactEmail && 
+          c.contactEmail.trim().toLowerCase() === inputEmailLower
+        );
+
+        if (existingCust) {
+          alert(`⚠️ El correo electrónico "${formData.email}" ya se encuentra registrado en la plataforma por otro cliente o usuario. No se permiten inscripciones con correos duplicados.`);
+          setSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("Could not check duplicate email on-chain:", err);
       }
 
       let activeSigner = signer;
@@ -109,22 +131,23 @@ export function CompanyRegistrationModal({
       // Local persistence for instant reflection
       const newCompany = {
         companyId: Date.now(),
-        companyAddress: userAddress,
+        address: userAddress,
         name: formData.name,
+        email: formData.email,
         description: formData.description,
         businessType: formData.businessType,
-        isActive: true,
-        registrationDate: Math.floor(Date.now() / 1000)
+        registrationDate: Date.now()
       };
 
       if (typeof window !== 'undefined') {
         localStorage.setItem(`company_reg_${userAddress.toLowerCase()}`, JSON.stringify(newCompany));
       }
 
-      alert("¡Inscripción de Empresa registrada exitosamente en Blockchain!");
+      alert("¡Inscripción de empresa registrada exitosamente en la Blockchain!");
 
       if (onSuccess) onSuccess();
       onClose();
+      router.refresh();
 
     } catch (error: any) {
       console.error("Error en inscripción de empresa:", error);
@@ -177,6 +200,20 @@ export function CompanyRegistrationModal({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ej. TechMarket Iberia S.L."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none transition"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-800 mb-1">
+              Correo Electrónico Institucional / Contacto *
+            </label>
+            <input
+              type="email"
+              required
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="Ej. contacto@techmarket.com"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none transition"
             />
           </div>

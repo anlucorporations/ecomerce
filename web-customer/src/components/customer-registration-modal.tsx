@@ -58,6 +58,31 @@ export function CustomerRegistrationModal({
         return;
       }
 
+      // Check email uniqueness across all existing customers on-chain
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
+      const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
+      const readContract = new ethers.Contract(ecommerceAddress, [
+        "function getAllCustomers() view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive)[])"
+      ], rpcProvider);
+
+      try {
+        const allCustomers = await readContract.getAllCustomers();
+        const inputEmailLower = formData.email.trim().toLowerCase();
+        const existingCust = Array.from(allCustomers).find((c: any) => 
+          c.contactEmail && 
+          c.contactEmail.trim().toLowerCase() === inputEmailLower && 
+          c.customerAddress.toLowerCase() !== userAddress.toLowerCase()
+        );
+
+        if (existingCust) {
+          alert(`⚠️ El correo electrónico "${formData.email}" ya se encuentra registrado en la plataforma por otro cliente. No se permiten correos duplicados.`);
+          setSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("Could not check duplicate email on-chain:", err);
+      }
+
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
       const requiredWei = ethers.parseEther("3.0");
 

@@ -17,6 +17,7 @@ library CustomerLib {
     struct CustomerStorage {
         mapping(address => Customer) customers;
         address[] customerAddresses;
+        mapping(string => address) emailToCustomer;
     }
 
     event CustomerRegistered(address indexed customerAddress, string name);
@@ -30,6 +31,10 @@ library CustomerLib {
         string memory _shippingAddress
     ) external {
         require(self.customers[_customer].customerAddress == address(0), "Customer already exists");
+        if (bytes(_contactEmail).length > 0) {
+            require(self.emailToCustomer[_contactEmail] == address(0), "El correo electronico ya se encuentra registrado");
+            self.emailToCustomer[_contactEmail] = _customer;
+        }
 
         self.customers[_customer] = Customer({
             customerAddress: _customer,

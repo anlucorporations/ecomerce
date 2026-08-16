@@ -219,7 +219,7 @@ export default function Home() {
             <p className="text-xs text-[#A9A9A9] leading-relaxed">
               Adquiere EuroTokens en segundos usando tarjeta de crédito a través de nuestro portal Stripe.
             </p>
-            <a href={process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"} target="_blank" rel="noreferrer" className="inline-block text-xs font-bold text-[#FF8800] hover:underline pt-1 font-poppins">
+            <a href={`${process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"}${address ? `?address=${encodeURIComponent(address)}` : ''}`} target="_blank" rel="noreferrer" className="inline-block text-xs font-bold text-[#FF8800] hover:underline pt-1 font-poppins">
               Recargar Saldo Ahora ↗
             </a>
           </div>

@@ -11,14 +11,28 @@ export default function CompraStablecoinPage() {
   const [message, setMessage] = useState<string>("");
   const [txDetails, setTxDetails] = useState<{ stripeId?: string; mintHash?: string }>({});
 
-  // Auto-detect wallet address if available
+  // Auto-detect wallet address from URL query parameter or window.ethereum
   useEffect(() => {
     async function autoDetect() {
+      // 1. Check URL parameters (?address=0x... or ?wallet=0x...)
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramAddress = urlParams.get("address") || urlParams.get("wallet");
+        if (paramAddress && ethers.isAddress(paramAddress)) {
+          setWalletAddress(paramAddress);
+          return;
+        }
+      }
+
+      // 2. Check window.ethereum connected accounts
       if (typeof window !== "undefined" && (window as any).ethereum) {
         try {
           const provider = new ethers.BrowserProvider((window as any).ethereum);
-          const accounts = await provider.send("eth_accounts", []);
-          if (accounts.length > 0) {
+          let accounts = await provider.send("eth_accounts", []);
+          if (!accounts || accounts.length === 0) {
+            accounts = await provider.send("eth_requestAccounts", []);
+          }
+          if (accounts && accounts.length > 0) {
             setWalletAddress(accounts[0]);
           }
         } catch (e) {
@@ -26,7 +40,21 @@ export default function CompraStablecoinPage() {
         }
       }
     }
+
     autoDetect();
+
+    // 3. Listen for account changes in MetaMask
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      const handleAccountsChanged = (accs: string[]) => {
+        if (accs && accs.length > 0) {
+          setWalletAddress(accs[0]);
+        }
+      };
+      (window as any).ethereum.on?.("accountsChanged", handleAccountsChanged);
+      return () => {
+        (window as any).ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
+      };
+    }
   }, []);
 
   const connectWallet = async () => {

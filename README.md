@@ -1,500 +1,118 @@
-# E-Commerce Blockchain System
+# 🛒 BARLO-VENTAS — Plataforma E-Commerce Web3 con Custodia Escrow On-Chain
 
-Sistema de comercio electrónico descentralizado usando Ethereum, con tokens estables (EURT) para pagos.
+[![Blockchain](https://img.shields.io/badge/Blockchain-Ethereum%20EVM-3C3C3D?style=for-the-badge&logo=ethereum)](https://ethereum.org)
+[![Foundry](https://img.shields.io/badge/Framework-Foundry%20Anvil-FF4B4B?style=for-the-badge&logo=cargo)](https://getfoundry.sh/)
+[![Next.js](https://img.shields.io/badge/Front--End-Next.js%2015%20(Turbopack)-000000?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![Solidity](https://img.shields.io/badge/Smart%20Contracts-Solidity%20%5E0.8.13-363636?style=for-the-badge&logo=solidity)](https://soliditylang.org/)
+[![Stablecoin](https://img.shields.io/badge/Stablecoin-EuroToken%20(EURT)-0077BB?style=for-the-badge)](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/sc-ecommerce/src/Ecommerce.sol)
 
-## Estructura del Proyecto
-
-- **[sc-ecommerce/](sc-ecommerce/)** - Smart contracts del e-commerce
-- **[stablecoin/](stablecoin/)** - Smart contract del token EURT (ERC20)
-- **[web-admin/](web-admin/)** - Aplicación web para administración
-- **[web-customer/](web-customer/)** - Aplicación web para clientes
-
----
-
-## 1. Smart Contracts (sc-ecommerce)
-
-### 1.1 Contratos Principales
-
-#### EcommerceMain.sol
-Contrato principal que coordina todos los módulos del sistema.
-
-```solidity
-contract EcommerceMain {
-    address public euroTokenAddress;
-    address public owner;
-
-    CompanyRegistry public companyRegistry;
-    ProductCatalog public productCatalog;
-    CustomerRegistry public customerRegistry;
-    ShoppingCart public shoppingCart;
-    InvoiceSystem public invoiceSystem;
-    PaymentGateway public paymentGateway;
-}
-```
-
-#### CompanyRegistry.sol
-Gestiona el registro de empresas vendedoras.
-
-```solidity
-struct Company {
-    uint256 companyId;
-    address companyAddress;
-    string name;
-    string description;
-    bool isActive;
-    uint256 registrationDate;
-}
-
-function registerCompany(address _address, string _name, string _description) external;
-function getCompany(uint256 _companyId) external view returns (Company);
-function deactivateCompany(uint256 _companyId) external;
-```
-
-#### ProductCatalog.sol
-Catálogo de productos con información almacenada en blockchain e imágenes en IPFS.
-
-```solidity
-struct Product {
-    uint256 productId;
-    uint256 companyId;
-    string name;
-    string description;
-    uint256 price; // En EURT (6 decimales)
-    string ipfsImageHash;
-    uint256 stock;
-    bool isActive;
-    uint256 createdAt;
-}
-
-function addProduct(...) external returns (uint256);
-function updateProduct(uint256 _productId, ...) external;
-function updateStock(uint256 _productId, uint256 _newStock) external;
-function getProduct(uint256 _productId) external view returns (Product);
-function getProductsByCompany(uint256 _companyId) external view returns (uint256[]);
-```
-
-#### CustomerRegistry.sol
-Registro de clientes y sus métricas de compra.
-
-```solidity
-struct Customer {
-    address customerAddress;
-    uint256 totalPurchases;
-    uint256 totalSpent; // En EURT
-    uint256 registrationDate;
-    uint256 lastPurchaseDate;
-    bool isActive;
-}
-
-function registerCustomer() external;
-function updatePurchaseStats(address _customer, uint256 _amount) external;
-function getCustomer(address _customer) external view returns (Customer);
-```
-
-#### ShoppingCart.sol
-Carrito de compras por usuario.
-
-```solidity
-struct CartItem {
-    uint256 productId;
-    uint256 quantity;
-    uint256 unitPrice;
-}
-
-function addToCart(uint256 _productId, uint256 _quantity) external;
-function removeFromCart(uint256 _productId) external;
-function updateQuantity(uint256 _productId, uint256 _quantity) external;
-function getCart(address _customer) external view returns (CartItem[]);
-function clearCart(address _customer) external;
-function calculateTotal(address _customer) external view returns (uint256);
-```
-
-#### InvoiceSystem.sol
-Sistema de facturación y registro de transacciones.
-
-```solidity
-struct Invoice {
-    uint256 invoiceId;
-    uint256 companyId;
-    address customerAddress;
-    uint256 totalAmount;
-    uint256 timestamp;
-    bool isPaid;
-    string paymentTxHash;
-}
-
-struct InvoiceItem {
-    uint256 productId;
-    string productName;
-    uint256 quantity;
-    uint256 unitPrice;
-    uint256 totalPrice;
-}
-
-function createInvoice(address _customer, uint256 _companyId) external returns (uint256);
-function markAsPaid(uint256 _invoiceId, string _txHash) external;
-function getInvoice(uint256 _invoiceId) external view returns (Invoice);
-function getInvoiceItems(uint256 _invoiceId) external view returns (InvoiceItem[]);
-function getCustomerInvoices(address _customer) external view returns (uint256[]);
-```
-
-#### PaymentGateway.sol
-Procesamiento de pagos usando EURT.
-
-```solidity
-function processPayment(
-    address _customer,
-    uint256 _amount,
-    uint256 _invoiceId
-) external returns (bool);
-
-function refund(uint256 _invoiceId) external returns (bool);
-```
-
-### 1.2 Estructura de Datos
-
-La implementación usa una combinación de mappings y arrays:
-
-```solidity
-// Array de IDs para iteración
-uint256[] private entityIds;
-
-// Mapping para acceso O(1)
-mapping(uint256 => Entity) private entities;
-```
-
-### 1.3 Tests de Smart Contracts
-
-Los tests deben cubrir:
-
-#### Test: CompanyRegistry.t.sol
-- ✓ Registro de nueva empresa
-- ✓ Obtener información de empresa
-- ✓ Desactivar empresa
-- ✓ Solo owner puede registrar empresas
-- ✓ No se puede registrar empresa con dirección duplicada
-
-#### Test: ProductCatalog.t.sol
-- ✓ Añadir producto
-- ✓ Actualizar producto
-- ✓ Actualizar stock
-- ✓ Desactivar producto
-- ✓ Obtener productos por empresa
-- ✓ Solo empresa propietaria puede modificar su producto
-
-#### Test: CustomerRegistry.t.sol
-- ✓ Registro automático de cliente
-- ✓ Actualizar estadísticas de compra
-- ✓ Obtener información de cliente
-
-#### Test: ShoppingCart.t.sol
-- ✓ Añadir producto al carrito
-- ✓ Actualizar cantidad
-- ✓ Eliminar producto del carrito
-- ✓ Calcular total del carrito
-- ✓ Limpiar carrito completo
-- ✓ Validar stock disponible
-
-#### Test: InvoiceSystem.t.sol
-- ✓ Crear factura desde carrito
-- ✓ Marcar factura como pagada
-- ✓ Obtener facturas de cliente
-- ✓ Obtener items de factura
-
-#### Test: PaymentGateway.t.sol
-- ✓ Procesar pago exitoso
-- ✓ Procesar pago sin fondos suficientes
-- ✓ Procesar reembolso
-- ✓ Validar aprobación de tokens
-
-#### Test: Integration.t.sol
-- ✓ Flujo completo de compra: agregar al carrito → checkout → pago
-- ✓ Flujo completo multi-empresa
-- ✓ Validación de stock al procesar pago
+**BARLO-VENTAS** es un ecosistema descentralizado de comercio electrónico de grado profesional construido sobre contratos inteligentes en Solidity, arquitectura de microservicios con Next.js 15 y el motor de blockchain **Foundry Anvil**. Garantiza compras 100% seguras respaldadas por una **Custodia Escrow On-Chain Real** y la stablecoin **EuroToken (`EURT`)**.
 
 ---
 
-## 2. Web Admin
+## 🏛️ 1. Arquitectura de la Plataforma y Microservicios
 
-Aplicación Next.js para la administración del e-commerce.
+El sistema opera mediante 5 microservicios interconectados y sincronizados mediante un orquestador automatizado (`manage-platform.ps1`):
 
-### 2.1 Funcionalidades
-
-#### Gestión de Empresas
-- Registrar nueva empresa
-- Ver lista de empresas
-- Activar/desactivar empresas
-- Ver métricas de ventas por empresa
-
-#### Gestión de Productos
-- Añadir nuevo producto
-- Editar producto existente
-- Actualizar stock
-- Subir imágenes a IPFS (Pinata)
-- Activar/desactivar productos
-- Ver lista de productos por empresa
-
-#### Monitoreo
-- Dashboard de ventas
-- Lista de facturas
-- Estadísticas de clientes
-- Métricas del sistema
-
-### 2.2 Tecnologías
-
-- **Framework**: Next.js 14 (App Router)
-- **Blockchain**: ethers.js v6
-- **UI**: TailwindCSS + shadcn/ui
-- **Storage**: IPFS via Pinata
-- **Wallet**: RainbowKit / ConnectKit
-
-### 2.3 Estructura de Carpetas
-
-```
-web-admin/
-├── app/
-│   ├── (dashboard)/
-│   │   ├── companies/
-│   │   ├── products/
-│   │   ├── invoices/
-│   │   └── customers/
-│   ├── layout.tsx
-│   └── page.tsx
-├── components/
-│   ├── companies/
-│   ├── products/
-│   └── ui/
-├── hooks/
-│   ├── useContract.ts
-│   ├── useIPFS.ts
-│   └── useWallet.ts
-├── lib/
-│   ├── contracts/
-│   │   ├── abis/
-│   │   └── addresses.ts
-│   └── utils.ts
-└── services/
-    ├── ipfs.ts
-    └── blockchain.ts
+```text
+                               ┌──────────────────────────────────────────┐
+                               │  Nodo Blockchain EVM RPC (Foundry Anvil) │
+                               │  http://localhost:8545 [Chain ID 31337]  │
+                               └────────────────────┬─────────────────────┘
+                                                    │
+         ┌──────────────────────┬───────────────────┼───────────────────┬──────────────────────┐
+         │                      │                   │                   │                      │
+         ▼                      ▼                   ▼                   ▼                      ▼
+┌──────────────────┐  ┌──────────────────┐  ┌───────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│  Smart Contracts │  │    web-admin     │  │  web-customer │  │ pasarela-de-pago │  │ compra-stablecoin│
+│ (Solidity/Forge) │  │  Console Admin   │  │  Storefront   │  │  Pasarela Escrow │  │ Rampa Stripe FIAT│
+│  EuroToken & ECom│  │  Puerto: 3000    │  │  Puerto: 3001 │  │   Puerto: 3002   │  │   Puerto: 3003   │
+└──────────────────┘  └──────────────────┘  └───────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
-### 2.4 Contratos Usados
-
-- `CompanyRegistry` - Gestión de empresas
-- `ProductCatalog` - Gestión de productos
-- `InvoiceSystem` - Consulta de facturas
-- `CustomerRegistry` - Consulta de clientes
+| Microservicio / Módulo | Puerto | URL Local | Descripción Técnica |
+| :--- | :---: | :--- | :--- |
+| **Foundry Anvil EVM Node** | `8545` | `http://localhost:8545` | Nodo blockchain local en tiempo real (Chain ID `31337`). |
+| **`web-admin` Console** | `3000` | `http://localhost:3000` | Consola de administración, Pilar Usuarios con Ficha Financiera, Gestión de Envíos Activos e Histórico. |
+| **`web-customer` Storefront** | `3001` | `http://localhost:3001` | Portal de compradores, carrito 1-Step Direct Escrow, rastro de pedidos, firma de recepción y valoraciones. |
+| **`pasarela-de-pago` Escrow** | `3002` | `http://localhost:3002` | Pasarela Web3 independiente para integración en tiendas externas vía URL query string. |
+| **`compra-stablecoin` (Stripe)** | `3003` | `http://localhost:3003` | Rampa de adquisición FIAT-a-Crypto para recargar saldo EURT con tarjeta de crédito mediante Stripe API. |
 
 ---
 
-## 3. Web Customer
+## 🔒 2. Custodia Escrow On-Chain Real (Solidity)
 
-Aplicación Next.js para clientes finales.
-
-### 3.1 Funcionalidades
-
-#### Shopping
-- Ver catálogo de productos
-- Filtrar por empresa/categoría
-- Añadir productos al carrito
-- Ver carrito de compras
-- Checkout y pago
-
-#### Gestión de Tokens
-- Ver balance de EURT
-- Comprar EURT con tarjeta (Stripe)
-- Historial de transacciones
-
-#### Perfil
-- Ver historial de compras
-- Ver facturas
-- Descargar facturas
-
-### 3.2 Tecnologías
-
-- **Framework**: Next.js 14 (App Router)
-- **Blockchain**: ethers.js v6
-- **Payments**: Stripe + EURT
-- **UI**: TailwindCSS + shadcn/ui
-- **Wallet**: RainbowKit / ConnectKit
-
-### 3.3 Estructura de Carpetas
-
-```
-web-customer/
-├── app/
-│   ├── products/
-│   ├── cart/
-│   ├── checkout/
-│   ├── invoices/
-│   ├── wallet/
-│   └── profile/
-├── components/
-│   ├── cart/
-│   ├── checkout/
-│   ├── products/
-│   └── ui/
-├── hooks/
-│   ├── useCart.ts
-│   ├── useCheckout.ts
-│   └── useWallet.ts
-├── lib/
-│   ├── contracts/
-│   └── stripe.ts
-└── services/
-    └── blockchain.ts
-```
-
-### 3.4 Contratos Usados
-
-- `ProductCatalog` - Consultar productos
-- `ShoppingCart` - Gestión del carrito
-- `InvoiceSystem` - Ver facturas
-- `PaymentGateway` - Procesar pagos
-- `EuroToken` - Transferencias de EURT
-
-### 3.5 Flujo de Compra
-
-1. **Navegar productos** → Consultar `ProductCatalog`
-2. **Añadir al carrito** → Llamar `ShoppingCart.addToCart()`
-3. **Checkout** → Calcular total con `ShoppingCart.calculateTotal()`
-4. **Pago**:
-   - Si no tiene EURT → Comprar con Stripe → Mint EURT
-   - Aprobar tokens: `EuroToken.approve(PaymentGateway, amount)`
-   - Procesar pago: `PaymentGateway.processPayment()`
-5. **Confirmación** → Se crea factura automáticamente
-
----
-
-## 4. EuroToken (EURT)
-
-Token ERC20 estable vinculado al euro.
-
-### 4.1 Características
-
-- **Standard**: ERC20
-- **Decimales**: 6 (para representar céntimos)
-- **Nombre**: EuroToken
-- **Symbol**: EURT
-
-### 4.2 Funciones Principales
+A diferencia de las pasarelas tradicionales, en BARLO-VENTAS **el pago no llega directamente al comerciante al comprar**. 
 
 ```solidity
-function mint(address to, uint256 amount) public onlyOwner;
-function burn(uint256 amount) public;
-function burnFrom(address account, uint256 amount) public;
+// Al ejecutar processPayment: Los tokens EURT se transfieren a la custodia del contrato inteligente (address(this))
+require(euroToken.transferFrom(_customer, address(this), _amount), "Transfer to Escrow failed");
 ```
 
-### 4.3 Integración con Stripe
-
-1. Usuario paga EUR con tarjeta en Stripe
-2. Webhook de Stripe notifica al backend
-3. Backend llama `EuroToken.mint(userAddress, amount)`
-4. Usuario recibe EURT en su wallet
+### Flujo del Dinero On-Chain:
+1. **Pago en Carrito (`processPayment`):** Los EURT del cliente se bloquean dentro de la dirección del propio contrato inteligente `Ecommerce.sol` (`0x5FC8d32690cc91D4c39d9d3abcBD16989F875707`).
+2. **Despacho Logístico (`shipOrder`):** El vendedor emite la guía de envío y la registra en blockchain.
+3. **Firma y Liberación (`confirmDelivery`):** Cuando el comprador o el administrador confirman la recepción, el contrato ejecuta la liberación de fondos retenidos hacia la billetera del vendedor:
+   ```solidity
+   require(euroToken.transfer(company.companyAddress, invoice.totalAmount), "Escrow release failed");
+   ```
 
 ---
 
-## 5. Quick Start
+## 🔑 3. Direcciones Inmutables de Contratos Inteligentes
 
-See [QUICK_START.md](QUICK_START.md) for one-command deployment!
+- **`EuroTokenOptimized.sol` (ERC-20 EURT):** `0x5FbDB2315678afecb367f032d93F642f64180aa3`
+- **`Ecommerce.sol` (Escrow Core):** `0x5FC8d32690cc91D4c39d9d3abcBD16989F875707`
 
-```bash
-# 1. Start Anvil
-anvil
+### Cuentas Preconfiguradas para Pruebas (MetaMask):
+- **Administrador & Empresa ID #1:** `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`  
+  *(PrivateKey: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`)*
+- **Cliente Frecuente (Cuenta #9):** `0xa0Ee7A142d267C1f36714E4a8F75612F20a79720`  
+  *(PrivateKey: `0x2a871d0798f97d79e3a922e012cce5f4879e17a829394d6fc826164d15a4a358`)*
 
-# 2. Deploy everything
-./deploy-all.sh
+---
 
-# 3. Start apps
-cd web-admin && npm run dev
-cd web-customer && npm run dev -- -p 3001
-```
+## ⚡ 4. Guía de Ejecución de la Plataforma
 
-## 6. Deployment & Environment
+### Requisitos Previos:
+- **Node.js:** `>= 18.0.0`
+- **Foundry:** `anvil` & `forge` instalados.
+- **PowerShell / Bash**
 
-### 5.1 Variables de Entorno
+### Comandos del Orquestador (`manage-platform.ps1`):
 
-#### web-admin/.env.local
-```bash
-NEXT_PUBLIC_CHAIN_ID=31337
-NEXT_PUBLIC_RPC_URL=http://localhost:8545
-NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS=0x...
-NEXT_PUBLIC_EURO_TOKEN_ADDRESS=0x...
-NEXT_PUBLIC_PINATA_JWT=...
-```
+```powershell
+# 1. Iniciar toda la plataforma (Nodo Anvil + 4 Microservicios Web)
+.\manage-platform.ps1 -Action start
 
-#### web-customer/.env.local
-```bash
-NEXT_PUBLIC_CHAIN_ID=31337
-NEXT_PUBLIC_RPC_URL=http://localhost:8545
-NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS=0x...
-NEXT_PUBLIC_EURO_TOKEN_ADDRESS=0x...
-NEXT_PUBLIC_STRIPE_PUBLIC_KEY=pk_test_...
-```
+# 2. Consultar estado operativo de todos los servicios (200 OK)
+.\manage-platform.ps1 -Action status
 
-### 5.2 Deployment de Contratos
+# 3. Reiniciar la plataforma y re-desplegar contratos en blockchain
+.\manage-platform.ps1 -Action restart
 
-```bash
-cd sc-ecommerce
-forge build
-forge test
-forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
+# 4. Reiniciar solo un servicio especifico (ej: admin, customer, pasarela, compra, rpc)
+.\manage-platform.ps1 -Action restart-service -ServiceName admin
+
+# 5. Apagar y detener todos los servicios de la plataforma
+.\manage-platform.ps1 -Action stop
 ```
 
 ---
 
-## 7. Arquitectura de Datos
+## 📚 5. Directorio de Documentación y Manuales
 
-### Datos On-Chain
+Toda la documentación técnica y de uso se encuentra organizada por carpetas dedicadas:
 
-- Customer: `address`, `totalPurchases`, `totalSpent`
-- Company: `companyId`, `address`, `nombre`
-- Product: `productId`, `companyId`, `nombre`, `precio`, `ipfsHash`, `stock`
-- Invoice: `invoiceId`, `fecha`, `customerAddress`, `amount`, `status`, `tx_pago`
-- InvoiceItems: `invoiceId`, `productId`, `price`, `quantity`
+### 📂 Manuales por Servicio (`Docs/`):
+- 📄 [`Docs/MANUAL_TECNICO_PLATAFORMA.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/Docs/MANUAL_TECNICO_PLATAFORMA.md) — Manual Técnico General Maestro.
+- 📕 [`Docs/MANUAL_DE_USO_PLATAFORMA.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/Docs/MANUAL_DE_USO_PLATAFORMA.md) — Manual de Uso General Maestro.
+- 📗 [`Docs/MANUAL_FUNCIONES_Y_USO_PLATAFORMA.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/Docs/MANUAL_FUNCIONES_Y_USO_PLATAFORMA.md) — Manual Maestro de Funciones de la Plataforma.
+- 📄 [`sc-ecommerce/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/sc-ecommerce/Docs/MANUAL_TECNICO.md) — Contratos Inteligentes & Foundry.
+- 📄 [`web-admin/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/web-admin/Docs/MANUAL_TECNICO.md) — Consola Web Admin.
+- 📄 [`web-customer/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/web-customer/Docs/MANUAL_TECNICO.md) — Storefront Web Customer.
+- 📄 [`stablecoin/pasarela-de-pago/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/stablecoin/pasarela-de-pago/Docs/MANUAL_TECNICO.md) — Pasarela Web3 Escrow.
+- 📄 [`stablecoin/compra-stablecoin/Docs/MANUAL_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/stablecoin/compra-stablecoin/Docs/MANUAL_TECNICO.md) — Recarga EURT con Stripe.
 
-### Implementación
-
-Se usa una combinación de **mapping** (acceso O(1)) y **array** (iteración):
-
-```solidity
-// Array para IDs
-uint256[] private entityIds;
-
-// Mapping para datos
-mapping(uint256 => Entity) private entities;
-```
-
----
-
-## 8. Scripts de Deployment
-
-### Deployment Automático
-
-```bash
-./deploy-all.sh
-```
-
-Este script:
-- Deploya EuroToken y todos los contratos de e-commerce
-- Actualiza automáticamente los archivos `.env.local`
-- Genera documentación con las direcciones
-
-Ver [SCRIPTS.md](SCRIPTS.md) para documentación completa de scripts.
-
-### Verificar Deployment
-
-```bash
-./test-deployment.sh
-```
-
----
-
-## 9. Ver También
-
-- [QUICK_START.md](QUICK_START.md) - Guía de inicio rápido
-- [SCRIPTS.md](SCRIPTS.md) - Documentación de scripts de deployment
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Diagramas detallados del sistema
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Guía de deployment manual
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Solución de problemas
-- [DEPLOYED_ADDRESSES.md](DEPLOYED_ADDRESSES.md) - Direcciones de contratos (auto-generado)
+### 📁 Histórico de Desarrollo (`repTecnico/`):
+- 📁 [`repTecnico/INDEX_REPOSITORIO_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/repTecnico/INDEX_REPOSITORIO_TECNICO.md) — Catálogo completo de documentos de diseño, pruebas y requerimientos.

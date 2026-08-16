@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '../hooks/useWallet';
 import { ethers } from 'ethers';
+import { StripeTopupModal } from './stripe-topup-modal';
 
 const EXPECTED_CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '31337');
 const OWNER_ADDRESS = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
@@ -19,6 +20,7 @@ export function WalletConnect() {
   const { wallets, address, chainId, isConnected, isConnecting, connect, disconnect, switchNetwork, error, provider } = useWallet();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showWallets, setShowWallets] = useState(false);
+  const [showStripeModal, setShowStripeModal] = useState(false);
   const [switching, setSwitching] = useState(false);
 
   const [companyName, setCompanyName] = useState<string>("");
@@ -155,15 +157,16 @@ export function WalletConnect() {
             </div>
 
             {/* Action: Recarga EURT con Stripe */}
-            <a
-              href={`${process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"}${address ? `?address=${encodeURIComponent(address)}` : ''}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 group"
+            <button
+              onClick={() => {
+                setShowStripeModal(true);
+                setShowDropdown(false);
+              }}
+              className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 group cursor-pointer"
             >
               <span>💳 Recargar EURT (Stripe)</span>
               <span className="group-hover:translate-x-0.5 transition">→</span>
-            </a>
+            </button>
 
             {/* Network switch / disconnect */}
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
@@ -180,6 +183,12 @@ export function WalletConnect() {
             </div>
           </div>
         )}
+
+        <StripeTopupModal
+          isOpen={showStripeModal}
+          onClose={() => setShowStripeModal(false)}
+          userAddress={address}
+        />
       </div>
     );
   }

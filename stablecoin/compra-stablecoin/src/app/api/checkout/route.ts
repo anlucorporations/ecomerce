@@ -18,9 +18,9 @@ const ECOMMERCE_ABI = [
 
 // Anvil Default Deployer Private Key (#0 Owner)
 const ANVIL_PRIVATE_KEY = process.env.ANVIL_PRIVATE_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "http://localhost:8545";
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
 const EURO_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-const ECOMMERCE_MAIN_ADDRESS = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+const ECOMMERCE_MAIN_ADDRESS = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650";
 
 // Singleton Provider & Relayer Wallet Instances (Optimized Backend Performance)
 const globalProvider = new ethers.JsonRpcProvider(RPC_URL);

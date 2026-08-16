@@ -319,7 +319,7 @@ export function UserDropdown() {
               onClick={() => setIsOpen(false)}
               className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-[#E6F4FA] text-xs font-bold text-[#333333] hover:text-[#0077BB] transition font-poppins"
             >
-              <span>📦 Mis Pedidos y Facturas</span>
+              <span>📦 Mis Pedidos</span>
             </Link>
           </div>
 

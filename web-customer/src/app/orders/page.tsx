@@ -90,9 +90,9 @@ export default function CustomerOrdersPage() {
 
       if (orderList.length > 0) {
         setSelectedOrder((prev: any) => {
-          if (!prev) return activeList.length > 0 ? activeList[0] : historyList[0];
+          if (!prev) return null;
           const found = orderList.find((o: any) => o.invoiceId.toString() === prev.invoiceId.toString());
-          return found || (activeList.length > 0 ? activeList[0] : historyList[0]);
+          return found || null;
         });
       }
 
@@ -246,9 +246,9 @@ export default function CustomerOrdersPage() {
         <div className="glass-card p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <span className="px-3 py-1 bg-[#E6F4FA] text-[#0077BB] border border-[#0077BB]/30 text-xs font-bold rounded-full inline-block mb-2 font-poppins">
-              📦 Rastro e Historial de Pedidos (Custodia Escrow)
+              📦 Historial & Custodia Escrow
             </span>
-            <h1 className="text-2xl font-black text-[#333333] tracking-tight font-poppins">Mis Pedidos y Despachos</h1>
+            <h1 className="text-2xl font-black text-[#333333] tracking-tight font-poppins">Mis Pedidos</h1>
             <p className="text-xs text-[#A9A9A9] mt-0.5">
               Consulte el estado de sus órdenes, verifique datos de guía y confirme recepción para liberar los fondos en custodia.
             </p>
@@ -277,149 +277,150 @@ export default function CustomerOrdersPage() {
             No tiene pedidos registrados aún con la cuenta <span className="font-mono text-[#333333] font-bold">{address}</span>.
           </div>
         ) : (
-          /* REQUERIMIENTO 5: DISEÑO EN 2 COLUMNAS (LISTA A LA IZQUIERDA, FICHA DERECHA DETALLADA) */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                {/* COLUMNA IZQUIERDA: LISTA DE PEDIDOS (ACTIVAS VS HISTORICO) */}
-                <div className="lg:col-span-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-[#0077BB] font-poppins">
-                      Gestión de Órdenes ({orders.length})
-                    </h2>
-                  </div>
+          <div className="space-y-6">
+            {/* TAB SWITCHER: ÓRDENES ACTIVAS VS HISTÓRICO FINALIZADAS */}
+            <div className="flex p-1.5 bg-slate-200/70 rounded-2xl font-poppins border border-[#0077BB]/10 max-w-md">
+              <button
+                onClick={() => setOrdersTab("active")}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  ordersTab === "active"
+                    ? "bg-white text-[#0077BB] shadow-sm border border-[#0077BB]/20"
+                    : "text-[#A9A9A9] hover:text-[#333333]"
+                }`}
+              >
+                <span>📦 En Curso</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  ordersTab === "active" ? "bg-[#E6F4FA] text-[#0077BB]" : "bg-slate-300/60 text-slate-600"
+                }`}>
+                  {activeOrders.length}
+                </span>
+              </button>
 
-                  {/* TAB SWITCHER: ÓRDENES ACTIVAS VS HISTÓRICO FINALIZADAS */}
-                  <div className="flex p-1.5 bg-slate-200/70 rounded-2xl font-poppins border border-[#0077BB]/10">
-                    <button
-                      onClick={() => {
-                        setOrdersTab("active");
-                        if (activeOrders.length > 0) setSelectedOrder(activeOrders[0]);
-                      }}
-                      className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
-                        ordersTab === "active"
-                          ? "bg-white text-[#0077BB] shadow-sm border border-[#0077BB]/20"
-                          : "text-[#A9A9A9] hover:text-[#333333]"
-                      }`}
+              <button
+                onClick={() => setOrdersTab("history")}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  ordersTab === "history"
+                    ? "bg-white text-[#2E8B57] shadow-sm border border-[#2E8B57]/20"
+                    : "text-[#A9A9A9] hover:text-[#333333]"
+                }`}
+              >
+                <span>📜 Histórico</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  ordersTab === "history" ? "bg-[#EAF5EF] text-[#2E8B57]" : "bg-slate-300/60 text-slate-600"
+                }`}>
+                  {historicalOrders.length}
+                </span>
+              </button>
+            </div>
+
+            {/* LISTADO DE PEDIDOS EN TARJETAS DE Malla COMPACTA */}
+            {displayedOrders.length === 0 ? (
+              <div className="glass-card p-12 text-center text-xs text-[#A9A9A9] space-y-2">
+                <p className="font-bold text-slate-700 font-poppins">
+                  {ordersTab === "active"
+                    ? "No tiene órdenes activas en curso actualmente."
+                    : "No registra órdenes finalizadas en el histórico."}
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                  {ordersTab === "active"
+                    ? "Las órdenes entregadas y liberadas se trasladan automáticamente al Histórico de Órdenes."
+                    : "Una vez entregado y verificado el producto, las órdenes archivadas se despliegan aquí."}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {displayedOrders.map((ord: any) => {
+                  const statusIdx = Number(ord.status);
+                  const compName = companies[ord.companyId.toString()] || `Empresa #${ord.companyId.toString()}`;
+
+                  return (
+                    <div
+                      key={ord.invoiceId.toString()}
+                      onClick={() => setSelectedOrder(ord)}
+                      className="glass-card p-6 cursor-pointer hover:shadow-xl hover:border-[#0077BB]/50 transition-all duration-200 border-2 border-slate-200/80 bg-white flex flex-col justify-between space-y-4 group rounded-3xl"
                     >
-                      <span>📦 Activas</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        ordersTab === "active" ? "bg-[#E6F4FA] text-[#0077BB]" : "bg-slate-300/60 text-slate-600"
-                      }`}>
-                        {activeOrders.length}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setOrdersTab("history");
-                        if (historicalOrders.length > 0) setSelectedOrder(historicalOrders[0]);
-                      }}
-                      className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
-                        ordersTab === "history"
-                          ? "bg-white text-[#2E8B57] shadow-sm border border-[#2E8B57]/20"
-                          : "text-[#A9A9A9] hover:text-[#333333]"
-                      }`}
-                    >
-                      <span>📜 Histórico</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        ordersTab === "history" ? "bg-[#EAF5EF] text-[#2E8B57]" : "bg-slate-300/60 text-slate-600"
-                      }`}>
-                        {historicalOrders.length}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* LISTADO FILTRADO SEGÚN PESTAÑA SELECCIONADA */}
-                  {displayedOrders.length === 0 ? (
-                    <div className="glass-card p-8 text-center text-xs text-[#A9A9A9] space-y-2">
-                      <p className="font-bold text-slate-700 font-poppins">
-                        {ordersTab === "active"
-                          ? "No tiene órdenes activas en curso actualmente."
-                          : "No registra órdenes finalizadas en el histórico."}
-                      </p>
-                      <p className="text-[11px] leading-relaxed">
-                        {ordersTab === "active"
-                          ? "Las órdenes entregadas y liberadas se trasladan automáticamente al Histórico de Órdenes."
-                          : "Una vez entregado y verificado el producto, las órdenes archivadas se despliegan aquí."}
-                      </p>
-                    </div>
-                  ) : (
-                    displayedOrders.map((ord: any) => {
-                      const statusIdx = Number(ord.status);
-                      const isSelected = selectedOrder && selectedOrder.invoiceId.toString() === ord.invoiceId.toString();
-                      const compName = companies[ord.companyId.toString()] || `Empresa #${ord.companyId.toString()}`;
-
-                      return (
-                        <div
-                          key={ord.invoiceId.toString()}
-                          onClick={() => setSelectedOrder(ord)}
-                          className={`glass-card p-5 cursor-pointer transition-all duration-200 border-2 ${
-                            isSelected
-                              ? "border-[#0077BB] bg-white shadow-md scale-[1.02]"
-                              : "border-transparent hover:border-[#0077BB]/30"
-                          }`}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-[#FF8800] text-sm">#{ord.invoiceId.toString()}</span>
-                              <span className="text-xs font-bold text-[#333333] font-poppins truncate max-w-[120px]" title={compName}>
-                                {compName}
-                              </span>
-                            </div>
-
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-poppins ${
-                              statusIdx === 1 ? "bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30" :
-                              statusIdx === 2 ? "bg-[#E6F4FA] text-[#0077BB] border border-[#0077BB]/30" :
-                              statusIdx === 3 ? "bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30" : "bg-slate-100 text-[#333333]"
-                            }`}>
-                              {ORDER_STATUS_LABELS[statusIdx] || "En proceso"}
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-0.5">
+                            <span className="font-mono font-black text-[#FF8800] text-sm block">Factura #{ord.invoiceId.toString()}</span>
+                            <span className="text-xs font-extrabold text-[#333333] font-poppins block truncate max-w-[180px]" title={compName}>
+                              {compName}
                             </span>
                           </div>
 
-                          <div className="flex justify-between items-end pt-2 border-t border-[#0077BB]/10 text-xs">
-                            <div>
-                              <span className="text-[10px] text-[#A9A9A9] uppercase font-mono block">
-                                {statusIdx >= 3 ? "Monto Liberado" : "Monto en Custodia"}
-                              </span>
-                              <span className={`font-mono font-black text-base ${statusIdx >= 3 ? "text-[#0077BB]" : "text-[#2E8B57]"}`}>
-                                €{formatPrice(ord.totalAmount)} EURT
-                              </span>
-                            </div>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold font-poppins shrink-0 ${
+                            statusIdx === 1 ? "bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30" :
+                            statusIdx === 2 ? "bg-[#E6F4FA] text-[#0077BB] border border-[#0077BB]/30" :
+                            statusIdx === 3 ? "bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30" : "bg-slate-100 text-[#333333]"
+                          }`}>
+                            ● {ORDER_STATUS_LABELS[statusIdx] || "En proceso"}
+                          </span>
+                        </div>
 
-                            <span className="text-[11px] text-[#0077BB] font-bold font-poppins flex items-center gap-1">
-                              Ver Ficha ➔
+                        <div className="pt-2 border-t border-slate-100 space-y-1.5 text-xs">
+                          <div className="flex justify-between text-[11px] text-slate-500">
+                            <span>Fecha de Emisión:</span>
+                            <span className="font-mono text-slate-700">{new Date(Number(ord.timestamp) * 1000).toLocaleDateString()}</span>
+                          </div>
+                          <div className="flex justify-between text-xs font-mono">
+                            <span className="text-slate-500">{statusIdx >= 3 ? "Monto Liberado:" : "Monto Custodiado:"}</span>
+                            <span className={`font-black text-sm ${statusIdx >= 3 ? "text-[#0077BB]" : "text-[#2E8B57]"}`}>
+                              €{formatPrice(ord.totalAmount)} EURT
                             </span>
                           </div>
                         </div>
-                      );
-                    })
-                  )}
-                </div>
+                      </div>
 
-            {/* COLUMNA DERECHA: FICHA DETALLADA DE LA ORDEN SELECCIONADA */}
-            <div className="lg:col-span-7">
-              {selectedOrder ? (
-                <div className="glass-card p-6 sm:p-8 shadow-xl space-y-6 sticky top-24 border-2 border-[#0077BB]/20">
+                      <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
+                        <span className="text-[11px] text-[#0077BB] font-bold font-poppins group-hover:underline flex items-center gap-1">
+                          📋 Abrir Ficha Flotante
+                        </span>
+                        <span className="w-8 h-8 rounded-full bg-[#E6F4FA] text-[#0077BB] flex items-center justify-center font-bold text-xs group-hover:scale-110 transition shadow-xs">
+                          ➔
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* FICHA FLOTANTE DE DETALLE DE PEDIDO (FLOATING MODAL OVERLAY) */}
+            {selectedOrder && (
+              <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 relative border-l-4 border-l-[#0077BB] my-8 max-h-[90vh] overflow-y-auto">
                   
-                  {/* Encabezado Ficha */}
-                  <div className="flex items-center justify-between border-b border-[#0077BB]/10 pb-4">
+                  {/* Encabezado Ficha Flotante */}
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-4 sticky top-0 bg-white z-10 -mt-2 pt-2">
                     <div>
-                      <span className="text-[10px] text-[#A9A9A9] uppercase font-mono block">Detalle de la Orden</span>
+                      <span className="text-[10px] text-[#0077BB] uppercase font-mono font-bold tracking-wider block">
+                        📋 Ficha Flotante &bull; Detalle del Pedido
+                      </span>
                       <h2 className="text-xl font-black text-[#333333] font-poppins">
                         Factura #{selectedOrder.invoiceId.toString()}
                       </h2>
                     </div>
 
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold font-poppins ${
-                      Number(selectedOrder.status) === 1 ? "bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30" :
-                      Number(selectedOrder.status) === 2 ? "bg-[#E6F4FA] text-[#0077BB] border border-[#0077BB]/30" :
-                      Number(selectedOrder.status) === 3 ? "bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30" : "bg-slate-100 text-[#333333]"
-                    }`}>
-                      ● {ORDER_STATUS_LABELS[Number(selectedOrder.status)] || "Registrado"}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold font-poppins ${
+                        Number(selectedOrder.status) === 1 ? "bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30" :
+                        Number(selectedOrder.status) === 2 ? "bg-[#E6F4FA] text-[#0077BB] border border-[#0077BB]/30" :
+                        Number(selectedOrder.status) === 3 ? "bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30" : "bg-slate-100 text-[#333333]"
+                      }`}>
+                        ● {ORDER_STATUS_LABELS[Number(selectedOrder.status)] || "Registrado"}
+                      </span>
+
+                      <button
+                        onClick={() => setSelectedOrder(null)}
+                        className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-extrabold flex items-center justify-center transition cursor-pointer text-sm"
+                        aria-label="Cerrar Ficha Flotante"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Datos de la Empresa */}
+                  {/* Datos de la Empresa Vendedora */}
                   <div className="bg-white/80 rounded-2xl p-4 border border-[#0077BB]/15 text-xs space-y-1">
                     <span className="text-[10px] text-[#0077BB] font-bold uppercase tracking-wider block font-poppins">Empresa Vendedora</span>
                     <span className="font-extrabold text-sm text-[#333333] block font-poppins">
@@ -493,14 +494,14 @@ export default function CustomerOrdersPage() {
                         statusLabel: ORDER_STATUS_LABELS[Number(selectedOrder.status)] || "Pagado",
                         trackingNumber: selectedOrder.trackingNumber || "BARLO-TRACK-98214"
                       })}
-                      className="px-4 py-2 bg-[#FF8800] hover:bg-[#E07700] text-white font-extrabold text-xs rounded-xl shadow-xs transition font-poppins flex items-center gap-1.5 shrink-0"
+                      className="px-4 py-2 bg-[#FF8800] hover:bg-[#E07700] text-white font-extrabold text-xs rounded-xl shadow-xs transition font-poppins flex items-center gap-1.5 shrink-0 cursor-pointer"
                     >
                       <span>📄</span>
                       <span>Ver / Descargar Factura PDF</span>
                     </button>
                   </div>
 
-                  {/* MOSTRAR DATOS IMPORTANTES DE ENVÍO Y LIBERACIÓN */}
+                  {/* DATOS IMPORTANTES DE ENVÍO Y LIBERACIÓN */}
                   {(Number(selectedOrder.status) === 2 || Number(selectedOrder.status) === 3 || selectedOrder.trackingNumber) && (
                     <div className="bg-[#E6F4FA] border border-[#0077BB]/30 rounded-2xl p-5 space-y-3">
                       <div className="flex items-center gap-2 text-[#0077BB] font-bold text-sm font-poppins">
@@ -525,7 +526,7 @@ export default function CustomerOrdersPage() {
                     </div>
                   )}
 
-                  {/* SECCIÓN DE VALORACIÓN (INMEDIATA O AUTO-DEFAULT DE 24H - SE OCULTA SI YA FUE VALORADA) */}
+                  {/* SECCIÓN DE VALORACIÓN */}
                   {(Number(selectedOrder.status) === 2 || Number(selectedOrder.status) === 3) && (
                     ratedInvoices[selectedOrder.invoiceId.toString()] ? (
                       <div className="bg-[#EAF5EF] border border-[#2E8B57]/30 rounded-2xl p-4 flex items-center justify-between">
@@ -558,7 +559,7 @@ export default function CustomerOrdersPage() {
                         <div className="flex flex-col sm:flex-row gap-2 pt-1">
                           <button
                             onClick={() => setRatingModalCompanyId(selectedOrder.companyId.toString())}
-                            className="px-4 py-2.5 bg-[#FF8800] hover:bg-[#E07700] text-white font-bold text-xs rounded-xl shadow-sm transition font-poppins flex-1 text-center"
+                            className="px-4 py-2.5 bg-[#FF8800] hover:bg-[#E07700] text-white font-bold text-xs rounded-xl shadow-sm transition font-poppins flex-1 text-center cursor-pointer"
                           >
                             ⭐ Valorar Empresa Ahora
                           </button>
@@ -566,7 +567,7 @@ export default function CustomerOrdersPage() {
                           <button
                             onClick={() => handleAutoDefaultRating(selectedOrder.companyId.toString())}
                             disabled={submittingRating}
-                            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-[#0077BB] border border-[#0077BB]/30 font-bold text-xs rounded-xl shadow-xs transition font-poppins flex-1 text-center disabled:opacity-50"
+                            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-[#0077BB] border border-[#0077BB]/30 font-bold text-xs rounded-xl shadow-xs transition font-poppins flex-1 text-center disabled:opacity-50 cursor-pointer"
                           >
                             ⚡ Aplicar Valoración Automática (24h)
                           </button>
@@ -608,7 +609,7 @@ export default function CustomerOrdersPage() {
                       <button
                         onClick={() => handleConfirmDelivery(selectedOrder.invoiceId.toString())}
                         disabled={confirmingId === selectedOrder.invoiceId.toString()}
-                        className="btn-cacao-pulse w-full text-xs font-poppins uppercase tracking-wider text-center flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="btn-cacao-pulse w-full text-xs font-poppins uppercase tracking-wider text-center flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                       >
                         <span>✍️</span>
                         <span>
@@ -620,16 +621,21 @@ export default function CustomerOrdersPage() {
                     </div>
                   )}
 
-                </div>
-              ) : (
-                <div className="glass-card p-12 text-center text-[#A9A9A9] text-xs">
-                  Seleccione una orden de la lista para inspeccionar sus detalles.
-                </div>
-              )}
-            </div>
+                  {/* Botón Cerrar Ficha abajo */}
+                  <div className="pt-4 border-t border-slate-100 flex justify-end">
+                    <button
+                      onClick={() => setSelectedOrder(null)}
+                      className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition font-poppins cursor-pointer"
+                    >
+                      Cerrar Ficha
+                    </button>
+                  </div>
 
-            </div>
-          )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
 

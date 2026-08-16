@@ -34,6 +34,12 @@ function getProductRating(productId: bigint) {
   };
 }
 
+interface CompanyDetails {
+  id: string;
+  name: string;
+  businessType: number; // 0: Venta de Productos, 1: Prestacion de Servicios
+}
+
 const FALLBACK_PRODUCTS: Product[] = [
   {
     productId: BigInt(1),
@@ -72,13 +78,13 @@ export default function Home() {
   const { items, total, addToCart } = useCart(provider, signer, chainId, address);
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [companies, setCompanies] = useState<Record<string, string>>({});
+  const [companyMap, setCompanyMap] = useState<Record<string, CompanyDetails>>({});
   const [loading, setLoading] = useState(true);
 
   // Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
-  const [maxPriceFilter, setMaxPriceFilter] = useState<number>(500);
+  const [selectedProductType, setSelectedProductType] = useState<string>('all'); // 'all', 'product', 'service'
   const [onlyInStock, setOnlyInStock] = useState<boolean>(false);
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
@@ -97,12 +103,15 @@ export default function Home() {
         setLoading(true);
         const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
 
-        // 1. Verify if contract bytecode exists at ecommerceAddress on RPC node before staticCall
+        // 1. Verify if contract bytecode exists at ecommerceAddress on RPC node
         const code = await rpcProvider.getCode(ecommerceAddress).catch(() => "0x");
         if (!code || code === "0x" || code === "0x0") {
           console.warn(`[web-customer] Contrato no desplegado en ${ecommerceAddress}. Cargando catálogo fallback.`);
           setProducts(FALLBACK_PRODUCTS);
-          setCompanies({ "1": "Empresa Cacao Sol", "2": "Empresa Azul Caribe" });
+          setCompanyMap({
+            "1": { id: "1", name: "TechMarket Iberia S.L.", businessType: 0 },
+            "2": { id: "2", name: "ServiCloud Consultores S.A.", businessType: 1 }
+          });
           return;
         }
 
@@ -125,20 +134,30 @@ export default function Home() {
         // 3. Fetch companies with graceful fallback
         try {
           const allComps = await contract.getAllCompanies();
-          const compMap: Record<string, string> = {};
+          const compDict: Record<string, CompanyDetails> = {};
           Array.from(allComps).forEach((c: any) => {
-            compMap[c.companyId.toString()] = c.name;
+            compDict[c.companyId.toString()] = {
+              id: c.companyId.toString(),
+              name: c.name,
+              businessType: Number(c.businessType)
+            };
           });
-          setCompanies(compMap);
+          setCompanyMap(compDict);
         } catch (compErr) {
           console.warn("[web-customer] No se pudieron cargar empresas:", compErr);
-          setCompanies({ "1": "Empresa Cacao Sol", "2": "Empresa Azul Caribe" });
+          setCompanyMap({
+            "1": { id: "1", name: "TechMarket Iberia S.L.", businessType: 0 },
+            "2": { id: "2", name: "ServiCloud Consultores S.A.", businessType: 1 }
+          });
         }
 
       } catch (error) {
         console.warn('[web-customer] Error al conectar con nodo Anvil, activando catálogo fallback:', error);
         setProducts(FALLBACK_PRODUCTS);
-        setCompanies({ "1": "Empresa Cacao Sol", "2": "Empresa Azul Caribe" });
+        setCompanyMap({
+          "1": { id: "1", name: "TechMarket Iberia S.L.", businessType: 0 },
+          "2": { id: "2", name: "ServiCloud Consultores S.A.", businessType: 1 }
+        });
       } finally {
         setLoading(false);
       }
@@ -153,19 +172,41 @@ export default function Home() {
 
   const filteredProducts = useMemo(() => {
     return [...products].filter((product) => {
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch =
+      const searchLower = searchQuery.toLowerCase().trim();
+      const matchesSearch = !searchLower ||
         product.name.toLowerCase().includes(searchLower) ||
         product.description.toLowerCase().includes(searchLower);
+
       const matchesCompany =
         selectedCompanyId === 'all' || product.companyId.toString() === selectedCompanyId;
-      const priceFormatted = Number(product.price) / 1_000_000;
-      const matchesPrice = priceFormatted <= maxPriceFilter;
+
+      const compInfo = companyMap[product.companyId.toString()];
+      const compType = compInfo ? compInfo.businessType : 0;
+
+      let matchesType = true;
+      if (selectedProductType === 'product') {
+        matchesType = compType === 0 || 
+                      product.name.toLowerCase().includes("producto") || 
+                      product.name.toLowerCase().includes("café") || 
+                      product.name.toLowerCase().includes("cacao") || 
+                      product.name.toLowerCase().includes("chocolate") ||
+                      product.name.toLowerCase().includes("hardware") ||
+                      product.name.toLowerCase().includes("laptop");
+      } else if (selectedProductType === 'service') {
+        matchesType = compType === 1 || 
+                      product.name.toLowerCase().includes("servicio") || 
+                      product.name.toLowerCase().includes("consultoría") || 
+                      product.name.toLowerCase().includes("cloud") || 
+                      product.name.toLowerCase().includes("soporte") ||
+                      product.description.toLowerCase().includes("servicio");
+      }
+
       const matchesStock = !onlyInStock || product.stock > BigInt(0);
 
-      return matchesSearch && matchesCompany && matchesPrice && matchesStock;
+      // NO PRICE LIMIT: All products regardless of price are included!
+      return matchesSearch && matchesCompany && matchesType && matchesStock;
     });
-  }, [products, searchQuery, selectedCompanyId, maxPriceFilter, onlyInStock]);
+  }, [products, companyMap, searchQuery, selectedCompanyId, selectedProductType, onlyInStock]);
 
   return (
     <div className="min-h-screen bg-[#F5F5F0] text-[#333333] font-sans pb-24 selection:bg-[#FF8800] selection:text-white">
@@ -226,64 +267,148 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FILTER TOOLBAR */}
+      {/* FILTER TOOLBAR - SIN LÍMITE DE PRECIO / FILTRADO POR EMPRESA Y TIPO DE PRODUCTO */}
       <section id="catalog" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
-        <div className="glass-panel rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-[#0077BB]/10 pb-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[#0077BB] font-poppins">
-              Catálogo de Productos Disponibles
-            </h2>
-            <span className="text-xs font-mono text-[#0077BB] font-bold">
-              {filteredProducts.length} producto(s)
-            </span>
+        <div className="glass-panel rounded-3xl p-6 shadow-sm space-y-5 bg-white/90 border border-slate-200">
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200/80 pb-4">
+            <div>
+              <span className="text-[10px] uppercase font-mono font-extrabold text-[#0077BB] tracking-wider block">
+                🎯 Filtros de Búsqueda de Catálogo
+              </span>
+              <h2 className="text-xl font-black text-slate-900 font-poppins">
+                Explorar Catálogo Completo
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="px-3.5 py-1 bg-[#E6F4FA] text-[#0077BB] border border-[#0077BB]/30 text-xs font-extrabold rounded-full font-mono">
+                {filteredProducts.length} {filteredProducts.length === 1 ? "Producto Mostrado" : "Productos Mostrados"}
+              </span>
+
+              {(searchQuery || selectedCompanyId !== 'all' || selectedProductType !== 'all' || onlyInStock) && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCompanyId('all');
+                    setSelectedProductType('all');
+                    setOnlyInStock(false);
+                  }}
+                  className="px-3 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded-full transition font-poppins cursor-pointer"
+                >
+                  ✕ Limpiar Filtros
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-[#333333] mb-1 font-poppins">Empresa Vendedora:</label>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            
+            {/* 1. Buscador por Nombre / Descripción */}
+            <div className="space-y-1 md:col-span-1">
+              <label className="block text-[11px] font-extrabold text-slate-700 font-poppins">
+                🔍 Buscar Término:
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Ej: Café, Servidor, Laptop..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-[#0077BB] focus:bg-white font-medium"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Filtro por Empresa Vendedora */}
+            <div className="space-y-1">
+              <label className="block text-[11px] font-extrabold text-slate-700 font-poppins">
+                🏢 Filtrar por Empresa:
+              </label>
               <select
                 value={selectedCompanyId}
                 onChange={(e) => setSelectedCompanyId(e.target.value)}
-                className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3 py-2 text-xs text-[#333333] focus:outline-none focus:border-[#0077BB]"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-[#0077BB] focus:bg-white font-medium cursor-pointer"
               >
-                <option value="all">Todas las Empresas</option>
-                {Object.entries(companies).map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name} (ID #{id})
+                <option value="all">🏢 Todas las Empresas</option>
+                {Object.values(companyMap).map((comp) => (
+                  <option key={comp.id} value={comp.id}>
+                    {comp.name} (ID #{comp.id})
                   </option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-[11px] font-bold text-[#333333] font-poppins">Precio Máximo:</label>
-                <span className="text-xs font-mono text-[#2E8B57] font-bold">€{maxPriceFilter} EURT</span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="1000"
-                step="5"
-                value={maxPriceFilter}
-                onChange={(e) => setMaxPriceFilter(Number(e.target.value))}
-                className="w-full accent-[#FF8800] cursor-pointer"
-              />
+            {/* 3. Filtro por Tipo de Producto / Oferta */}
+            <div className="space-y-1">
+              <label className="block text-[11px] font-extrabold text-slate-700 font-poppins">
+                📦 Filtrar por Tipo de Producto:
+              </label>
+              <select
+                value={selectedProductType}
+                onChange={(e) => setSelectedProductType(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-[#0077BB] focus:bg-white font-medium cursor-pointer"
+              >
+                <option value="all">🛍️ Todos los Tipos de Oferta</option>
+                <option value="product">📦 Venta de Productos (Bienes Físicos)</option>
+                <option value="service">🛠️ Prestación de Servicios (Digitales / Nube)</option>
+              </select>
             </div>
 
-            <div className="flex items-center pt-4">
-              <label className="inline-flex items-center cursor-pointer gap-2">
+            {/* 4. Checkbox Disponibilidad Stock */}
+            <div className="flex items-center h-9 px-2">
+              <label className="inline-flex items-center cursor-pointer gap-2 select-none">
                 <input
                   type="checkbox"
                   checked={onlyInStock}
                   onChange={(e) => setOnlyInStock(e.target.checked)}
-                  className="w-4 h-4 text-[#FF8800] bg-white border-slate-300 rounded focus:ring-[#FF8800]"
+                  className="w-4 h-4 text-[#FF8800] bg-slate-100 border-slate-300 rounded focus:ring-[#FF8800] cursor-pointer"
                 />
-                <span className="text-xs text-[#333333] font-semibold">Solo Disponibles en Stock</span>
+                <span className="text-xs text-slate-800 font-bold font-poppins">
+                  Solo Disponibles en Stock
+                </span>
               </label>
             </div>
+
           </div>
+
+          {/* Quick Filter Badge Pills for Companies */}
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-[11px] font-bold text-slate-400 font-poppins">Empresas:</span>
+            <button
+              onClick={() => setSelectedCompanyId('all')}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition font-poppins cursor-pointer ${
+                selectedCompanyId === 'all'
+                  ? "bg-[#0077BB] text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Todas
+            </button>
+            {Object.values(companyMap).map((comp) => (
+              <button
+                key={comp.id}
+                onClick={() => setSelectedCompanyId(comp.id)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition font-poppins cursor-pointer ${
+                  selectedCompanyId === comp.id
+                    ? "bg-[#0077BB] text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                🏢 {comp.name}
+              </button>
+            ))}
+          </div>
+
         </div>
 
       </section>
@@ -302,10 +427,10 @@ export default function Home() {
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCompanyId('all');
-                setMaxPriceFilter(500);
+                setSelectedProductType('all');
                 setOnlyInStock(false);
               }}
-              className="px-4 py-2 bg-white hover:bg-slate-100 text-[#0077BB] font-bold text-xs rounded-xl border border-[#0077BB]/20 transition font-poppins"
+              className="px-4 py-2 bg-white hover:bg-slate-100 text-[#0077BB] font-bold text-xs rounded-xl border border-[#0077BB]/20 transition font-poppins cursor-pointer"
             >
               Restablecer Filtros
             </button>
@@ -313,7 +438,8 @@ export default function Home() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => {
-              const compName = companies[product.companyId.toString()] || `Empresa ID #${product.companyId.toString()}`;
+              const compInfo = companyMap[product.companyId.toString()];
+              const compName = compInfo ? compInfo.name : `Empresa ID #${product.companyId.toString()}`;
               const rating = getProductRating(product.productId);
 
               return (

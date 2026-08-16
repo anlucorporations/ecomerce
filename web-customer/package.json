@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node __tests__/unit-tests.test.js"
   },
   "dependencies": {
     "@stripe/stripe-js": "^8.0.0",

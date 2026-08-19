@@ -49,11 +49,76 @@ const FAQ_LIST: FAQItem[] = [
   }
 ];
 
+// All 10 images from ./Docs/imagenes/
+const GALLERY_IMAGES = [
+  {
+    src: '/images/metamask_connect_guide_es_1787157454195.jpg',
+    title: '🦊 Guía Paso a Paso MetaMask (Español)',
+    category: 'Infografía Conexión',
+    desc: 'Infografía en español explicando la instalación, conexión y firma de transacciones en MetaMask.'
+  },
+  {
+    src: '/images/web3_security_escrow_es_1787157468573.jpg',
+    title: '🛡️ Bóveda de Custodia Escrow (Español)',
+    category: 'Infografía Seguridad',
+    desc: 'Diagrama del flujo financiero seguro desde el pago del comprador hasta la liberación on-chain.'
+  },
+  {
+    src: '/images/Gemini_Generated_Image_2fvmay2fvmay2fvm.jpg',
+    title: '🛍️ E-Commerce Web3 BarloVentas',
+    category: 'Plataforma Principal',
+    desc: 'Ilustración conceptual de la experiencia de compra global en Web3.'
+  },
+  {
+    src: '/images/Gemini_Generated_Image_fnkmf2fnkmf2fnkm.jpg',
+    title: '🔐 Firma Criptográfica & Llave Privada',
+    category: 'Seguridad Web3',
+    desc: 'Visualización de la protección criptográfica no custodial de la billetera.'
+  },
+  {
+    src: '/images/Gemini_Generated_Image_fnkmf2fnkmf2fnkm (1).jpg',
+    title: '🔑 Autenticación Decentralizada',
+    category: 'Seguridad Web3',
+    desc: 'Seguridad en transacciones sin intermediarios bancarios.'
+  },
+  {
+    src: '/images/Gemini_Generated_Image_hnoae4hnoae4hnoa.jpg',
+    title: '🏰 Bóveda Inteligente de Smart Contracts',
+    category: 'Custodia Escrow',
+    desc: 'Contrato inteligente reteniendo fondos en custodia automatizada.'
+  },
+  {
+    src: '/images/Gemini_Generated_Image_lgc972lgc972lgc9.jpg',
+    title: '🚚 Logística y Guía de Transporte',
+    category: 'Envíos Comerciales',
+    desc: 'Gestión comercial de inventario, paquetes y código de seguimiento.'
+  },
+  {
+    src: '/images/Gemini_Generated_Image_wg9l8lwg9l8lwg9l.jpg',
+    title: '✍️ Confirmación de Entrega & Cobro',
+    category: 'Despacho & Pago',
+    desc: 'Firma de recepción del cliente y transferencia instantánea de EuroTokens.'
+  },
+  {
+    src: '/images/metamask_connect_guide_1787153454896.jpg',
+    title: '🦊 Diagrama Técnico de Billeteras',
+    category: 'Arquitectura Web3',
+    desc: 'Diagrama de integración para conectores Web3.'
+  },
+  {
+    src: '/images/web3_security_escrow_1787153466948.jpg',
+    title: '🛡️ Esquema de Seguridad Trustless',
+    category: 'Arquitectura Web3',
+    desc: 'Diagrama de flujo de custodia inteligente en Blockchain.'
+  }
+];
+
 export default function CustomerHelpLandingPage() {
   const [activeTab, setActiveTab] = useState<'user' | 'company'>('user');
   const [faqSearch, setFaqSearch] = useState('');
   const [openFaqId, setOpenFaqId] = useState<string | null>('faq-1');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedGalleryImage, setSelectedGalleryImage] = useState<typeof GALLERY_IMAGES[0] | null>(null);
 
   const filteredFaqs = FAQ_LIST.filter((faq) => {
     const matchesSearch = faq.question.toLowerCase().includes(faqSearch.toLowerCase()) ||
@@ -68,7 +133,6 @@ export default function CustomerHelpLandingPage() {
       {/* 🚀 LANDING HERO BANNER PRINCIPAL */}
       <section className="relative bg-gradient-to-br from-[#0077BB] via-[#005F96] to-slate-900 text-white py-16 sm:py-20 px-4 sm:px-6 lg:px-8 shadow-2xl overflow-hidden">
         
-        {/* FONDO ILUSTRADO LANDING */}
         <div className="absolute inset-0 opacity-15 pointer-events-none">
           <img
             src="/images/Gemini_Generated_Image_2fvmay2fvmay2fvm.jpg"
@@ -95,7 +159,7 @@ export default function CustomerHelpLandingPage() {
             <div className="pt-3 flex flex-wrap justify-center lg:justify-start gap-3">
               <Link
                 href="#guia-metamask"
-                className="px-6 py-3 bg-[#FF8800] hover:bg-[#E07700] text-white font-extrabold text-xs rounded-2xl shadow-xl transition font-poppins flex items-center gap-2"
+                className="px-6 py-3 bg-[#FF8800] hover:bg-[#E07700] text-[#FFFFFF] font-extrabold text-xs rounded-2xl shadow-xl transition font-poppins flex items-center gap-2"
               >
                 <span>🦊</span>
                 <span>Guía MetaMask Paso a Paso</span>
@@ -103,18 +167,18 @@ export default function CustomerHelpLandingPage() {
 
               <Link
                 href="#boveda-escrow"
-                className="px-6 py-3 bg-white/15 hover:bg-white/25 text-white font-extrabold text-xs rounded-2xl border border-white/30 transition font-poppins flex items-center gap-2"
+                className="px-6 py-3 bg-white/15 hover:bg-white/25 text-[#FFFFFF] font-extrabold text-xs rounded-2xl border border-white/30 transition font-poppins flex items-center gap-2"
               >
                 <span>🛡️</span>
                 <span>Custodia Escrow</span>
               </Link>
 
               <Link
-                href="#faqs"
-                className="px-6 py-3 bg-slate-900/60 hover:bg-slate-900/80 text-white font-extrabold text-xs rounded-2xl border border-white/20 transition font-poppins flex items-center gap-2"
+                href="#galeria"
+                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-[#FFFFFF] font-extrabold text-xs rounded-2xl shadow-lg transition font-poppins flex items-center gap-2"
               >
-                <span>💬</span>
-                <span>Preguntas Frecuentes</span>
+                <span>🖼️</span>
+                <span>Galería de Infografías</span>
               </Link>
             </div>
           </div>
@@ -188,14 +252,16 @@ export default function CustomerHelpLandingPage() {
                 <img
                   src="/images/metamask_connect_guide_es_1787157454195.jpg"
                   alt="Guía ilustrada de conexión MetaMask en español"
-                  className="w-full h-auto object-cover hover:scale-105 transition duration-300"
+                  className="w-full h-auto object-cover hover:scale-105 transition duration-300 cursor-pointer"
+                  onClick={() => setSelectedGalleryImage(GALLERY_IMAGES[0])}
                 />
               </div>
               <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-lg bg-slate-900">
                 <img
                   src="/images/Gemini_Generated_Image_fnkmf2fnkmf2fnkm.jpg"
                   alt="Seguridad criptográfica de billetera MetaMask"
-                  className="w-full h-auto object-cover"
+                  className="w-full h-auto object-cover cursor-pointer"
+                  onClick={() => setSelectedGalleryImage(GALLERY_IMAGES[3])}
                 />
               </div>
             </div>
@@ -228,14 +294,16 @@ export default function CustomerHelpLandingPage() {
                 <img
                   src="/images/web3_security_escrow_es_1787157468573.jpg"
                   alt="Infografía del proceso de Custodia Escrow en español"
-                  className="w-full h-auto object-cover hover:scale-105 transition duration-300"
+                  className="w-full h-auto object-cover hover:scale-105 transition duration-300 cursor-pointer"
+                  onClick={() => setSelectedGalleryImage(GALLERY_IMAGES[1])}
                 />
               </div>
               <div className="rounded-3xl overflow-hidden border border-white/20 shadow-lg bg-slate-900">
                 <img
                   src="/images/Gemini_Generated_Image_hnoae4hnoae4hnoa.jpg"
                   alt="Bóveda inteligente de custodia Escrow"
-                  className="w-full h-auto object-cover"
+                  className="w-full h-auto object-cover cursor-pointer"
+                  onClick={() => setSelectedGalleryImage(GALLERY_IMAGES[5])}
                 />
               </div>
             </div>
@@ -277,40 +345,56 @@ export default function CustomerHelpLandingPage() {
         </div>
       </section>
 
-      {/* 📦 SECCIÓN LANDING 3: EXPERIENCIA Y DESPACHO LOGÍSTICO */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14">
-        <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-200 space-y-8">
-          
-          <div className="text-center max-w-3xl mx-auto space-y-2">
-            <span className="px-3.5 py-1 bg-[#E6F4FA] text-[#0077BB] text-xs font-black uppercase tracking-wider rounded-full font-mono">
-              📦 TRANSPORTE & ASIGNACIÓN LOGÍSTICA
-            </span>
-            <h2 className="text-3xl font-black text-[#333333] font-poppins">
-              Gestión Transparente de Envíos y Entregas
-            </h2>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Consulte en todo momento el estado del despacho de sus compras físicas o la prestación de sus servicios contratados.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-            <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-lg bg-slate-900">
-              <img
-                src="/images/Gemini_Generated_Image_lgc972lgc972lgc9.jpg"
-                alt="Gestión de envíos y logística comercial"
-                className="w-full h-auto object-cover"
-              />
-            </div>
-            <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-lg bg-slate-900">
-              <img
-                src="/images/Gemini_Generated_Image_wg9l8lwg9l8lwg9l.jpg"
-                alt="Confirmación de entrega y liberación de fondos"
-                className="w-full h-auto object-cover"
-              />
-            </div>
-          </div>
-
+      {/* 🖼️ SECCIÓN LANDING 3: GALERÍA DE TODAS LAS INFOGRAFÍAS E ILUSTRACIONES DE ./Docs/imagenes */}
+      <section id="galeria" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 space-y-8">
+        
+        <div className="text-center space-y-2 max-w-3xl mx-auto">
+          <span className="px-3.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-black uppercase tracking-wider rounded-full font-mono">
+            🖼️ RECURSOS VISUALES E ILUSTRACIONES DOCS
+          </span>
+          <h2 className="text-3xl font-black text-[#333333] font-poppins">
+            Galería Completa de Infografías y Diagramas Web3
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Haga clic en cualquiera de las imágenes para ampliar la infografía en alta resolución y conocer los detalles técnicos del sistema.
+          </p>
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {GALLERY_IMAGES.map((img, idx) => (
+            <div
+              key={idx}
+              onClick={() => setSelectedGalleryImage(img)}
+              className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-lg hover:shadow-2xl hover:scale-[1.02] transition duration-300 cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="w-full h-48 bg-slate-900 relative overflow-hidden">
+                <img
+                  src={img.src}
+                  alt={img.title}
+                  className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
+                />
+                <span className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full font-mono">
+                  {img.category}
+                </span>
+              </div>
+              <div className="p-5 space-y-2 flex-1 flex flex-col justify-between">
+                <div>
+                  <h3 className="font-extrabold text-sm text-[#333333] font-poppins group-hover:text-[#0077BB] transition">
+                    {img.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed pt-1">
+                    {img.desc}
+                  </p>
+                </div>
+                <div className="pt-3 text-[11px] font-bold text-[#0077BB] flex items-center justify-between border-t border-slate-100">
+                  <span>🔍 Ampliar Infografía</span>
+                  <span>↗</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
       </section>
 
       {/* 💬 SECCIÓN LANDING 4: PREGUNTAS FRECUENTES (FAQ INTERACTIVO) */}
@@ -538,6 +622,46 @@ export default function CustomerHelpLandingPage() {
         )}
 
       </section>
+
+      {/* 🔍 MODAL AMPLIZADOR DE INFOGRAFÍAS */}
+      {selectedGalleryImage && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setSelectedGalleryImage(null)}
+              className="absolute top-4 right-4 bg-slate-100 hover:bg-slate-200 text-slate-700 w-10 h-10 rounded-full font-bold flex items-center justify-center cursor-pointer transition"
+            >
+              ✕
+            </button>
+            <div className="space-y-1 pr-10">
+              <span className="px-3 py-1 bg-sky-100 text-[#0077BB] text-[10px] font-bold rounded-full font-mono uppercase">
+                {selectedGalleryImage.category}
+              </span>
+              <h3 className="text-xl font-black text-[#333333] font-poppins">
+                {selectedGalleryImage.title}
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                {selectedGalleryImage.desc}
+              </p>
+            </div>
+            <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-900">
+              <img
+                src={selectedGalleryImage.src}
+                alt={selectedGalleryImage.title}
+                className="w-full h-auto object-contain max-h-[65vh]"
+              />
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setSelectedGalleryImage(null)}
+                className="px-6 py-2.5 bg-[#0077BB] hover:bg-[#005F96] text-white font-extrabold text-xs rounded-xl shadow cursor-pointer font-poppins"
+              >
+                Cerrar Visor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FOOTER LANDING AYUDA */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16">

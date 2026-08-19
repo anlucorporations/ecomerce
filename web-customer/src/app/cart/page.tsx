@@ -260,7 +260,7 @@ const EURO_TOKEN_ABI = [
       // Compute total order amount across all items
       const grandTotal = items.reduce(
         (sum, item) => sum + BigInt(item.unitPrice) * BigInt(item.quantity),
-        0n
+        BigInt(0)
       );
 
       // STEP 1: Verify & Approve EURT Allowance (ONLY if current allowance is insufficient)

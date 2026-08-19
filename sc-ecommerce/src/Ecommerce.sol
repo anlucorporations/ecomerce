@@ -5,6 +5,7 @@ import {CompanyLib} from "./libraries/CompanyLib.sol";
 import {ProductLib} from "./libraries/ProductLib.sol";
 import {CustomerLib} from "./libraries/CustomerLib.sol";
 import {ShoppingCartLib} from "./libraries/ShoppingCartLib.sol";
+import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
 interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);
@@ -12,7 +13,7 @@ interface IERC20 {
     function balanceOf(address account) external view returns (uint256);
 }
 
-contract Ecommerce {
+contract Ecommerce is ReentrancyGuard {
     using CompanyLib for CompanyLib.CompanyStorage;
     using ProductLib for ProductLib.ProductStorage;
     using CustomerLib for CustomerLib.CustomerStorage;
@@ -100,6 +101,11 @@ contract Ecommerce {
         _;
     }
 
+    modifier onlyCustomerOrAdmin(address _customer) {
+        require(msg.sender == _customer || msg.sender == owner, "AccessControl: Caller is not customer nor admin");
+        _;
+    }
+
     constructor(address _euroTokenAddress) {
         owner = msg.sender;
         euroTokenAddress = _euroTokenAddress;
@@ -139,8 +145,8 @@ contract Ecommerce {
         // Transfer 3 ETH fee to owner
         payable(owner).transfer(msg.value);
 
-        isKYCVerified[msg.sender] = true;
-        emit KYCStatusUpdated(msg.sender, true);
+        isKYCVerified[msg.sender] = false;
+        emit KYCStatusUpdated(msg.sender, false);
 
         uint256 companyId = companyStorage.registerCompany(msg.sender, _name, _description, _businessType);
         _logActivity(msg.sender, "REGISTER_COMPANY_SELF", _name);
@@ -277,6 +283,11 @@ contract Ecommerce {
 
     // ============ CUSTOMER FUNCTIONS ============
 
+    function updateKYCStatus(address account, bool status) external onlyOwner {
+        isKYCVerified[account] = status;
+        emit KYCStatusUpdated(account, status);
+    }
+
     function registerCustomerSelf(
         string memory _name,
         string memory _contactEmail,
@@ -285,16 +296,16 @@ contract Ecommerce {
         require(bytes(_contactEmail).length > 0, "El correo electronico es obligatorio");
         require(bytes(_shippingAddress).length > 0, "La direccion de despacho es obligatoria");
 
-        isKYCVerified[msg.sender] = true;
-        emit KYCStatusUpdated(msg.sender, true);
+        isKYCVerified[msg.sender] = false;
+        emit KYCStatusUpdated(msg.sender, false);
 
         customerStorage.registerCustomerSelf(msg.sender, _name, _contactEmail, _shippingAddress);
         _logActivity(msg.sender, "REGISTER_CUSTOMER_SELF", _name);
     }
 
     function registerCustomer() external {
-        isKYCVerified[msg.sender] = true;
-        emit KYCStatusUpdated(msg.sender, true);
+        isKYCVerified[msg.sender] = false;
+        emit KYCStatusUpdated(msg.sender, false);
         customerStorage.registerCustomer(msg.sender);
         _logActivity(msg.sender, "REGISTER_CUSTOMER", "Auto Customer");
     }
@@ -325,25 +336,25 @@ contract Ecommerce {
         cartStorage.updateQuantity(productStorage, _productId, _quantity, msg.sender);
     }
 
-    function getCart(address _customer) external view returns (ShoppingCartLib.CartItem[] memory) {
+    function getCart(address _customer) external view onlyCustomerOrAdmin(_customer) returns (ShoppingCartLib.CartItem[] memory) {
         return cartStorage.getCart(_customer);
     }
 
-    function clearCart(address _customer) external {
+    function clearCart(address _customer) external onlyCustomerOrAdmin(_customer) {
         cartStorage.clearCart(_customer);
     }
 
-    function calculateTotal(address _customer) external view returns (uint256) {
+    function calculateTotal(address _customer) external view onlyCustomerOrAdmin(_customer) returns (uint256) {
         return cartStorage.calculateTotal(_customer);
     }
 
-    function getCartItemCount(address _customer) external view returns (uint256) {
+    function getCartItemCount(address _customer) external view onlyCustomerOrAdmin(_customer) returns (uint256) {
         return cartStorage.getCartItemCount(_customer);
     }
 
     // ============ INVOICE FUNCTIONS ============
 
-    function createInvoice(address _customer, uint256 _companyId) external returns (uint256) {
+    function createInvoice(address _customer, uint256 _companyId) external onlyCustomerOrAdmin(_customer) returns (uint256) {
         ShoppingCartLib.CartItem[] memory cartItems = cartStorage.getCart(_customer);
         require(cartItems.length > 0, "Cart is empty");
 
@@ -402,7 +413,7 @@ contract Ecommerce {
         uint256[] memory _companyIds,
         uint256[] memory _productIds,
         uint256[] memory _quantities
-    ) external returns (uint256[] memory createdInvoiceIds) {
+    ) external nonReentrant returns (uint256[] memory createdInvoiceIds) {
         require(_companyIds.length > 0, "No companies specified");
         require(_productIds.length > 0 && _productIds.length == _quantities.length, "Invalid product data");
 
@@ -525,7 +536,7 @@ contract Ecommerce {
         address _customer,
         uint256 _amount,
         uint256 _invoiceId
-    ) external returns (bool) {
+    ) external nonReentrant onlyCustomerOrAdmin(_customer) returns (bool) {
         Invoice storage invoice = invoices[_invoiceId];
         require(invoice.invoiceId != 0, "Invoice not found");
         require(!invoice.isPaid, "Invoice already paid");
@@ -537,14 +548,10 @@ contract Ecommerce {
         // Get company address
         CompanyLib.Company memory company = companyStorage.getCompany(invoice.companyId);
 
-        // Transfer tokens from customer into Escrow Smart Contract custody (address(this))
-        require(euroToken.transferFrom(_customer, address(this), _amount), "Transfer to Escrow failed");
-
-        // Mark invoice as paid
+        // EFFECTS (State changes BEFORE external interaction)
         invoice.isPaid = true;
         invoice.paymentTxHash = "";
         invoice.status = OrderStatus.Paid;
-        emit InvoicePaid(_invoiceId, "");
 
         // Update customer stats
         customerStorage.updatePurchaseStats(_customer, _amount);
@@ -555,6 +562,10 @@ contract Ecommerce {
             productStorage.decreaseStock(items[i].productId, items[i].quantity);
         }
 
+        // INTERACTIONS (External token transfer to Escrow Smart Contract custody)
+        require(euroToken.transferFrom(_customer, address(this), _amount), "Transfer to Escrow failed");
+
+        emit InvoicePaid(_invoiceId, "");
         emit PaymentProcessed(_invoiceId, _customer, _amount);
         _logActivity(_customer, "PAYMENT_PROCESSED", "Paid Invoice to Escrow Custody");
         return true;
@@ -578,29 +589,63 @@ contract Ecommerce {
         emit OrderShipped(_invoiceId, invoice.companyId, _trackingNumber);
     }
 
-    function confirmDelivery(uint256 _invoiceId) external {
+    function confirmDelivery(uint256 _invoiceId) external nonReentrant {
         Invoice storage invoice = invoices[_invoiceId];
         require(invoice.invoiceId != 0, "Invoice not found");
         require(invoice.customerAddress == msg.sender || msg.sender == owner, "Only buyer or owner can confirm delivery");
         require(invoice.status == OrderStatus.Shipped, "Order not shipped yet");
 
-        // Release locked funds from Escrow Smart Contract custody (address(this)) to merchant company address
         CompanyLib.Company memory company = companyStorage.getCompany(invoice.companyId);
-        IERC20 euroToken = IERC20(euroTokenAddress);
-        require(euroToken.transfer(company.companyAddress, invoice.totalAmount), "Escrow release transfer failed");
 
+        // EFFECTS (State changes BEFORE external interaction)
         invoice.status = OrderStatus.Delivered;
         invoice.deliveredTimestamp = block.timestamp;
+
+        // INTERACTIONS (Release locked funds from Escrow Smart Contract custody to merchant)
+        IERC20 euroToken = IERC20(euroTokenAddress);
+        require(euroToken.transfer(company.companyAddress, invoice.totalAmount), "Escrow release transfer failed");
 
         _logActivity(msg.sender, "CONFIRM_DELIVERY", "Escrow Released to Merchant");
         emit OrderDelivered(_invoiceId, msg.sender);
     }
 
+    function resolveDisputeReleaseEscrow(uint256 _invoiceId) external onlyOwner nonReentrant {
+        Invoice storage invoice = invoices[_invoiceId];
+        require(invoice.invoiceId != 0, "Invoice not found");
+        require(invoice.isPaid, "Invoice not paid");
+        require(invoice.status == OrderStatus.Shipped, "Order must be shipped to resolve dispute");
+
+        CompanyLib.Company memory company = companyStorage.getCompany(invoice.companyId);
+
+        // EFFECTS
+        invoice.status = OrderStatus.Delivered;
+        invoice.deliveredTimestamp = block.timestamp;
+
+        // INTERACTIONS
+        IERC20 euroToken = IERC20(euroTokenAddress);
+        require(euroToken.transfer(company.companyAddress, invoice.totalAmount), "Dispute release transfer failed");
+
+        _logActivity(msg.sender, "DISPUTE_RESOLVED", "Escrow Released by Admin");
+        emit OrderDelivered(_invoiceId, invoice.customerAddress);
+    }
+
     // ============ REPUTATION & RATING FUNCTIONS ============
+
+    function hasPaidInvoiceWithCompany(address _customer, uint256 _companyId) public view returns (bool) {
+        uint256[] memory invIds = customerInvoices[_customer];
+        for (uint256 i = 0; i < invIds.length; i++) {
+            Invoice memory inv = invoices[invIds[i]];
+            if (inv.companyId == _companyId && inv.isPaid) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     function rateCompany(uint256 _companyId, uint8 _rating, string memory _comment) external {
         require(_rating >= 1 && _rating <= 5, "Rating must be 1 to 5");
         require(companyStorage.isCompanyActive(_companyId), "Company inactive");
+        require(hasPaidInvoiceWithCompany(msg.sender, _companyId), "ReviewDenied: Customer has no verified purchase with this company");
 
         companyTotalRating[_companyId] += _rating;
         companyRatingCount[_companyId] += 1;

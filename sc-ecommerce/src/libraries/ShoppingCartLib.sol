@@ -31,7 +31,9 @@ library ShoppingCartLib {
 
         ProductLib.Product memory product = ProductLib.getProduct(productStorage, _productId);
         require(product.isActive, "Product not active");
-        require(product.stock >= _quantity, "Insufficient stock");
+
+        uint256 currentInCart = self.carts[_customer][_productId].quantity;
+        require(product.stock >= currentInCart + _quantity, "StockExceeded: Cart total exceeds available stock");
 
         // If item already exists, update quantity
         if (self.carts[_customer][_productId].productId != 0) {

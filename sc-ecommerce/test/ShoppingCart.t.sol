@@ -127,7 +127,7 @@ contract ShoppingCartTest is Test {
 
     function test_RevertWhen_AddToCartInsufficientStock() public {
         vm.prank(customer1);
-        vm.expectRevert("Insufficient stock");
+        vm.expectRevert("StockExceeded: Cart total exceeds available stock");
         ecommerce.addToCart(productId1, 101);
     }
 

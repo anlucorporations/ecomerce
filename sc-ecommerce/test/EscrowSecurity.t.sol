@@ -73,9 +73,16 @@ contract EscrowSecurityTest is Test {
     }
 
     function test_CompanyRatingSystem() public {
+        // First make a verified purchase so customer has a paid invoice
+        vm.startPrank(customer);
+        ecommerce.addToCart(productId, 1);
+        uint256 invoiceId = ecommerce.createInvoice(customer, companyId);
+        euroToken.approve(address(ecommerce), itemPrice);
+        ecommerce.processPayment(customer, itemPrice, invoiceId);
+
         // Customer rates company
-        vm.prank(customer);
         ecommerce.rateCompany(companyId, 5, "Excelente atencion y despacho rapido");
+        vm.stopPrank();
 
         // Retrieve reviews
         Ecommerce.Rating[] memory reviews = ecommerce.getCompanyReviews(companyId);

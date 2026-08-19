@@ -21,6 +21,7 @@ interface RawCartItem {
 const ECOMMERCE_ABI = [
   "function getCart(address _customerAddress) view returns (tuple(uint256 productId, uint256 quantity, uint256 unitPrice)[])",
   "function getProduct(uint256 _productId) view returns (tuple(uint256 productId, uint256 companyId, string name, string description, uint256 price, string ipfsImageHash, uint256 stock, bool isActive))",
+  "function getProductsBatch(uint256[] _productIds) view returns (tuple(uint256 productId, uint256 companyId, string name, string description, uint256 price, string ipfsImageHash, uint256 stock, bool isActive)[])",
   "function calculateTotal(address _customerAddress) view returns (uint256)"
 ];
 
@@ -74,18 +75,20 @@ export function useCart(
         try {
           const cartItems = await ecommerce.getCart(address);
           if (cartItems && cartItems.length > 0) {
-            const enrichedItems = await Promise.all(
-              (cartItems as RawCartItem[]).map(async (item) => {
-                const product = await contract.getProduct(item.productId);
-                return {
-                  productId: item.productId,
-                  productName: product.name,
-                  companyId: product.companyId,
-                  quantity: item.quantity,
-                  unitPrice: item.unitPrice,
-                };
-              })
-            );
+            const rawItems = cartItems as RawCartItem[];
+            const productIds = rawItems.map(item => item.productId);
+            
+            // Single RPC batch query for all products in cart
+            const products = await contract.getProductsBatch(productIds);
+            
+            const enrichedItems = rawItems.map((item, idx) => ({
+              productId: item.productId,
+              productName: products[idx]?.name || `Producto #${item.productId.toString()}`,
+              companyId: products[idx]?.companyId || BigInt(1),
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+            }));
+
             setItems(enrichedItems);
             const cartTotal = await ecommerce.calculateTotal(address);
             setTotal(cartTotal);
@@ -133,7 +136,7 @@ export function useCart(
     loadCart();
   }, [loadCart]);
 
-  // Sync guest cart from localStorage to smart contract
+  // Sync guest cart from localStorage to smart contract atomically
   const syncGuestCartToContract = useCallback(
     async (activeSigner: JsonRpcSigner) => {
       if (typeof window === 'undefined') return;
@@ -154,18 +157,18 @@ export function useCart(
         activeSigner
       );
 
-      for (const item of guestItems) {
-        try {
+      try {
+        for (const item of guestItems) {
           const tx = await contract.addToCart(BigInt(item.productId), BigInt(item.quantity));
           await tx.wait();
-        } catch (e) {
-          console.warn("Error syncing item to contract:", item.productId, e);
         }
+        localStorage.removeItem(cartKey);
+        localStorage.removeItem('guest_cart');
+        await loadCart();
+      } catch (syncErr: any) {
+        console.error("Atomic cart sync failed:", syncErr);
+        throw new Error("Error al sincronizar el carrito con la blockchain. Se han conservado los datos locales.");
       }
-
-      localStorage.removeItem(cartKey);
-      localStorage.removeItem('guest_cart');
-      await loadCart();
     },
     [ecommerceAddress, loadCart, address]
   );

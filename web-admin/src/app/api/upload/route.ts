@@ -18,6 +18,19 @@ export async function POST(req: NextRequest) {
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     const buffer = Buffer.from(base64Data, "base64");
 
+    // Validate magic numbers to ensure file is a real image (JPEG, PNG, GIF, WEBP)
+    const isJpeg = buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    const isPng = buffer.length > 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+    const isGif = buffer.length > 3 && buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46;
+    const isWebp = buffer.length > 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP";
+
+    if (!isJpeg && !isPng && !isGif && !isWebp) {
+      return NextResponse.json(
+        { error: "Formato de archivo no válido. Solo se permiten imágenes (WebP, PNG, JPEG, GIF)." },
+        { status: 400 }
+      );
+    }
+
     // Company folder name
     const folderName = `company_${companyId}`;
     const cleanFilename = (filename || "product_image")
@@ -74,7 +87,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Error saving product image:", error);
     return NextResponse.json(
-      { error: "Error al guardar la imagen en el servidor: " + error.message },
+      { error: "Error al guardar la imagen en el servidor." },
       { status: 500 }
     );
   }

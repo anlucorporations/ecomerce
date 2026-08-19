@@ -267,7 +267,7 @@ contract IntegrationTest is Test {
         vm.stopPrank();
 
         vm.prank(customer1);
-        vm.expectRevert("Insufficient stock");
+        vm.expectRevert("StockExceeded: Cart total exceeds available stock");
         ecommerce.addToCart(productId1, 10);
     }
 

@@ -188,6 +188,48 @@ contract IntegrationTest is Test {
         assertEq(euroToken.balanceOf(company2), 30000000);
     }
 
+    function test_CheckoutMultiCompanySingleTx() public {
+        address company2 = makeAddr("company2");
+        uint256 comp2Id = ecommerce.registerCompany(company2, "Cloud Services", "Cloud consulting");
+
+        vm.startPrank(company2);
+        uint256 prod2Id = ecommerce.addProduct(comp2Id, "Cloud Hosting", "Monthly hosting", 30000000, "QmCloud", 10);
+        vm.stopPrank();
+
+        uint256[] memory companyIds = new uint256[](2);
+        companyIds[0] = companyId1;
+        companyIds[1] = comp2Id;
+
+        uint256[] memory productIds = new uint256[](2);
+        productIds[0] = productId1; // 1000 EURT (Company 1)
+        productIds[1] = prod2Id;    // 30 EURT (Company 2)
+
+        uint256[] memory quantities = new uint256[](2);
+        quantities[0] = 1;
+        quantities[1] = 1;
+
+        uint256 totalPayment = 1030000000; // 1030 EURT
+
+        vm.startPrank(customer1);
+        euroToken.approve(address(ecommerce), totalPayment);
+
+        uint256[] memory borderInvoices = ecommerce.checkoutMultiCompany(companyIds, productIds, quantities);
+        vm.stopPrank();
+
+        assertEq(borderInvoices.length, 2);
+        assertEq(euroToken.balanceOf(address(ecommerce)), totalPayment); // Custody Escrow
+
+        // Verify company 1 order
+        uint256 inv1 = borderInvoices[0];
+        assertEq(uint256(ecommerce.getInvoice(inv1).status), 1); // Paid
+        assertEq(ecommerce.getInvoice(inv1).totalAmount, 1000000000);
+
+        // Verify company 2 order
+        uint256 inv2 = borderInvoices[1];
+        assertEq(uint256(ecommerce.getInvoice(inv2).status), 1); // Paid
+        assertEq(ecommerce.getInvoice(inv2).totalAmount, 30000000);
+    }
+
     function test_InsufficientBalanceFailure() public {
         address poorCustomer = makeAddr("poorCustomer");
         euroToken.mint(poorCustomer, 10000000); // Only 10 EURT

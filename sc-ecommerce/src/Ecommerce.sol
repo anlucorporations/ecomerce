@@ -393,6 +393,101 @@ contract Ecommerce {
         return invoiceId;
     }
 
+    /// @notice Processes multi-company checkout in a SINGLE transaction
+    /// @param _companyIds Array of unique company IDs present in the purchase
+    /// @param _productIds Array of product IDs purchased
+    /// @param _quantities Array of quantities for each product ID
+    /// @return createdInvoiceIds Array of invoice IDs generated for each company
+    function checkoutMultiCompany(
+        uint256[] memory _companyIds,
+        uint256[] memory _productIds,
+        uint256[] memory _quantities
+    ) external returns (uint256[] memory createdInvoiceIds) {
+        require(_companyIds.length > 0, "No companies specified");
+        require(_productIds.length > 0 && _productIds.length == _quantities.length, "Invalid product data");
+
+        createdInvoiceIds = new uint256[](_companyIds.length);
+        uint256 grandTotal = 0;
+
+        // Step 1: Validate stock and compute grand total across all companies
+        for (uint256 c = 0; c < _companyIds.length; c++) {
+            uint256 companyId = _companyIds[c];
+            uint256 companyTotal = 0;
+
+            for (uint256 i = 0; i < _productIds.length; i++) {
+                ProductLib.Product memory product = productStorage.getProduct(_productIds[i]);
+                if (product.companyId == companyId) {
+                    require(product.stock >= _quantities[i], "Insufficient stock for product");
+                    companyTotal += product.price * _quantities[i];
+                }
+            }
+            require(companyTotal > 0, "No items for company");
+            grandTotal += companyTotal;
+        }
+
+        // Step 2: SINGLE transferFrom of EURT tokens into Escrow Smart Contract custody (address(this))
+        IERC20 euroToken = IERC20(euroTokenAddress);
+        require(euroToken.balanceOf(msg.sender) >= grandTotal, "Insufficient EURT balance");
+        require(euroToken.transferFrom(msg.sender, address(this), grandTotal), "Escrow transferFrom failed");
+
+        // Step 3: Create invoice and mark Paid for EACH company
+        for (uint256 c = 0; c < _companyIds.length; c++) {
+            uint256 companyId = _companyIds[c];
+            uint256 invoiceId = nextInvoiceId++;
+            uint256 companyTotal = 0;
+
+            for (uint256 i = 0; i < _productIds.length; i++) {
+                ProductLib.Product memory product = productStorage.getProduct(_productIds[i]);
+                if (product.companyId == companyId) {
+                    uint256 itemTotal = product.price * _quantities[i];
+                    companyTotal += itemTotal;
+
+                    invoiceItems[invoiceId].push(InvoiceItem({
+                        productId: _productIds[i],
+                        productName: product.name,
+                        quantity: _quantities[i],
+                        unitPrice: product.price,
+                        totalPrice: itemTotal
+                    }));
+
+                    // Decrease stock
+                    productStorage.decreaseStock(_productIds[i], _quantities[i]);
+                }
+            }
+
+            invoices[invoiceId] = Invoice({
+                invoiceId: invoiceId,
+                companyId: companyId,
+                customerAddress: msg.sender,
+                totalAmount: companyTotal,
+                timestamp: block.timestamp,
+                isPaid: true,
+                paymentTxHash: "",
+                status: OrderStatus.Paid,
+                trackingNumber: "",
+                shippedTimestamp: 0,
+                deliveredTimestamp: 0
+            });
+
+            customerInvoices[msg.sender].push(invoiceId);
+            companyInvoices[companyId].push(invoiceId);
+            invoiceIds.push(invoiceId);
+
+            createdInvoiceIds[c] = invoiceId;
+
+            emit InvoiceCreated(invoiceId, msg.sender, companyId, companyTotal);
+            emit InvoicePaid(invoiceId, "");
+            emit PaymentProcessed(invoiceId, msg.sender, companyTotal);
+        }
+
+        // Step 4: Update customer purchase stats and clear on-chain cart
+        customerStorage.updatePurchaseStats(msg.sender, grandTotal);
+        cartStorage.clearCart(msg.sender);
+
+        _logActivity(msg.sender, "CHECKOUT_MULTI_COMPANY", "Paid Multi-Company Order into Escrow Custody");
+        return createdInvoiceIds;
+    }
+
     function getInvoice(uint256 _invoiceId) external view returns (Invoice memory) {
         require(invoices[_invoiceId].invoiceId != 0, "Invoice not found");
         return invoices[_invoiceId];

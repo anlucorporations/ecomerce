@@ -18,6 +18,7 @@ const ECOMMERCE_ABI = [
   "function getCart(address _customerAddress) view returns (tuple(uint256 productId, uint256 quantity, uint256 unitPrice)[])",
   "function createInvoice(address _customerAddress, uint256 _companyId) returns (uint256)",
   "function processPayment(address customer, uint256 amount, uint256 invoiceId) returns (bool)",
+  "function checkoutMultiCompany(uint256[] _companyIds, uint256[] _productIds, uint256[] _quantities) returns (uint256[])",
   "function getInvoice(uint256 _invoiceId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp))",
   "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
   "function getCompany(uint256 _companyId) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))"
@@ -137,18 +138,12 @@ export default function CartPage() {
         return;
       }
 
-      // Step 3: Auto-sync guest cart items to contract
       if (!activeSigner && typeof window !== "undefined" && window.ethereum) {
         const browserProvider = new ethers.BrowserProvider(window.ethereum as any);
         activeSigner = await browserProvider.getSigner();
       }
 
-      if (activeSigner) {
-        setCheckoutStep('Sincronizando productos a la blockchain...');
-        await syncGuestCartToContract(activeSigner);
-      }
-
-      // Step 4: Create Invoice & Redirect
+      // Step 3: Execute Single-Transaction Multi-Company Checkout
       await executeInvoiceCreation(activeAddress, activeSigner);
     } catch (error: unknown) {
       console.error('Error en proceso de checkout:', error);
@@ -226,11 +221,7 @@ export default function CartPage() {
       alert("¡Inscripción de comprador exitosa en blockchain! Procediendo al pago...");
       setShowRegisterModal(false);
 
-      // Sync guest cart to contract
-      setCheckoutStep('Sincronizando productos a la blockchain...');
-      await syncGuestCartToContract(activeSigner);
-
-      // Execute Invoice Creation
+      // Execute Single-Transaction Multi-Company Invoice Creation & Payment
       await executeInvoiceCreation(address, activeSigner);
     } catch (err: any) {
       console.error("Failed to register customer:", err);
@@ -258,88 +249,38 @@ const EURO_TOKEN_ABI = [
       const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
       const euroToken = new ethers.Contract(euroTokenAddress, EURO_TOKEN_ABI, activeSigner);
-      const companyIds = Object.keys(itemsByCompany);
 
-      if (companyIds.length === 0) throw new Error('Carrito vacío');
-      const firstCompanyId = companyIds[0];
+      if (items.length === 0) throw new Error('Carrito vacío');
 
-      // 1. Ensure smart contract cart contains items before calling createInvoice
-      setCheckoutStep('Sincronizando productos en blockchain...');
-      try {
-        const currentCartOnChain = await contract.getCart(customerAddr);
-        if (!currentCartOnChain || currentCartOnChain.length === 0) {
-          for (const item of items) {
-            const syncTx = await contract.addToCart(item.productId, item.quantity);
-            await syncTx.wait();
-          }
-        }
-      } catch (syncErr) {
-        console.warn("Cart sync notice, attempting direct sync:", syncErr);
-        for (const item of items) {
-          try {
-            const syncTx = await contract.addToCart(item.productId, item.quantity);
-            await syncTx.wait();
-          } catch {}
-        }
-      }
+      // Extract unique company IDs and product arrays
+      const companyIds = Object.keys(itemsByCompany).map(id => BigInt(id));
+      const productIds = items.map(item => BigInt(item.productId));
+      const quantities = items.map(item => BigInt(item.quantity));
 
-      // 2. Execute createInvoice on-chain (Paso 1/3)
-      setCheckoutStep('Paso 1/3: Generando factura electrónica en blockchain...');
-      const tx = await contract.createInvoice(customerAddr, BigInt(firstCompanyId));
-      const receipt = await tx.wait();
+      // Compute total order amount across all items
+      const grandTotal = items.reduce(
+        (sum, item) => sum + BigInt(item.unitPrice) * BigInt(item.quantity),
+        0n
+      );
 
-      // 3. Extract Invoice ID from event logs or fallback lookup
-      let invoiceId: any = null;
-      if (receipt && receipt.logs) {
-        const invoiceCreatedEvent = receipt.logs
-          .map((log: any) => {
-            try {
-              return contract.interface.parseLog(log);
-            } catch {
-              return null;
-            }
-          })
-          .find((event: any) => event?.name === 'InvoiceCreated');
-
-        if (invoiceCreatedEvent && invoiceCreatedEvent.args) {
-          invoiceId = invoiceCreatedEvent.args.invoiceId;
-        }
-      }
-
-      // Fallback: Query smart contract for latest customer invoice
-      if (!invoiceId) {
-        console.warn("Event log parsing returned undefined invoiceId, fetching from smart contract...");
-        try {
-          const custInvoices = await contract.getCustomerInvoices(customerAddr);
-          if (custInvoices && custInvoices.length > 0) {
-            invoiceId = custInvoices[custInvoices.length - 1].invoiceId;
-          }
-        } catch (fetchErr) {
-          console.warn("Could not fetch customer invoices:", fetchErr);
-        }
-      }
-
-      if (!invoiceId) throw new Error('No se pudo obtener el ID de la factura generada.');
-
-      const invoice = await contract.getInvoice(invoiceId);
-
-      // 4. Paso 2/3: Verificar y Aprobar (Allowance) EURT
-      setCheckoutStep('Paso 2/3: Autorizando débito de EURT en billetera MetaMask...');
+      // STEP 1: Verify & Approve EURT Allowance (ONLY if current allowance is insufficient)
       const currentAllowance = await euroToken.allowance(customerAddr, ecommerceAddress);
-      if (BigInt(currentAllowance) < BigInt(invoice.totalAmount)) {
-        const approveTx = await euroToken.approve(ecommerceAddress, invoice.totalAmount);
+      if (BigInt(currentAllowance) < grandTotal) {
+        setCheckoutStep('Autorizando límite de gasto de EURT en billetera MetaMask...');
+        const approveTx = await euroToken.approve(ecommerceAddress, ethers.MaxUint256);
         await approveTx.wait();
       }
 
-      // 5. Paso 3/3: Transferir a Custodia Escrow (processPayment)
-      setCheckoutStep('Paso 3/3: Depositando EURT en custodia Escrow en blockchain...');
-      const payTx = await contract.processPayment(customerAddr, invoice.totalAmount, invoiceId);
-      await payTx.wait();
+      // STEP 2: Process SINGLE-TRANSACTION Multi-Company Checkout & Escrow Deposit
+      setCheckoutStep(`Procesando pedido para ${companyIds.length} empresa(s) y depositando en Custodia Escrow...`);
+      
+      const tx = await contract.checkoutMultiCompany(companyIds, productIds, quantities);
+      await tx.wait();
 
       // Clear local cart state
       await clearCart();
 
-      alert('¡Pago completado con éxito! El importe EURT ha sido depositado en Custodia Escrow y tu pedido ha sido confirmado en la blockchain.');
+      alert(`¡Pago completado con éxito! Se han generado ${companyIds.length} orden(es) individuales de servicio en Custodia Escrow y tu pedido ha sido registrado en la blockchain.`);
       router.push('/orders');
     } catch (err: any) {
       console.error('Error procesando pago unificado:', err);

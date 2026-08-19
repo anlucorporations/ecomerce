@@ -132,6 +132,15 @@ export default function RootLayout({
         </svg>
       ),
     },
+    {
+      name: "Centro de Ayuda",
+      href: "/help",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
   ];
 
   // Show full layout with sidebar only if wallet is connected and registered as company (1) or owner (3)
@@ -159,7 +168,15 @@ export default function RootLayout({
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/help"
+                  className="px-3.5 py-2 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 font-bold text-xs rounded-xl border border-indigo-500/30 transition flex items-center gap-1.5"
+                  title="Centro de Ayuda y Guía MetaMask"
+                >
+                  <span className="text-sm">❓</span>
+                  <span className="hidden sm:inline">Ayuda</span>
+                </Link>
                 <a
                   href={process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app"}
                   target="_blank"

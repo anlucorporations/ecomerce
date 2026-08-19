@@ -59,8 +59,17 @@ export default function RootLayout({
                   <span className="absolute left-3.5 top-2.5 text-[#0077BB] text-sm pointer-events-none">🔍</span>
                 </div>
 
-                {/* 3. Connected User Dropdown Menu */}
-                <div className="shrink-0">
+                {/* 3. Connected User Dropdown Menu & Help Center Link */}
+                <div className="shrink-0 flex items-center gap-2">
+                  <Link
+                    href="/help"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-[#E6F4FA] hover:bg-[#D4EDF7] text-[#0077BB] border border-[#0077BB]/30 text-xs font-extrabold rounded-2xl transition font-poppins shrink-0 shadow-xs"
+                    title="Centro de Ayuda y Guía MetaMask Web3"
+                  >
+                    <span className="text-sm">❓</span>
+                    <span className="hidden sm:inline">Ayuda</span>
+                  </Link>
+
                   <UserDropdown />
                 </div>
 

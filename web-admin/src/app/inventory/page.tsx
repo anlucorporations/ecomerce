@@ -49,7 +49,7 @@ export default function InventoryPage() {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // Form State with Extended Inventory Fields
+  // Form State with Extended Inventory Fields & Reference Image
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -60,7 +60,63 @@ export default function InventoryPage() {
     stock: "50",
   });
 
+  // Image Upload & Compression States
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [compressedBase64, setCompressedBase64] = useState<string>("");
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>("");
+  const [originalSize, setOriginalSize] = useState<number>(0);
+  const [compressedSize, setCompressedSize] = useState<number>(0);
+  const [isCompressing, setIsCompressing] = useState<boolean>(false);
+
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+
+  // Client-side lightweight WebP compression (max 800px, 0.82 quality)
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    setOriginalSize(file.size);
+    setIsCompressing(true);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 800;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const webpDataUrl = canvas.toDataURL("image/webp", 0.82);
+          setCompressedBase64(webpDataUrl);
+          setImagePreviewUrl(webpDataUrl);
+
+          const base64Str = webpDataUrl.split(",")[1];
+          const approxBytes = Math.round((base64Str.length * 3) / 4);
+          setCompressedSize(approxBytes);
+        }
+        setIsCompressing(false);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const loadCompanyInventory = async () => {
     if (!address) return;
@@ -131,6 +187,31 @@ export default function InventoryPage() {
       setSubmitting(true);
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, signer);
 
+      let imageHashOrUrl = "QmDefaultIpfsHash";
+
+      // 1. Upload compressed lightweight WebP image to server API
+      if (compressedBase64) {
+        try {
+          const uploadRes = await fetch("/api/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyId: companyId,
+              filename: selectedFile?.name || "producto",
+              imageBase64: compressedBase64,
+            }),
+          });
+          const uploadData = await uploadRes.json();
+
+          if (uploadData.success && uploadData.url) {
+            imageHashOrUrl = uploadData.url;
+            console.log(`Image saved to company folder: ${uploadData.companyFolder}/${uploadData.fileName}`);
+          }
+        } catch (uploadErr) {
+          console.warn("Could not save image to server, falling back to default:", uploadErr);
+        }
+      }
+
       const priceBaseUnits = ethers.parseUnits(formData.marketValue, 6);
 
       // Encode extended inventory data inside description JSON
@@ -146,12 +227,12 @@ export default function InventoryPage() {
         formData.name,
         fullDescription,
         priceBaseUnits,
-        "QmDefaultIpfsHash",
+        imageHashOrUrl,
         formData.stock
       );
       await tx.wait();
 
-      alert("¡Mercancía agregada exitosamente al inventario!");
+      alert(`¡Mercancía agregada exitosamente al inventario de Empresa #${companyId}! Imagen almacenada en /uploads/company_${companyId}/`);
       setShowForm(false);
       setFormData({
         name: "",
@@ -162,6 +243,12 @@ export default function InventoryPage() {
         shippingCondition: "🚚 Envío Estándar",
         stock: "50",
       });
+      setSelectedFile(null);
+      setCompressedBase64("");
+      setImagePreviewUrl("");
+      setOriginalSize(0);
+      setCompressedSize(0);
+
       await loadCompanyInventory();
     } catch (err: any) {
       console.error("Failed to add inventory item:", err);
@@ -355,6 +442,55 @@ export default function InventoryPage() {
             />
           </div>
 
+          {/* 🖼️ Upload Referencial de Imagen del Producto con Compresión WebP */}
+          <div className="bg-indigo-50/60 p-4 sm:p-5 rounded-2xl border border-indigo-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-xs font-extrabold text-indigo-950 font-poppins">
+                  🖼️ Imagen Referencial del Producto:
+                </label>
+                <p className="text-[11px] text-slate-500">
+                  Se optimizará a formato ultra-liviano WebP y se guardará en la carpeta <code className="bg-white px-1.5 py-0.5 rounded text-indigo-700 font-mono text-[10px]">/uploads/company_{companyId || "X"}/</code>
+                </p>
+              </div>
+              {companyId && (
+                <span className="px-2.5 py-1 bg-indigo-200/70 text-indigo-900 font-mono text-[10px] font-extrabold rounded-lg">
+                  📁 Carpetas: company_{companyId}
+                </span>
+              )}
+            </div>
+
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageFileChange}
+              className="block w-full text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
+            />
+
+            {/* Metrics & Preview Card */}
+            {imagePreviewUrl && (
+              <div className="bg-white p-3.5 rounded-xl border border-indigo-200 flex flex-col sm:flex-row items-center gap-4 shadow-sm">
+                <div className="w-20 h-20 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                  <img src={imagePreviewUrl} alt="Vista previa WebP" className="w-full h-full object-cover" />
+                </div>
+                <div className="space-y-1 text-xs text-slate-700 flex-1">
+                  <div className="font-extrabold text-indigo-900 flex items-center gap-2">
+                    <span>⚡ Formato Optimizado: WebP</span>
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] rounded-full font-bold">
+                      {(100 - (compressedSize / (originalSize || 1)) * 100).toFixed(1)}% Compresión
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-600">
+                    Original: <strong className="text-slate-900">{(originalSize / 1024).toFixed(1)} KB</strong> ➔ Convertido WebP: <strong className="text-emerald-700 font-bold">{(compressedSize / 1024).toFixed(1)} KB</strong>
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono">
+                    Ruta Destino: /public/uploads/company_{companyId || "X"}/{selectedFile?.name ? selectedFile.name.replace(/[^a-z0-9_.-]/gi, "_") : "producto"}.webp
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -390,6 +526,7 @@ export default function InventoryPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 tracking-wider">
+                <th className="px-6 py-3.5">Imagen</th>
                 <th className="px-6 py-3.5">ID Ref</th>
                 <th className="px-6 py-3.5">Mercancía / Formato</th>
                 <th className="px-6 py-3.5">Valor Nominal</th>
@@ -401,21 +538,34 @@ export default function InventoryPage() {
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
                     Cargando inventario de la empresa...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                     No hay productos o servicios registrados en inventario aún.
                   </td>
                 </tr>
               ) : (
                 products.map((item) => {
                   const stockNum = Number(item.stock);
+                  const imgUrl = item.ipfsImageHash?.startsWith("/") || item.ipfsImageHash?.startsWith("http")
+                    ? item.ipfsImageHash
+                    : `https://ipfs.io/ipfs/${item.ipfsImageHash}`;
+
                   return (
                     <tr key={item.productId.toString()} className="hover:bg-slate-50 transition">
+                      <td className="px-6 py-3">
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center">
+                          {item.ipfsImageHash ? (
+                            <img src={imgUrl} alt={item.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-slate-300 font-mono text-[10px]">Sin imág</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 font-mono font-bold text-indigo-600">
                         #{item.productId.toString()}
                       </td>

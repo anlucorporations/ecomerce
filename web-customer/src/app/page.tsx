@@ -454,7 +454,11 @@ export default function Home() {
                       {product.ipfsImageHash ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={`https://ipfs.io/ipfs/${product.ipfsImageHash}`}
+                          src={
+                            product.ipfsImageHash.startsWith("/") || product.ipfsImageHash.startsWith("http")
+                              ? product.ipfsImageHash
+                              : `https://ipfs.io/ipfs/${product.ipfsImageHash}`
+                          }
                           alt={product.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />

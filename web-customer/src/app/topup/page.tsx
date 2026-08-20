@@ -104,22 +104,28 @@ export default function TopupPage() {
       }
       const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
       const walletSigner = await browserProvider.getSigner();
-      const connectedUserAddr = await walletSigner.getAddress();
 
-      // Send 0 ETH transaction to request explicit user authorization popup in MetaMask
-      const authTx = await walletSigner.sendTransaction({
-        to: dest,
-        value: BigInt(0),
-      });
-      await authTx.wait();
+      // Request Web3 signature authorization popup in MetaMask
+      const authMessage = `Autorizar recarga de €${numericAmt.toFixed(2)} EURT para ${dest}`;
+      let signature = '';
+      try {
+        signature = await walletSigner.signMessage(authMessage);
+      } catch (sigErr) {
+        console.warn('MetaMask signMessage warning, falling back to 0-ETH auth transaction:', sigErr);
+        const authTx = await walletSigner.sendTransaction({
+          to: dest,
+          value: BigInt(0),
+        });
+        await authTx.wait();
+      }
 
       setMessage('2/2 Procesando emisión de EuroTokens (EURT) en la blockchain...');
 
       let mintedOnChain = false;
 
-      // 2. Try calling API checkout service
+      // 2. Call API checkout service
       try {
-        const compraUrl = process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || 'https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app';
+        const compraUrl = process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:3003' : 'https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app');
         const res = await fetch(`${compraUrl}/api/checkout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -127,6 +133,8 @@ export default function TopupPage() {
             amount,
             walletAddress: dest,
             paymentMethodId: 'pm_card_visa',
+            signature,
+            authMessage
           }),
         });
         const data = await res.json();
@@ -141,7 +149,7 @@ export default function TopupPage() {
         }
       } catch (apiErr: any) {
         console.error("API checkout endpoint error:", apiErr);
-        throw new Error(apiErr?.message || "No se pudo procesar la recarga con el servidor.");
+        throw new Error(apiErr?.message || "No se pudo conectar con el servicio de compra EURT.");
       }
 
       if (!mintedOnChain) {

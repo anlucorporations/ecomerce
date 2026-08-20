@@ -277,7 +277,13 @@ const EURO_TOKEN_ABI = [
       const tx = await contract.checkoutMultiCompany(companyIds, productIds, quantities);
       await tx.wait();
 
-      // Clear local cart state
+      // Clear all local & contract cart state upon successful checkout
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('guest_cart');
+        if (customerAddr) {
+          localStorage.removeItem(`wallet_cart_${customerAddr.toLowerCase()}`);
+        }
+      }
       await clearCart();
 
       alert(`¡Pago completado con éxito! Se han generado ${companyIds.length} orden(es) individuales de servicio en Custodia Escrow y tu pedido ha sido registrado en la blockchain.`);

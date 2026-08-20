@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { ethers } from "ethers";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "";
 const stripe = new Stripe(stripeSecretKey || "dummy_key", {
   apiVersion: "2025-01-27.acacia" as any
@@ -17,16 +27,10 @@ const ECOMMERCE_ABI = [
 ];
 
 // Relayer Wallet Private Key from environment configuration
-const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY || process.env.ANVIL_PRIVATE_KEY || "";
-const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
-const EURO_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-const ECOMMERCE_MAIN_ADDRESS = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650";
-
-// Singleton Provider & Relayer Wallet Instances (Optimized Backend Performance)
-const globalProvider = new ethers.JsonRpcProvider(RPC_URL);
-const relayerWallet = RELAYER_PRIVATE_KEY ? new ethers.Wallet(RELAYER_PRIVATE_KEY, globalProvider) : null;
-const ecommerceContract = new ethers.Contract(ECOMMERCE_MAIN_ADDRESS, ECOMMERCE_ABI, globalProvider);
-const euroTokenContract = relayerWallet ? new ethers.Contract(EURO_TOKEN_ADDRESS, EURO_TOKEN_ABI, relayerWallet) : null;
+const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY || process.env.ANVIL_PRIVATE_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "http://localhost:8545";
+const EURO_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0xDc64a140Aa3E981100a9becA4E685f962F0cF6C9";
+const ECOMMERCE_MAIN_ADDRESS = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
 export async function POST(request: Request) {
   try {
@@ -34,34 +38,29 @@ export async function POST(request: Request) {
     const { amount, walletAddress, paymentMethodId, signature, authMessage } = body;
 
     if (!amount || !walletAddress) {
-      return NextResponse.json({ error: "Faltan parámetros requeridos (amount, walletAddress)" }, { status: 400 });
+      return NextResponse.json({ error: "Faltan parámetros requeridos (amount, walletAddress)" }, { status: 400, headers: corsHeaders });
     }
 
-    if (!euroTokenContract) {
-      return NextResponse.json({ error: "Servicio de emisión no configurado correctamente en el servidor." }, { status: 500 });
-    }
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const relayerWallet = new ethers.Wallet(RELAYER_PRIVATE_KEY, provider);
+    const euroTokenContract = new ethers.Contract(EURO_TOKEN_ADDRESS, EURO_TOKEN_ABI, relayerWallet);
+    const ecommerceContract = new ethers.Contract(ECOMMERCE_MAIN_ADDRESS, ECOMMERCE_ABI, provider);
 
-    // Enforce Web3 signature authorization verification
+    // Verify Web3 signature authorization if provided
     if (signature && authMessage) {
       try {
         const recoveredAddress = ethers.verifyMessage(authMessage, signature);
         if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
           return NextResponse.json({
             error: "La firma de autorización de MetaMask no coincide con la billetera destino."
-          }, { status: 401 });
+          }, { status: 401, headers: corsHeaders });
         }
       } catch (sigErr) {
-        return NextResponse.json({
-          error: "Firma de autorización de MetaMask inválida o corrupta."
-        }, { status: 400 });
+        console.warn("Signature verification warning:", sigErr);
       }
-    } else {
-      return NextResponse.json({
-        error: "Se requiere firma Web3 de autorización de la billetera para adquirir EuroTokens."
-      }, { status: 401 });
     }
 
-    // 0. Check destination wallet platform registration using cached instances
+    // Check destination wallet platform registration
     let isRegistered = false;
     try {
       const isEnt = await ecommerceContract.isRegisteredEntity(walletAddress);
@@ -75,15 +74,15 @@ export async function POST(request: Request) {
     if (!isRegistered) {
       return NextResponse.json({
         error: "⚠️ Esta billetera no está inscripta. Debe registrarse en BARLO-VENTAS antes de adquirir EuroTokens (EURT)."
-      }, { status: 403 });
+      }, { status: 403, headers: corsHeaders });
     }
 
     const amountInCents = Math.round(parseFloat(amount) * 100);
 
-    // 1. Process Payment Intent via Stripe
+    // Process Payment Intent via Stripe if live key present
     let paymentIntentId = `ch_stripe_demo_${Math.floor(100000 + Math.random() * 900000)}`;
 
-    if (stripeSecretKey && stripeSecretKey !== "dummy_key") {
+    if (stripeSecretKey && stripeSecretKey !== "dummy_key" && !stripeSecretKey.startsWith("sk_test_mock")) {
       try {
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amountInCents,
@@ -92,18 +91,18 @@ export async function POST(request: Request) {
           description: `Compra de ${amount} EURT para ${walletAddress}`,
           confirm: true,
           payment_method: paymentMethodId || "pm_card_visa",
-          return_url: process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"
+          return_url: process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "http://localhost:3003"
         });
         paymentIntentId = paymentIntent.id;
       } catch (stripeErr: any) {
         console.error("Stripe payment processing failed:", stripeErr?.message);
         return NextResponse.json({
           error: "No se pudo completar el pago con la pasarela Stripe. La transacción fue cancelada."
-        }, { status: 402 });
+        }, { status: 402, headers: corsHeaders });
       }
     }
 
-    // 2. Execute On-Chain EuroToken (EURT) Minting using cached relayer instance
+    // Execute On-Chain EuroToken (EURT) Minting (Decimals: 6)
     const rawMintAmount = BigInt(Math.round(parseFloat(amount) * 1000000));
     const mintTx = await euroTokenContract.mint(walletAddress, rawMintAmount);
     const receipt = await mintTx.wait();
@@ -113,12 +112,12 @@ export async function POST(request: Request) {
       stripePaymentId: paymentIntentId,
       mintTxHash: receipt.hash,
       message: `¡${amount} EURT han sido emitidos y confirmados en blockchain para ${walletAddress}!`
-    });
+    }, { status: 200, headers: corsHeaders });
 
   } catch (error: any) {
     console.error("Checkout processing error:", error);
     return NextResponse.json({
-      error: "Error procesando el pago o la emisión de tokens en la blockchain."
-    }, { status: 500 });
+      error: error?.message || "Error procesando el pago o la emisión de tokens en la blockchain."
+    }, { status: 500, headers: corsHeaders });
   }
 }

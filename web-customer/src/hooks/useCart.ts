@@ -257,22 +257,22 @@ export function useCart(
         try {
           const tx = await ecommerce.removeFromCart(productId);
           await tx.wait();
-          await loadCart();
-          return;
         } catch (e) {
           console.warn("Contract removeFromCart fallback:", e);
         }
       }
 
       if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('guest_cart');
+        const cartKey = address ? `wallet_cart_${address.toLowerCase()}` : 'guest_cart';
+        const saved = localStorage.getItem(cartKey) || localStorage.getItem('guest_cart');
         if (saved) {
           const parsed = JSON.parse(saved);
           const filtered = parsed.filter((i: any) => i.productId !== productId.toString());
+          localStorage.setItem(cartKey, JSON.stringify(filtered));
           localStorage.setItem('guest_cart', JSON.stringify(filtered));
-          await loadCart();
         }
       }
+      await loadCart();
     },
     [ecommerce, address, loadCart]
   );
@@ -284,42 +284,47 @@ export function useCart(
         try {
           const tx = await ecommerce.updateQuantity(productId, quantity);
           await tx.wait();
-          await loadCart();
-          return;
         } catch (e) {
           console.warn("Contract updateQuantity fallback:", e);
         }
       }
 
       if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('guest_cart');
+        const cartKey = address ? `wallet_cart_${address.toLowerCase()}` : 'guest_cart';
+        const saved = localStorage.getItem(cartKey) || localStorage.getItem('guest_cart');
         if (saved) {
           const parsed = JSON.parse(saved);
           const idx = parsed.findIndex((i: any) => i.productId === productId.toString());
           if (idx >= 0) {
             parsed[idx].quantity = quantity.toString();
+            localStorage.setItem(cartKey, JSON.stringify(parsed));
             localStorage.setItem('guest_cart', JSON.stringify(parsed));
-            await loadCart();
           }
         }
       }
+      await loadCart();
     },
     [ecommerce, address, loadCart]
   );
 
-  // Clear cart
+  // Clear cart (Removes all local storage cart keys and clears contract cart)
   const clearCart = useCallback(async () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('guest_cart');
+      if (address) {
+        localStorage.removeItem(`wallet_cart_${address.toLowerCase()}`);
+      }
     }
     if (ecommerce && address) {
       try {
         const tx = await ecommerce.clearCart(address);
         await tx.wait();
       } catch (e) {
-        console.warn("Clear cart contract error:", e);
+        console.warn("Clear cart contract info/fallback:", e);
       }
     }
+    setItems([]);
+    setTotal(BigInt(0));
     await loadCart();
   }, [ecommerce, address, loadCart]);
 

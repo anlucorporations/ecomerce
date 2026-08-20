@@ -185,18 +185,26 @@ function Restart-SingleService {
     Get-PlatformStatus
 }
 
+function Seed-LocalData {
+    Write-Header "INYECTANDO DATOS DE PRUEBA LOCALES (SEEDING TOOL)"
+    Set-Location "$WorkspaceRoot\web-admin"
+    node "$WorkspaceRoot\scripts\seed-local-data.cjs"
+    Set-Location $WorkspaceRoot
+}
+
 function Show-Menu {
     while ($true) {
         Write-Header "GESTOR INTERACTIVO BARLO-VENTAS PLATFORM"
         Write-Host "  1) Inicializar toda la plataforma (Clean Start + Smart Contracts)" -ForegroundColor White
         Write-Host "  2) Reiniciar toda la plataforma por completo" -ForegroundColor White
         Write-Host "  3) Reiniciar un servicio individual" -ForegroundColor White
-        Write-Host "  4) Verificar estado de salud de todos los servicios" -ForegroundColor White
-        Write-Host "  5) Detener y Apagado total de la plataforma" -ForegroundColor White
-        Write-Host "  6) Salir del gestor" -ForegroundColor White
+        Write-Host "  4) Inyectar datos de prueba locales (Seeding Tool - 2 Empresas, 10 Productos, 2 Clientes + 1000 EURT)" -ForegroundColor Yellow
+        Write-Host "  5) Verificar estado de salud de todos los servicios" -ForegroundColor White
+        Write-Host "  6) Detener y Apagado total de la plataforma" -ForegroundColor White
+        Write-Host "  7) Salir del gestor" -ForegroundColor White
         Write-Host ""
         
-        $choice = Read-Host " Seleccione una opcion (1-6)"
+        $choice = Read-Host " Seleccione una opcion (1-7)"
         switch ($choice) {
             "1" { Start-AllPlatform }
             "2" { Start-AllPlatform }
@@ -217,9 +225,10 @@ function Show-Menu {
                     "e" { Restart-SingleService -Service "rpc" }
                 }
             }
-            "4" { Get-PlatformStatus }
-            "5" { Stop-AllPlatform }
-            "6" { Write-Host "Saliendo del gestor..." -ForegroundColor Gray; return }
+            "4" { Seed-LocalData }
+            "5" { Get-PlatformStatus }
+            "6" { Stop-AllPlatform }
+            "7" { Write-Host "Saliendo del gestor..." -ForegroundColor Gray; return }
             default { Write-Host "Opcion invalida." -ForegroundColor Red }
         }
         
@@ -235,6 +244,7 @@ switch ($Action) {
     "restart" { Start-AllPlatform }
     "stop" { Stop-AllPlatform }
     "status" { Get-PlatformStatus }
+    "seed" { Seed-LocalData }
     "restart-service" {
         if (-not $ServiceName) {
             Write-Host "[!] Especifique -ServiceName (admin, customer, pasarela, compra, rpc)" -ForegroundColor Red

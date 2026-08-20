@@ -4,6 +4,8 @@ WORKDIR /app
 
 COPY . .
 
-EXPOSE 8545
+RUN chmod +x /app/entrypoint.sh
 
-ENTRYPOINT ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337"]
+EXPOSE 8545 8080
+
+ENTRYPOINT ["/bin/sh", "/app/entrypoint.sh"]

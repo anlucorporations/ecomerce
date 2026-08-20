@@ -160,12 +160,12 @@ export default function DashboardHome() {
                 Gestione ventas B2B y B2C, inventario en tiempo real y cobranzas globales en stablecoin EuroToken con liquidación instantánea y trazabilidad logitudinal en la blockchain.
               </p>
 
-              <div className="flex flex-wrap gap-4 pt-2">
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-4 w-full">
                 <button
                   onClick={handleConnectWalletBtn}
-                  className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-xl transition flex items-center gap-2"
+                  className="flex-1 w-full sm:w-auto px-5 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-xl transition flex items-center justify-center gap-2 whitespace-nowrap"
                 >
-                  <span>🚀 Conectar Wallet de Empresa</span>
+                  <span>🚀 Conectar Wallet</span>
                 </button>
                 <button
                   onClick={() => {
@@ -175,17 +175,17 @@ export default function DashboardHome() {
                       handleConnectWalletBtn();
                     }
                   }}
-                  className="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm rounded-xl border border-white/20 transition flex items-center gap-2 cursor-pointer"
+                  className="flex-1 w-full sm:w-auto px-5 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm rounded-xl border border-white/20 transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                 >
-                  <span>🏢 Inscribir Mi Empresa (3.0 ETH)</span>
+                  <span>🏢 Inscribir Empresa (3.0 ETH)</span>
                 </button>
                 <a
                   href={process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl transition flex items-center gap-2"
+                  className="flex-1 w-full sm:w-auto px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center gap-2 whitespace-nowrap"
                 >
-                  <span>🛒 Visitar Tienda de Clientes →</span>
+                  <span>🛒 Tienda de Clientes →</span>
                 </a>
               </div>
             </div>

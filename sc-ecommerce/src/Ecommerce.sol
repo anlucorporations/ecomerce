@@ -300,7 +300,7 @@ contract Ecommerce is ReentrancyGuard {
         emit KYCStatusUpdated(msg.sender, false);
 
         customerStorage.registerCustomerSelf(msg.sender, _name, _contactEmail, _shippingAddress);
-        _logActivity(msg.sender, "REGISTER_CUSTOMER_SELF", _name);
+        _logActivity(msg.sender, "REGISTER_CUSTOMER_SELF", "Customer Registered");
     }
 
     function registerCustomer() external {

@@ -136,28 +136,16 @@ export default function TopupPage() {
             stripeId: data.stripePaymentId,
             mintHash: data.mintTxHash,
           });
+        } else if (data && data.error) {
+          throw new Error(data.error);
         }
-      } catch (apiErr) {
-        console.warn("API checkout endpoint warning, using direct local node signer minting:", apiErr);
+      } catch (apiErr: any) {
+        console.error("API checkout endpoint error:", apiErr);
+        throw new Error(apiErr?.message || "No se pudo procesar la recarga con el servidor.");
       }
 
-      // 3. Execute fallback minting ONLY IF NOT already minted by API checkout
       if (!mintedOnChain) {
-        const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'https://mcc-foundry-anvil-1095249147821.europe-west1.run.app');
-        const signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', rpcProvider);
-        const tokenContract = new ethers.Contract(
-          euroTokenAddress,
-          ['function mint(address to, uint256 amount)'],
-          signer
-        );
-        const rawAmount = BigInt(Math.round(numericAmt * 1000000));
-        const tx = await tokenContract.mint(dest, rawAmount);
-        const receipt = await tx.wait();
-
-        setTxDetails({
-          stripeId: `ch_stripe_demo_${Math.floor(100000 + Math.random() * 900000)}`,
-          mintHash: receipt.hash,
-        });
+        throw new Error("No se confirmó la emisión de tokens EURT por parte del servidor.");
       }
 
       setStatus('success');

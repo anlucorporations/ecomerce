@@ -153,27 +153,8 @@ export default function ShippingManagementPage() {
           );
           await payTx.wait();
         } catch (payErr: any) {
-          console.warn("Direct processPayment failed, proceeding with administrative ship authorization:", payErr);
-          // If direct processPayment has transferFrom limitation in dev, use owner fallback signer
-          const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
-          const adminWallet = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", rpcProvider);
-          const adminContract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, adminWallet);
-          
-          // First mint or ensure balance & approve if needed
-          const tokenContract = new ethers.Contract(euroTokenAddress, ["function mint(address,uint256)", "function approve(address,uint256)"], adminWallet);
-          await (await tokenContract.mint(shippingForm.customerAddress, shippingForm.rawAmountBigInt)).wait();
-          
-          // Create customer signer for approval
-          const custWallet = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", rpcProvider);
-          const custTokenContract = new ethers.Contract(euroTokenAddress, ["function approve(address,uint256)"], custWallet);
-          await (await custTokenContract.approve(ecommerceAddress, shippingForm.rawAmountBigInt)).wait();
-
-          const forcePayTx = await adminContract.processPayment(
-            shippingForm.customerAddress,
-            shippingForm.rawAmountBigInt,
-            shippingForm.invoiceId
-          );
-          await forcePayTx.wait();
+          console.error("Payment processing error:", payErr);
+          throw new Error("No se pudo procesar el pago de la orden en la blockchain.");
         }
       }
 

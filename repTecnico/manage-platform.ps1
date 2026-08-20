@@ -77,7 +77,11 @@ function Start-RPCNode {
 function Deploy-SmartContracts {
     Write-Host ""
     Write-Host "[2/5] Desplegando Smart Contracts (EuroTokenOptimized y Ecommerce)..." -ForegroundColor Cyan
-    $privKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    $privKey = $env:PRIVATE_KEY
+    if ([string]::IsNullOrWhiteSpace($privKey)) {
+        Write-Host "[ERROR] La variable de entorno PRIVATE_KEY no esta configurada." -ForegroundColor Red
+        return
+    }
     
     # Deploy EuroToken
     Set-Location "$WorkspaceRoot\stablecoin\sc"

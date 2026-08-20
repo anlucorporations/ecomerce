@@ -15,7 +15,7 @@ const EURO_TOKEN_ABI = [
   "function mint(address to, uint256 amount) external"
 ];
 
-const ANVIL_PRIVATE_KEY = process.env.ANVIL_PRIVATE_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY || process.env.ANVIL_PRIVATE_KEY || "";
 const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
 const EURO_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
@@ -51,9 +51,9 @@ export async function POST(request: Request) {
       const walletAddress = paymentIntent.metadata?.walletAddress;
       const amountEur = paymentIntent.metadata?.amount || (paymentIntent.amount / 100).toString();
 
-      if (walletAddress) {
+      if (walletAddress && RELAYER_PRIVATE_KEY) {
         const provider = new ethers.JsonRpcProvider(RPC_URL);
-        const signer = new ethers.Wallet(ANVIL_PRIVATE_KEY, provider);
+        const signer = new ethers.Wallet(RELAYER_PRIVATE_KEY, provider);
         const tokenContract = new ethers.Contract(EURO_TOKEN_ADDRESS, EURO_TOKEN_ABI, signer);
 
         const rawAmount = BigInt(Math.round(parseFloat(amountEur) * 1000000));

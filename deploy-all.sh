@@ -7,9 +7,14 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-export PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 # Script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+if [ -z "$PRIVATE_KEY" ]; then
+    echo -e "${RED}❌ Error: Environment variable PRIVATE_KEY is not set.${NC}"
+    echo -e "${YELLOW}💡 Set your deployer private key: export PRIVATE_KEY=0x...${NC}"
+    exit 1
+fi
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║  E-Commerce Blockchain - Full Deployment Script         ║${NC}"
@@ -247,17 +252,17 @@ cast call ${EURO_TOKEN_ADDRESS} "balanceOf(address)" 0xf39Fd6e51aad88F6F4ce6aB88
 
 \`\`\`bash
 # Mint 1000 EURT to customer account
-cast send ${EURO_TOKEN_ADDRESS} "mint(address,uint256)" \\
-  0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC 1000000000 \\
-  --rpc-url http://localhost:8545 \\
-  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+cast send ${EURO_TOKEN_ADDRESS} "mint(address,uint256)" \
+  0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC 1000000000 \
+  --rpc-url http://localhost:8545 \
+  --private-key $PRIVATE_KEY
 \`\`\`
 
-## Default Anvil Accounts
+## Deployment Configuration
 
-**Account #0 (Owner):**
+**Account (Owner):**
 - Address: \`0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\`
-- Private Key: \`0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80\`
+- Private Key: \`$PRIVATE_KEY\`
 
 **Account #1 (Company):**
 - Address: \`0x70997970C51812dc3A010C7d01b50e0d17dc79C8\`

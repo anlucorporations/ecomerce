@@ -142,7 +142,10 @@ export default function DashboardHome() {
     return (
       <div className="space-y-16 max-w-7xl mx-auto pb-12">
         {/* HERO SECTION */}
-        <section className="relative rounded-3xl bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-indigo-500/20">
+        <section 
+          className="relative rounded-3xl text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-indigo-500/30 bg-cover bg-center"
+          style={{ backgroundImage: "linear-gradient(to right, rgba(15, 23, 42, 0.92), rgba(30, 27, 75, 0.85)), url('/Gemini_Generated_Image_q3xqhkq3xqhkq3xq.jpg')" }}
+        >
           <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center relative z-10">
             <div className="space-y-6">
@@ -191,9 +194,9 @@ export default function DashboardHome() {
             <div className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/hero.jpg"
+                src="/Gemini_Generated_Image_q3xqhkq3xqhkq3xq.jpg"
                 alt="Plataforma E-Commerce Web3"
-                className="rounded-2xl border border-indigo-400/20 shadow-2xl w-full object-cover max-h-[380px]"
+                className="rounded-2xl border border-indigo-400/30 shadow-2xl w-full object-cover max-h-[380px]"
               />
             </div>
           </div>

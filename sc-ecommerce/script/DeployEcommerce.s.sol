@@ -12,12 +12,18 @@ contract DeployEcommerceScript is Script {
         uint256 ownerPrivateKey = vm.envUint("PRIVATE_KEY");
         require(ownerPrivateKey != 0, "Deployer PRIVATE_KEY environment variable required");
 
+        address euroToken = vm.envOr("EURO_TOKEN_ADDRESS", address(0));
+
         vm.startBroadcast(ownerPrivateKey);
 
-        MockEuroToken mockEuroToken = new MockEuroToken();
-        Ecommerce ecommerce = new Ecommerce(address(mockEuroToken));
+        if (euroToken == address(0)) {
+            euroToken = address(new MockEuroToken());
+            console.log("MockEuroToken deployed at:", euroToken);
+        } else {
+            console.log("Using existing EuroToken at:", euroToken);
+        }
 
-        console.log("MockEuroToken deployed at:", address(mockEuroToken));
+        Ecommerce ecommerce = new Ecommerce(euroToken);
         console.log("Ecommerce deployed at:", address(ecommerce));
 
         vm.stopBroadcast();

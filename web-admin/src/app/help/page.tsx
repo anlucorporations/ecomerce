@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+import AddEurtModal from '@/components/add-eurt-modal';
+
 interface FAQItem {
   id: string;
   category: 'company' | 'metamask' | 'orders' | 'finance' | 'audit';
@@ -11,6 +13,12 @@ interface FAQItem {
 }
 
 const MERCHANT_FAQ_LIST: FAQItem[] = [
+  {
+    id: 'mfaq-0',
+    category: 'metamask',
+    question: '💶 ¿Cómo agrego el Token EURT (EuroToken) a mi billetera MetaMask?',
+    answer: 'Puede agregar el Token EURT en 1-Clic presionando el botón "🦊 Agregar EURT a MetaMask" presente en el encabezado y en esta guía. Alternativamente, en MetaMask seleccione "Importar Tokens", pestaña "Token Personalizado", y pegue la dirección del contrato inteligente: 0x5FbDB2315678afecb367f032d93F642f64180aa3 con 6 decimales.'
+  },
   {
     id: 'mfaq-1',
     category: 'metamask',
@@ -46,7 +54,8 @@ const MERCHANT_FAQ_LIST: FAQItem[] = [
 export default function MerchantHelpLandingPage() {
   const [activeTab, setActiveTab] = useState<'company' | 'user' | 'systems'>('company');
   const [faqSearch, setFaqSearch] = useState('');
-  const [openFaqId, setOpenFaqId] = useState<string | null>('mfaq-1');
+  const [openFaqId, setOpenFaqId] = useState<string | null>('mfaq-0');
+  const [isEurtModalOpen, setIsEurtModalOpen] = useState(false);
 
   const filteredFaqs = MERCHANT_FAQ_LIST.filter((faq) => {
     return faq.question.toLowerCase().includes(faqSearch.toLowerCase()) ||
@@ -83,11 +92,19 @@ export default function MerchantHelpLandingPage() {
             </p>
 
             <div className="pt-2 flex flex-wrap justify-center lg:justify-start gap-3">
+              <button
+                onClick={() => setIsEurtModalOpen(true)}
+                className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs rounded-2xl shadow-lg transition flex items-center gap-2"
+              >
+                <span>🦊</span>
+                <span>Agregar EURT a MetaMask</span>
+              </button>
+
               <Link
                 href="#guia-metamask"
                 className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-2xl shadow-lg transition flex items-center gap-2"
               >
-                <span>🦊</span>
+                <span>🔐</span>
                 <span>Firma Criptográfica MetaMask</span>
               </Link>
 
@@ -457,6 +474,9 @@ export default function MerchantHelpLandingPage() {
         )}
 
       </section>
+
+      {/* 🦊 MODAL AGREGAR EURT A METAMASK */}
+      <AddEurtModal isOpen={isEurtModalOpen} onClose={() => setIsEurtModalOpen(false)} />
 
     </div>
   );

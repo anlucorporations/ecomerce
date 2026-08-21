@@ -63,6 +63,14 @@ export default function RootLayout({
                 <div className="shrink-0 flex items-center gap-2">
                   <Link
                     href="/help"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 border border-amber-500/30 text-xs font-extrabold rounded-2xl transition font-poppins shrink-0 shadow-xs"
+                    title="Manual para Agregar Token EURT a MetaMask"
+                  >
+                    <span className="text-sm">🦊</span>
+                    <span className="hidden sm:inline">+ EURT</span>
+                  </Link>
+                  <Link
+                    href="/help"
                     className="flex items-center gap-1.5 px-3 py-2 bg-[#E6F4FA] hover:bg-[#D4EDF7] text-[#0077BB] border border-[#0077BB]/30 text-xs font-extrabold rounded-2xl transition font-poppins shrink-0 shadow-xs"
                     title="Centro de Ayuda y Guía MetaMask Web3"
                   >

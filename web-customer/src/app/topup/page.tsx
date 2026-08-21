@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { KycModal } from '@/components/kyc-modal';
 
+import AddEurtModal from '@/components/add-eurt-modal';
+
 export default function TopupPage() {
   const { provider, address, isConnected, connect } = useWallet();
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
@@ -22,6 +24,7 @@ export default function TopupPage() {
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string>('');
   const [txDetails, setTxDetails] = useState<{ stripeId?: string; mintHash?: string }>({});
+  const [isEurtModalOpen, setIsEurtModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (address) {
@@ -182,6 +185,16 @@ export default function TopupPage() {
             <p className="text-xs sm:text-sm text-sky-100 font-medium max-w-2xl leading-relaxed">
               Adquiera EuroTokens a paridad 1 EUR = 1 EURT mediante Stripe sin comisiones de red. Los fondos quedan disponibles de inmediato en su billetera para realizar compras con Custodia Escrow.
             </p>
+
+            <div className="pt-2">
+              <button
+                onClick={() => setIsEurtModalOpen(true)}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition flex items-center gap-2 transform active:scale-95 font-poppins"
+              >
+                <span>🦊</span>
+                <span>Agregar Token EURT a MetaMask</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -452,6 +465,9 @@ export default function TopupPage() {
         customTitle="Verificación KYC Requerida para Comprar EURT"
         customReason="Su cuenta se encuentra actualmente en estado 'Inscrito'. Para adquirir o recargar EuroTokens (EURT) mediante Stripe PCI-DSS, debe completar la verificación de identidad."
       />
+
+      {/* 🦊 MODAL AGREGAR EURT A METAMASK */}
+      <AddEurtModal isOpen={isEurtModalOpen} onClose={() => setIsEurtModalOpen(false)} />
     </div>
   );
 }

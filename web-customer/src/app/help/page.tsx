@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+import AddEurtModal from '@/components/add-eurt-modal';
+
 interface FAQItem {
   id: string;
   category: 'general' | 'metamask' | 'purchases' | 'escrow' | 'invoices';
@@ -11,6 +13,12 @@ interface FAQItem {
 }
 
 const FAQ_LIST: FAQItem[] = [
+  {
+    id: 'faq-0',
+    category: 'metamask',
+    question: '💶 ¿Cómo agrego el Token EURT (EuroToken) a mi billetera MetaMask?',
+    answer: 'Puede agregar el Token EURT en 1-Clic presionando el botón "🦊 Agregar EURT a MetaMask" en el encabezado o en esta guía. Si prefiere hacerlo manualmente, abra MetaMask, seleccione "Importar Tokens", pestaña "Token Personalizado", y pegue la dirección de contrato: 0x5FbDB2315678afecb367f032d93F642f64180aa3 con 6 decimales.'
+  },
   {
     id: 'faq-1',
     category: 'metamask',
@@ -116,9 +124,10 @@ const GALLERY_IMAGES = [
 export default function CustomerHelpLandingPage() {
   const [activeTab, setActiveTab] = useState<'user' | 'company'>('user');
   const [faqSearch, setFaqSearch] = useState('');
-  const [openFaqId, setOpenFaqId] = useState<string | null>('faq-1');
+  const [openFaqId, setOpenFaqId] = useState<string | null>('faq-0');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedGalleryImage, setSelectedGalleryImage] = useState<typeof GALLERY_IMAGES[0] | null>(null);
+  const [isEurtModalOpen, setIsEurtModalOpen] = useState(false);
 
   const filteredFaqs = FAQ_LIST.filter((faq) => {
     const matchesSearch = faq.question.toLowerCase().includes(faqSearch.toLowerCase()) ||
@@ -130,22 +139,14 @@ export default function CustomerHelpLandingPage() {
   return (
     <div className="min-h-screen bg-[#F5F5F0] text-[#333333] font-sans pb-24 selection:bg-[#FF8800] selection:text-white">
       
-      {/* 🚀 LANDING HERO BANNER PRINCIPAL */}
-      <section className="relative bg-gradient-to-br from-[#0077BB] via-[#005F96] to-slate-900 text-white py-16 sm:py-20 px-4 sm:px-6 lg:px-8 shadow-2xl overflow-hidden">
+      {/* 🚀 LANDING HERO BANNER */}
+      <section className="relative bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white py-16 sm:py-20 px-4 sm:px-6 lg:px-8 border-b border-slate-800 shadow-2xl overflow-hidden">
         
-        <div className="absolute inset-0 opacity-15 pointer-events-none">
-          <img
-            src="/images/Gemini_Generated_Image_2fvmay2fvmay2fvm.jpg"
-            alt="Fondo E-Commerce Web3"
-            className="w-full h-full object-cover"
-          />
-        </div>
-
         <div className="max-w-7xl mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           
           <div className="lg:col-span-7 space-y-5 text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-bold uppercase tracking-wider border border-white/30 font-poppins">
-              <span>❓ Centro de Ayuda & Guía de Navegación Web3</span>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#0077BB]/20 backdrop-blur-md text-sky-300 text-xs font-extrabold uppercase tracking-wider border border-[#0077BB]/30 font-poppins">
+              <span>💡 Centro de Asistencia Interactiva Web3</span>
             </div>
             
             <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-tight font-poppins">
@@ -157,11 +158,19 @@ export default function CustomerHelpLandingPage() {
             </p>
 
             <div className="pt-3 flex flex-wrap justify-center lg:justify-start gap-3">
+              <button
+                onClick={() => setIsEurtModalOpen(true)}
+                className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-extrabold text-xs rounded-2xl shadow-xl transition font-poppins flex items-center gap-2 transform active:scale-95"
+              >
+                <span>🦊</span>
+                <span>Agregar EURT a MetaMask</span>
+              </button>
+
               <Link
                 href="#guia-metamask"
                 className="px-6 py-3 bg-[#FF8800] hover:bg-[#E07700] text-[#FFFFFF] font-extrabold text-xs rounded-2xl shadow-xl transition font-poppins flex items-center gap-2"
               >
-                <span>🦊</span>
+                <span>🔐</span>
                 <span>Guía MetaMask Paso a Paso</span>
               </Link>
 
@@ -680,6 +689,9 @@ export default function CustomerHelpLandingPage() {
           </div>
         </div>
       </section>
+
+      {/* 🦊 MODAL AGREGAR EURT A METAMASK */}
+      <AddEurtModal isOpen={isEurtModalOpen} onClose={() => setIsEurtModalOpen(false)} />
 
     </div>
   );

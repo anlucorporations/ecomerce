@@ -163,13 +163,49 @@ export default function FinancePage() {
         setActivityLogs([]);
       }
 
-      // Requirement 1: Separate EURT Top-up Movements (Stripe Recargas & Minting)
-      const topups = allLogs.filter((l: any) => {
+      // Separate EURT Top-up Movements (Stripe Recargas & Minting from activity logs + on-chain Transfer events)
+      const topupsFromLogs = allLogs.filter((l: any) => {
         const tag = (l.actionTag || "").toUpperCase();
         const det = (l.details || "").toUpperCase();
         return tag.includes("MINT") || tag.includes("RECARGA") || tag.includes("STRIPE") || det.includes("RECARGA") || det.includes("MINT") || det.includes("STRIPE");
       });
-      setTopupLogs(topups);
+
+      // Query on-chain Transfer(0x0, to) Mint events from EuroToken contract
+      try {
+        const currentBlock = await rpcProvider.getBlockNumber();
+        const fromBlock = Math.max(0, currentBlock - 5000);
+        const mintLogs = await euroContract.queryFilter(
+          euroContract.filters.Transfer(ethers.ZeroAddress, null),
+          fromBlock,
+          currentBlock
+        );
+
+        const onChainTopups: any[] = [];
+        for (const ev of mintLogs) {
+          const parsed = ev as ethers.EventLog;
+          if (parsed && parsed.args) {
+            const block = await ev.getBlock();
+            const toAddr = parsed.args[1];
+            const valEur = (Number(parsed.args[2]) / 1000000).toFixed(2);
+            
+            if (isOwner || toAddr.toLowerCase() === address.toLowerCase()) {
+              onChainTopups.push({
+                userAddress: toAddr,
+                actionTag: "RECARGA_EURT_STRIPE",
+                details: `Emisión de €${valEur} EURT acreditados por recarga Stripe (Mint Tx: ${parsed.transactionHash.slice(0, 10)}...)`,
+                timestamp: BigInt(block.timestamp)
+              });
+            }
+          }
+        }
+
+        const combinedTopups = [...topupsFromLogs, ...onChainTopups];
+        combinedTopups.sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
+        setTopupLogs(combinedTopups);
+      } catch (err) {
+        console.warn("Could not query EuroToken on-chain mint logs:", err);
+        setTopupLogs(topupsFromLogs);
+      }
 
     } catch (err) {
       console.error("Failed to load finance data:", err);

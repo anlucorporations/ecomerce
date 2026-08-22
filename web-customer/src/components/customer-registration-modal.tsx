@@ -134,8 +134,22 @@ export function CustomerRegistrationModal({
         registrationDate: Date.now()
       };
 
+      // Requirement 1: Save the address entered during registration as the user's primary/first shipping address
+      const primaryAddressObj = [
+        {
+          id: Date.now().toString(),
+          label: 'Dirección Principal (Inscripción)',
+          street: formData.shippingAddress,
+          city: 'Principal',
+          postalCode: '',
+          instructions: 'Dirección registrada en inscripción Web3',
+          isDefault: true,
+        }
+      ];
+
       if (typeof window !== 'undefined') {
         localStorage.setItem(`customer_reg_${userAddress.toLowerCase()}`, JSON.stringify(regObject));
+        localStorage.setItem(`user_addresses_${userAddress.toLowerCase()}`, JSON.stringify(primaryAddressObj));
       }
 
       alert("¡Inscripción de cliente registrada con éxito en blockchain!");

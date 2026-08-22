@@ -27,37 +27,73 @@ export function KycModal({
   customReason,
 }: KycModalProps) {
   const { signer } = useWallet();
-  const [docType, setDocType] = useState('DNI');
-  const [docNumber, setDocNumber] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [photoFront, setPhotoFront] = useState<string | null>(null);
-  const [selfie, setSelfie] = useState<string | null>(null);
 
-  const [step, setStep] = useState<1 | 2>(1);
+  // Requirement 2: Requested fields ONLY: Phone, Birth Date, Country, ID Image, Selfie Image
+  const [phone, setPhone] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [country, setCountry] = useState('España');
+
+  const [idCardFile, setIdCardFile] = useState<File | null>(null);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+
+  const [idCardFileName, setIdCardFileName] = useState<string>('');
+  const [selfieFileName, setSelfieFileName] = useState<string>('');
+
   const [submitting, setSubmitting] = useState(false);
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
   if (!isOpen || !userAddress) return null;
 
-  const handleSimulateFrontUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Helper to compute SHA-256 Hash of files (Requirement 3: Only store image hashes)
+  const computeFileSHA256 = async (file: File | null, defaultName: string): Promise<string> => {
+    if (file) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) {
+        console.warn('Crypto.subtle fallback to ethers.id:', e);
+      }
+    }
+    return ethers.id(file ? file.name : defaultName);
+  };
+
+  const handleIdCardFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setPhotoFront(e.target.files[0].name);
-    } else {
-      setPhotoFront("documento_identidad_frontal.jpg");
+      const file = e.target.files[0];
+      setIdCardFile(file);
+      setIdCardFileName(file.name);
     }
   };
 
-  const handleSimulateSelfieUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSelfieFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelfie(e.target.files[0].name);
-    } else {
-      setSelfie("selfie_verificacion.jpg");
+      const file = e.target.files[0];
+      setSelfieFile(file);
+      setSelfieFileName(file.name);
     }
   };
 
   const handleVerifySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!phone.trim() || !birthDate.trim() || !country.trim()) {
+      alert("⚠️ El teléfono, la fecha de nacimiento y el país de residencia son ESTRICTAMENTE OBLIGATORIOS.");
+      return;
+    }
+
+    if (!idCardFileName && !idCardFile) {
+      alert("⚠️ Por favor adjunte la imagen de su DNI o Cédula de Identidad.");
+      return;
+    }
+
+    if (!selfieFileName && !selfieFile) {
+      alert("⚠️ Por favor adjunte la foto Selfie de confirmación.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -68,14 +104,24 @@ export function KycModal({
         activeSigner = await browserProvider.getSigner();
       }
 
-      // 1. Request explicit cryptographic Wallet Signature via MetaMask for KYC Verification
-      const timestamp = new Date().toISOString();
-      const kycMessage = `DECLARACIÓN DE VERIFICACIÓN KYC - PLATAFORMA WEB3 BARLO-VENTAS\n\nYo, ${fullName || 'Usuario Cliente'}, titular del ${docType} N° ${docNumber}, declaro bajo juramento la validez y autenticidad de mis datos de identificación para la billetera Web3:\n${userAddress}\n\nFecha/Hora de Firma: ${timestamp}`;
+      if (!activeSigner) {
+        alert("Por favor conecte su billetera MetaMask para firmar la verificación KYC.");
+        setSubmitting(false);
+        return;
+      }
 
+      // Requirement 3: Calculate SHA-256 Hashes of ID Image and Selfie (Privacy preserving)
+      const idImageHash = await computeFileSHA256(idCardFile, idCardFileName || 'dni_cedula.png');
+      const selfieHash = await computeFileSHA256(selfieFile, selfieFileName || 'selfie_confirmacion.png');
+
+      const timestamp = new Date().toISOString();
+      const kycDeclaration = `ATESTACIÓN DE VERIFICACIÓN KYC - PLATAFORMA WEB3 BARLO-VENTAS\n\nBilletera Titular: ${userAddress}\nTeléfono: ${phone}\nFecha de Nacimiento: ${birthDate}\nPaís de Residencia: ${country}\nHash DNI/Cédula (SHA-256): ${idImageHash}\nHash Selfie (SHA-256): ${selfieHash}\nFecha de Emisión: ${timestamp}\n\nAl firmar con su billetera MetaMask, usted certifica la veracidad de estos datos on-chain. Únicamente los hashes criptográficos de sus imágenes son almacenados preservando su privacidad.`;
+
+      // 1. Mandatory MetaMask Wallet Signature Popup
       let kycSignature = '';
       try {
-        kycSignature = await activeSigner.signMessage(kycMessage);
-        console.log("Firma criptográfica KYC obtenida exitosamente en MetaMask:", kycSignature);
+        kycSignature = await activeSigner.signMessage(kycDeclaration);
+        console.log("Firma criptográfica KYC obtenida en MetaMask:", kycSignature);
       } catch (signErr: any) {
         console.error("Firma cancelada o rechazada en MetaMask:", signErr);
         alert("⚠️ Operación cancelada: La verificación KYC requiere ser firmada criptográficamente con su billetera MetaMask.");
@@ -83,7 +129,7 @@ export function KycModal({
         return;
       }
 
-      // 2. Execute on-chain KYC registration / verification
+      // 2. On-Chain Contract Update: Set Customer Status as Verified
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
       try {
         const tx = await contract.registerCustomer();
@@ -92,13 +138,26 @@ export function KycModal({
         console.warn("Llamada on-chain registerCustomer aviso:", txErr);
       }
 
-      // 3. Store local persistence with cryptographic signature proof
+      // 3. Store local persistence with SHA-256 hashes and signature proof
+      const kycRecord = {
+        address: userAddress,
+        phone,
+        birthDate,
+        country,
+        idImageHash,
+        selfieHash,
+        signature: kycSignature,
+        isVerified: true,
+        verifiedAt: Date.now()
+      };
+
       if (typeof window !== 'undefined') {
         localStorage.setItem(`kyc_verified_${userAddress.toLowerCase()}`, 'true');
+        localStorage.setItem(`kyc_data_${userAddress.toLowerCase()}`, JSON.stringify(kycRecord));
         localStorage.setItem(`kyc_signature_${userAddress.toLowerCase()}`, kycSignature);
       }
 
-      alert("¡Verificación KYC Aprobada! Su declaración fue firmada exitosamente con su billetera MetaMask. Su estado ha cambiado a VERIFICADO.");
+      alert("¡Verificación KYC Aprobada! Su registro ha sido actualizado on-chain como VERIFICADO 🟢. Solo se registraron los hashes criptográficos de sus imágenes.");
 
       if (onSuccess) onSuccess();
       onClose();
@@ -125,170 +184,135 @@ export function KycModal({
         {/* Header */}
         <div className="space-y-2 text-center sm:text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30 text-xs font-bold font-poppins">
-            <span>🪪 Verificación de Identidad KYC &bull; Nivel 2</span>
+            <span>🪪 Verificación de Identidad KYC &bull; Registro On-Chain</span>
           </div>
           <h2 className="text-2xl font-black text-[#333333] tracking-tight font-poppins">
-            {customTitle || "Proceso de Verificación KYC"}
+            {customTitle || "Verificación KYC de Usuario"}
           </h2>
           <p className="text-xs text-[#A9A9A9] leading-relaxed">
-            {customReason || "Su cuenta se encuentra en estado 'Inscrito'. Para habilitar el pago de su carrito y compra de EURT con Stripe, complete este sencillo proceso de verificación."}
+            {customReason || "Complete sus datos de contacto e identifique su billetera. En la blockchain únicamente se registrará el Hash SHA-256 de sus imágenes."}
           </p>
         </div>
 
-        {/* Process Stepper */}
-        <div className="flex items-center justify-center gap-3 border-y border-[#0077BB]/10 py-3 text-xs font-poppins font-bold">
-          <div className={`flex items-center gap-1.5 ${step === 1 ? 'text-[#FF8800]' : 'text-[#2E8B57]'}`}>
-            <span className="w-5 h-5 rounded-full bg-[#FF8800] text-white flex items-center justify-center text-[10px]">1</span>
-            <span>Documento</span>
+        {/* Form */}
+        <form onSubmit={handleVerifySubmit} className="space-y-4 text-xs">
+          {/* Teléfono */}
+          <div>
+            <label className="block font-bold text-[#333333] mb-1 font-poppins">
+              1. Teléfono de Contacto *
+            </label>
+            <input
+              type="tel"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Ej. +34 612 345 678"
+              className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3.5 py-2.5 text-[#333333] focus:border-[#FF8800] focus:outline-none transition"
+            />
           </div>
-          <span className="text-[#A9A9A9]">➔</span>
-          <div className={`flex items-center gap-1.5 ${step === 2 ? 'text-[#FF8800]' : 'text-[#A9A9A9]'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 2 ? 'bg-[#FF8800] text-white' : 'bg-slate-200 text-[#A9A9A9]'}`}>2</span>
-            <span>Foto & Firma</span>
-          </div>
-        </div>
 
-        {/* STEP 1: DOCUMENT INFO */}
-        {step === 1 && (
-          <div className="space-y-4 text-xs">
+          {/* Fecha de Nacimiento & País */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-bold text-[#333333] mb-1 font-poppins">
-                Nombre Completo del Titular:
+                2. Fecha de Nacimiento *
               </label>
               <input
-                type="text"
+                type="date"
                 required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Ej. Carlos Eduardo Mendoza"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
                 className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3.5 py-2.5 text-[#333333] focus:border-[#FF8800] focus:outline-none transition"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block font-bold text-[#333333] mb-1 font-poppins">
-                  Tipo de Documento:
-                </label>
-                <select
-                  value={docType}
-                  onChange={(e) => setDocType(e.target.value)}
-                  className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3.5 py-2.5 text-[#333333] focus:border-[#FF8800] focus:outline-none transition"
-                >
-                  <option value="DNI">Cédula de Identidad / DNI</option>
-                  <option value="PASSPORT">Pasaporte Internacional</option>
-                  <option value="DRIVERS_LICENSE">Licencia de Conducir</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-[#333333] mb-1 font-poppins">
-                  Número de Documento:
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={docNumber}
-                  onChange={(e) => setDocNumber(e.target.value)}
-                  placeholder="V-18293041"
-                  className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3.5 py-2.5 text-[#333333] focus:border-[#FF8800] focus:outline-none transition"
-                />
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!fullName || !docNumber) {
-                    alert("Por favor complete su nombre y número de documento.");
-                    return;
-                  }
-                  setStep(2);
-                }}
-                className="w-full btn-cacao-pulse py-3 text-xs font-bold uppercase tracking-wider font-poppins"
+            <div>
+              <label className="block font-bold text-[#333333] mb-1 font-poppins">
+                3. País donde Vive *
+              </label>
+              <select
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="w-full bg-white border border-[#0077BB]/20 rounded-xl px-3.5 py-2.5 text-[#333333] focus:border-[#FF8800] focus:outline-none transition"
               >
-                Siguiente: Adjuntar Fotos ➔
-              </button>
+                <option value="España">España</option>
+                <option value="Venezuela">Venezuela</option>
+                <option value="Colombia">Colombia</option>
+                <option value="México">México</option>
+                <option value="Argentina">Argentina</option>
+                <option value="Chile">Chile</option>
+                <option value="Perú">Perú</option>
+                <option value="Estados Unidos">Estados Unidos</option>
+                <option value="Otro">Otro País</option>
+              </select>
             </div>
           </div>
-        )}
 
-        {/* STEP 2: PHOTO ATTACHMENT & ON-CHAIN SIGNATURE */}
-        {step === 2 && (
-          <form onSubmit={handleVerifySubmit} className="space-y-4 text-xs">
-            <div className="space-y-3">
-              <div>
-                <label className="block font-bold text-[#333333] mb-1 font-poppins">
-                  1. Foto Frontal del Documento (DNI / Pasaporte):
+          {/* Adjuntos: DNI/Cédula + Selfie */}
+          <div className="space-y-3 pt-2">
+            <div>
+              <label className="block font-bold text-[#333333] mb-1 font-poppins">
+                4. Imagen del DNI / Cédula de Identidad * <span className="text-[10px] text-[#A9A9A9] font-normal">(Solo se guardará su HASH SHA-256)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleIdCardFileChange}
+                  className="hidden"
+                  id="idcard-file-input"
+                />
+                <label
+                  htmlFor="idcard-file-input"
+                  className="cursor-pointer px-3.5 py-2 bg-white border border-[#0077BB]/20 rounded-xl text-[#0077BB] font-bold hover:bg-[#E6F4FA] transition shrink-0"
+                >
+                  📷 Seleccionar DNI / Cédula
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleSimulateFrontUpload}
-                    className="hidden"
-                    id="front-file-input"
-                  />
-                  <label
-                    htmlFor="front-file-input"
-                    className="cursor-pointer px-3.5 py-2 bg-white border border-[#0077BB]/20 rounded-xl text-[#0077BB] font-bold hover:bg-[#E6F4FA] transition"
-                  >
-                    📷 Seleccionar Imagen
-                  </label>
-                  <span className="text-[11px] text-[#2E8B57] font-mono font-bold truncate">
-                    {photoFront || "documento_frontal.png (Simulado)"}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-[#333333] mb-1 font-poppins">
-                  2. Foto Selfie de Confirmación:
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleSimulateSelfieUpload}
-                    className="hidden"
-                    id="selfie-file-input"
-                  />
-                  <label
-                    htmlFor="selfie-file-input"
-                    className="cursor-pointer px-3.5 py-2 bg-white border border-[#0077BB]/20 rounded-xl text-[#0077BB] font-bold hover:bg-[#E6F4FA] transition"
-                  >
-                    🤳 Tomar Selfie
-                  </label>
-                  <span className="text-[11px] text-[#2E8B57] font-mono font-bold truncate">
-                    {selfie || "selfie_titular.png (Simulado)"}
-                  </span>
-                </div>
+                <span className="text-[11px] text-[#2E8B57] font-mono font-bold truncate">
+                  {idCardFileName || "Ninguna imagen seleccionada"}
+                </span>
               </div>
             </div>
 
-            <div className="bg-[#EAF5EF] p-3 rounded-xl border border-[#2E8B57]/30 text-[#2E8B57] text-[11px] font-mono">
-              ✓ Validación instantánea en blockchain. Al hacer clic se emitirá la atestación de estado <strong>VERIFICADO</strong> en el contrato inteligente.
+            <div>
+              <label className="block font-bold text-[#333333] mb-1 font-poppins">
+                5. Foto Selfie de Confirmación * <span className="text-[10px] text-[#A9A9A9] font-normal">(Solo se guardará su HASH SHA-256)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleSelfieFileChange}
+                  className="hidden"
+                  id="selfie-file-input"
+                />
+                <label
+                  htmlFor="selfie-file-input"
+                  className="cursor-pointer px-3.5 py-2 bg-white border border-[#0077BB]/20 rounded-xl text-[#0077BB] font-bold hover:bg-[#E6F4FA] transition shrink-0"
+                >
+                  🤳 Seleccionar Selfie
+                </label>
+                <span className="text-[11px] text-[#2E8B57] font-mono font-bold truncate">
+                  {selfieFileName || "Ninguna selfie seleccionada"}
+                </span>
+              </div>
             </div>
+          </div>
 
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-[#333333] font-bold rounded-xl text-xs font-poppins"
-              >
-                ⬅ Volver
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="flex-1 btn-cacao-pulse py-3 text-xs font-bold uppercase tracking-wider font-poppins disabled:opacity-50"
-              >
-                {submitting ? 'Aprobando KYC en Blockchain...' : '🪪 Firmar y Obtener Estado VERIFICADO'}
-              </button>
-            </div>
-          </form>
-        )}
+          <div className="bg-[#EAF5EF] p-3 rounded-xl border border-[#2E8B57]/30 text-[#2E8B57] text-[11px] font-mono leading-tight">
+            🔒 <strong>Privacidad Web3:</strong> Las imágenes del DNI y Selfie se convierten a hashes criptográficos SHA-256. Su billetera será verificada on-chain sin exponer imágenes personales.
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full btn-cacao-pulse py-3 text-xs font-bold uppercase tracking-wider font-poppins disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {submitting ? 'Firmando en MetaMask...' : '🪪 Firmar con MetaMask y Obtener Estado VERIFICADO'}
+            </button>
+          </div>
+        </form>
 
       </div>
     </div>

@@ -97,11 +97,11 @@ export default function ProfilePage() {
               setAddressesList([
                 {
                   id: '1',
-                  label: 'Dirección Registrada Blockchain',
+                  label: 'Dirección Principal (Inscripción)',
                   street: cust.shippingAddress,
                   city: 'Ciudad de Entrega',
                   postalCode: '28000',
-                  instructions: 'Dirección confirmada en Smart Contract',
+                  instructions: 'Dirección de envío registrada en blockchain',
                   isDefault: true,
                 },
               ]);
@@ -110,6 +110,19 @@ export default function ProfilePage() {
           }
         } catch (e) {
           console.warn('getCustomer warning:', e);
+        }
+
+        // Check local saved addresses
+        if (typeof window !== 'undefined') {
+          const savedAddrs = localStorage.getItem(`user_addresses_${address.toLowerCase()}`);
+          if (savedAddrs) {
+            try {
+              const parsed = JSON.parse(savedAddrs);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setAddressesList(parsed);
+              }
+            } catch {}
+          }
         }
 
         setIsRegistered(registeredOnChain);

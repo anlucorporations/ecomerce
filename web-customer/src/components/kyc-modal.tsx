@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useWallet } from '../hooks/useWallet';
 import { ethers } from 'ethers';
 
@@ -27,6 +28,11 @@ export function KycModal({
   customReason,
 }: KycModalProps) {
   const { signer } = useWallet();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Requirement 2: Requested fields ONLY: Phone, Birth Date, Country, ID Image, Selfie Image
   const [phone, setPhone] = useState('');
@@ -169,8 +175,8 @@ export function KycModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
       <div className="glass-card max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl relative border-l-4 border-l-[#FF8800]">
         
         {/* Close Button */}
@@ -317,4 +323,10 @@ export function KycModal({
       </div>
     </div>
   );
+
+  if (mounted && typeof window !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 }

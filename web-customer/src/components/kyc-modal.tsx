@@ -68,13 +68,22 @@ export function KycModal({
         activeSigner = await browserProvider.getSigner();
       }
 
-      if (!activeSigner) {
-        alert("Por favor conecte su billetera MetaMask para firmar la verificación KYC.");
+      // 1. Request explicit cryptographic Wallet Signature via MetaMask for KYC Verification
+      const timestamp = new Date().toISOString();
+      const kycMessage = `DECLARACIÓN DE VERIFICACIÓN KYC - PLATAFORMA WEB3 BARLO-VENTAS\n\nYo, ${fullName || 'Usuario Cliente'}, titular del ${docType} N° ${docNumber}, declaro bajo juramento la validez y autenticidad de mis datos de identificación para la billetera Web3:\n${userAddress}\n\nFecha/Hora de Firma: ${timestamp}`;
+
+      let kycSignature = '';
+      try {
+        kycSignature = await activeSigner.signMessage(kycMessage);
+        console.log("Firma criptográfica KYC obtenida exitosamente en MetaMask:", kycSignature);
+      } catch (signErr: any) {
+        console.error("Firma cancelada o rechazada en MetaMask:", signErr);
+        alert("⚠️ Operación cancelada: La verificación KYC requiere ser firmada criptográficamente con su billetera MetaMask.");
         setSubmitting(false);
         return;
       }
 
-      // Execute on-chain KYC registration
+      // 2. Execute on-chain KYC registration / verification
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
       try {
         const tx = await contract.registerCustomer();
@@ -83,12 +92,13 @@ export function KycModal({
         console.warn("Llamada on-chain registerCustomer aviso:", txErr);
       }
 
-      // Store local persistence
+      // 3. Store local persistence with cryptographic signature proof
       if (typeof window !== 'undefined') {
         localStorage.setItem(`kyc_verified_${userAddress.toLowerCase()}`, 'true');
+        localStorage.setItem(`kyc_signature_${userAddress.toLowerCase()}`, kycSignature);
       }
 
-      alert("¡Verificación KYC Aprobada! Su estado ha cambiado a VERIFICADO. Ahora tiene acceso total al carrito de compras y recargas EURT.");
+      alert("¡Verificación KYC Aprobada! Su declaración fue firmada exitosamente con su billetera MetaMask. Su estado ha cambiado a VERIFICADO.");
 
       if (onSuccess) onSuccess();
       onClose();

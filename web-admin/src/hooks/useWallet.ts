@@ -64,6 +64,7 @@ export function useWallet() {
         localStorage.setItem('selectedWallet', JSON.stringify(walletInfo));
         localStorage.setItem('connectedAddress', address);
         localStorage.setItem('connectedChainId', chainId.toString());
+        localStorage.removeItem('userDisconnected');
       }
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -93,6 +94,7 @@ export function useWallet() {
       localStorage.removeItem('selectedWallet');
       localStorage.removeItem('connectedAddress');
       localStorage.removeItem('connectedChainId');
+      localStorage.setItem('userDisconnected', 'true');
     }
   }, [state.wallets]);
 
@@ -119,6 +121,11 @@ export function useWallet() {
   useEffect(() => {
     async function autoConnect() {
       if (typeof window === 'undefined') return;
+
+      // If user explicitly disconnected, do not auto-connect
+      if (localStorage.getItem('userDisconnected') === 'true') {
+        return;
+      }
 
       const savedWallet = localStorage.getItem('selectedWallet');
       if (savedWallet) {

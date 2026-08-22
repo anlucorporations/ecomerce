@@ -70,6 +70,7 @@ export function useWallet() {
       // Store address in localStorage
       localStorage.setItem('walletAddress', address);
       localStorage.setItem('walletConnected', 'true');
+      localStorage.removeItem('userDisconnected');
 
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -95,6 +96,7 @@ export function useWallet() {
 
     localStorage.removeItem('walletAddress');
     localStorage.removeItem('walletConnected');
+    localStorage.setItem('userDisconnected', 'true');
   }, []);
 
   // Switch network
@@ -125,6 +127,8 @@ export function useWallet() {
   useEffect(() => {
     async function autoConnect() {
       if (typeof window === 'undefined' || !window.ethereum) return;
+
+      if (localStorage.getItem('userDisconnected') === 'true') return;
 
       const wasConnected = localStorage.getItem('walletConnected');
       const savedAddress = localStorage.getItem('walletAddress');

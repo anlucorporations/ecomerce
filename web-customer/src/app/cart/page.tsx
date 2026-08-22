@@ -375,9 +375,14 @@ const EURO_TOKEN_ABI = [
                                   const newQty = item.quantity - BigInt(1);
                                   if (newQty > BigInt(0)) {
                                     updateQuantity(item.productId, newQty);
+                                  } else {
+                                    if (confirm(`¿Desea eliminar "${item.productName}" del carrito?`)) {
+                                      removeFromCart(item.productId);
+                                    }
                                   }
                                 }}
-                                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center font-bold text-sm"
+                                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center font-bold text-sm transition"
+                                title="Disminuir cantidad"
                               >
                                 -
                               </button>
@@ -386,7 +391,8 @@ const EURO_TOKEN_ABI = [
                               </span>
                               <button
                                 onClick={() => updateQuantity(item.productId, item.quantity + BigInt(1))}
-                                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center font-bold text-sm"
+                                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center font-bold text-sm transition"
+                                title="Aumentar cantidad"
                               >
                                 +
                               </button>
@@ -400,13 +406,18 @@ const EURO_TOKEN_ABI = [
                               <span className="text-[10px] text-slate-500 uppercase font-mono">EURT</span>
                             </div>
 
-                            {/* Remove button */}
+                            {/* Explicit Remove / Delete button */}
                             <button
-                              onClick={() => removeFromCart(item.productId)}
-                              className="p-2 text-slate-400 hover:text-red-400 transition"
-                              title="Eliminar producto"
+                              onClick={() => {
+                                if (confirm(`¿Eliminar "${item.productName}" de tu carrito?`)) {
+                                  removeFromCart(item.productId);
+                                }
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1"
+                              title="Eliminar producto del carrito"
                             >
-                              ✕
+                              <span>🗑️</span>
+                              <span className="hidden sm:inline">Eliminar</span>
                             </button>
                           </div>
                         </div>

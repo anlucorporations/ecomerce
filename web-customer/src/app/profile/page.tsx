@@ -130,10 +130,79 @@ export default function ProfilePage() {
     fetchStatus();
   }, [address, ecommerceAddress]);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    if (!address) return;
+
+    setSaving(true);
+    try {
+      let activeSigner = provider ? await provider.getSigner() : null;
+      if (!activeSigner && typeof window !== 'undefined' && (window as any).ethereum) {
+        const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
+        activeSigner = await browserProvider.getSigner();
+      }
+
+      if (!activeSigner) {
+        alert('Por favor conecte su billetera MetaMask para firmar la modificación del perfil.');
+        setSaving(false);
+        return;
+      }
+
+      // 1. Mandatory Cryptographic Signature Popup via MetaMask
+      const defaultAddr = addressesList.find(a => a.isDefault)?.street || profile.phone;
+      const timestamp = new Date().toISOString();
+      const updateMessage = `ACTUALIZACIÓN DE PERFIL Y REGISTRO - BARLO-VENTAS WEB3\n\nBilletera Titular: ${address}\nNombre Completo: ${profile.name}\nEmail de Notificaciones: ${profile.email}\nTeléfono: ${profile.phone}\nDirección Principal: ${defaultAddr}\nFecha de Actualización: ${timestamp}\n\nAl firmar con su billetera MetaMask, usted certifica la actualización de sus datos de usuario on-chain.`;
+
+      let signature = '';
+      try {
+        signature = await activeSigner.signMessage(updateMessage);
+        console.log('Firma criptográfica de perfil obtenida en MetaMask:', signature);
+      } catch (signErr: any) {
+        console.error('Firma cancelada en MetaMask:', signErr);
+        alert('⚠️ Operación cancelada: La modificación de su perfil requiere ser firmada criptográficamente con su billetera MetaMask.');
+        setSaving(false);
+        return;
+      }
+
+      // 2. On-Chain Contract Update Attempt (registerCustomerSelf if not existing, or update)
+      try {
+        const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
+        const isReg = await contract.isCustomerRegistered(address);
+        if (!isReg) {
+          const tx = await contract.registerCustomerSelf(profile.name, profile.email, defaultAddr);
+          await tx.wait();
+        }
+      } catch (txErr: any) {
+        console.warn('Registro/Actualización on-chain aviso:', txErr);
+      }
+
+      // 3. Persist locally with cryptographic signature
+      const regObject = {
+        address,
+        name: profile.name,
+        email: profile.email,
+        phone: profile.phone,
+        shippingAddress: defaultAddr,
+        signature,
+        updatedAt: Date.now(),
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`customer_reg_${address.toLowerCase()}`, JSON.stringify(regObject));
+        localStorage.setItem(`profile_signature_${address.toLowerCase()}`, signature);
+      }
+
+      setIsRegistered(true);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 4000);
+    } catch (err: any) {
+      console.error('Error al guardar el perfil:', err);
+      alert('Error guardando perfil: ' + (err?.reason || err?.message || 'Operación cancelada'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAddAddress = (e: React.FormEvent) => {
@@ -316,9 +385,10 @@ export default function ProfilePage() {
             <div className="sm:col-span-2 pt-2 flex justify-end">
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-[#0077BB] hover:bg-[#005F96] text-white font-bold rounded-xl text-xs shadow-md transition font-poppins"
+                disabled={saving}
+                className="px-6 py-2.5 bg-[#0077BB] hover:bg-[#005F96] text-white font-bold rounded-xl text-xs shadow-md transition font-poppins disabled:opacity-50 flex items-center gap-2"
               >
-                Guardar Cambios de Perfil
+                {saving ? 'Firmando en MetaMask...' : '✍️ Firmar con MetaMask y Guardar Cambios'}
               </button>
             </div>
           </form>

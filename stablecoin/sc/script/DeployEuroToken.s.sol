@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import {EuroToken} from "../src/EuroToken.sol";
+import {EuroTokenOptimized} from "../src/EuroTokenOptimized.sol";
 
 contract DeployEuroToken is Script {
-    EuroToken public euroToken;
+    EuroTokenOptimized public euroToken;
 
     function setUp() public {}
 
     function run() public {
-        vm.startBroadcast();
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
+        vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy EuroToken with deployer as initial owner
-        euroToken = new EuroToken(msg.sender);
+        // Deploy EuroTokenOptimized with deployer as initial owner and minter
+        euroToken = new EuroTokenOptimized(deployer, deployer);
 
         console.log("EuroToken deployed at:", address(euroToken));
-        console.log("Owner:", euroToken.owner());
-        console.log("Total Supply:", euroToken.totalSupply());
         console.log("Name:", euroToken.name());
         console.log("Symbol:", euroToken.symbol());
         console.log("Decimals:", euroToken.decimals());

@@ -90,6 +90,14 @@ export default function TopupPage() {
       console.warn('isKYCVerified check warning:', e);
     }
 
+    // Check local persistence for instant reflect after KycModal completes
+    if (!isVerified && typeof window !== 'undefined') {
+      const localKyc = localStorage.getItem(`kyc_verified_${dest.toLowerCase()}`);
+      if (localKyc === 'true') {
+        isVerified = true;
+      }
+    }
+
     if (!isVerified) {
       setIsKYCModalOpen(true);
       setStatus('error');

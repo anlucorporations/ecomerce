@@ -78,7 +78,7 @@ export function StripeTopupModal({
 
       // 2. Try calling API checkout endpoint
       try {
-        const compraUrl = process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || 'https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app';
+        const compraUrl = process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:3003' : 'https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app');
         const res = await fetch(`${compraUrl}/api/checkout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

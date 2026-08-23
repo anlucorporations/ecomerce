@@ -472,7 +472,7 @@ export default function Home() {
                               await addToCart(product.productId, BigInt(1));
                               alert(`¡${product.name} agregado y firmado con éxito!`);
                             } catch (err: any) {
-                              alert(err?.message || "Operación cancelada o fallida");
+                              console.warn("addToCart:", err?.message || err);
                             }
                           }}
                           className="px-3 py-1.5 bg-[#2E8B57] hover:bg-[#236B43] text-white font-bold text-xs rounded-xl shadow-xs transition font-poppins flex items-center gap-1"

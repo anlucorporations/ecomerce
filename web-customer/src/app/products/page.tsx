@@ -75,9 +75,7 @@ export default function ProductsPage() {
       await addToCart(productId, BigInt(1));
       alert('Product added to cart!');
     } catch (error: unknown) {
-      console.error('Error adding to cart:', error);
-      const err = error instanceof Error ? error : new Error(String(error));
-      alert(`Error adding product to cart: ${err.message || String(error)}`);
+      console.warn('Error adding to cart:', error);
     } finally {
       setAddingToCart(null);
     }

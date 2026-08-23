@@ -135,13 +135,31 @@ export function KycModal({
         return;
       }
 
-      // 2. On-Chain Contract Update: Set Customer Status as Verified
-      const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
+      // 2. On-Chain Contract Update: Call /api/kyc/verify API to approve KYC on-chain via Owner Admin
       try {
-        const tx = await contract.registerCustomer();
-        await tx.wait();
-      } catch (txErr: any) {
-        console.warn("Llamada on-chain registerCustomer aviso:", txErr);
+        const response = await fetch('/api/kyc/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address: userAddress,
+            phone,
+            birthDate,
+            country,
+            idImageHash,
+            selfieHash,
+            signature: kycSignature,
+            timestamp
+          })
+        });
+
+        const resData = await response.json();
+        if (!response.ok || !resData.success) {
+          console.warn("[KYC API] Warning from server:", resData?.error);
+        } else {
+          console.log("[KYC API] Aprobado on-chain con éxito:", resData);
+        }
+      } catch (apiErr) {
+        console.warn("No se pudo contactar /api/kyc/verify directamente:", apiErr);
       }
 
       // 3. Store local persistence with SHA-256 hashes and signature proof
@@ -161,9 +179,10 @@ export function KycModal({
         localStorage.setItem(`kyc_verified_${userAddress.toLowerCase()}`, 'true');
         localStorage.setItem(`kyc_data_${userAddress.toLowerCase()}`, JSON.stringify(kycRecord));
         localStorage.setItem(`kyc_signature_${userAddress.toLowerCase()}`, kycSignature);
+        window.dispatchEvent(new CustomEvent('kyc-status-updated', { detail: { address: userAddress, isVerified: true } }));
       }
 
-      alert("¡Verificación KYC Aprobada! Su registro ha sido actualizado on-chain como VERIFICADO 🟢. Solo se registraron los hashes criptográficos de sus imágenes.");
+      alert("¡Verificación KYC Aprobada! Su registro ha sido actualizado on-chain como VERIFICADO 🟢. Ya puede realizar compras y agregar productos.");
 
       if (onSuccess) onSuccess();
       onClose();

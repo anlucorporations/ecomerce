@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useContract } from '@/hooks/useContract';
@@ -21,7 +21,8 @@ const ECOMMERCE_ABI = [
   "function checkoutMultiCompany(uint256[] _companyIds, uint256[] _productIds, uint256[] _quantities) returns (uint256[])",
   "function getInvoice(uint256 _invoiceId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp))",
   "function getCustomerInvoices(address customer) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
-  "function getCompany(uint256 _companyId) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))"
+  "function getCompany(uint256 _companyId) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))",
+  "function euroTokenAddress() view returns (address)"
 ];
 
 const formatPrice = (price: bigint | number | string) => {
@@ -246,9 +247,15 @@ const EURO_TOKEN_ABI = [
 
       if (!activeSigner) throw new Error("MetaMask no disponible o bloqueado.");
 
-      const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+      let activeEuroToken = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
-      const euroToken = new ethers.Contract(euroTokenAddress, EURO_TOKEN_ABI, activeSigner);
+      try {
+        const onChainToken = await contract.euroTokenAddress();
+        if (onChainToken && onChainToken !== ethers.ZeroAddress) {
+          activeEuroToken = onChainToken;
+        }
+      } catch {}
+      const euroToken = new ethers.Contract(activeEuroToken, EURO_TOKEN_ABI, activeSigner);
 
       if (items.length === 0) throw new Error('Carrito vacío');
 

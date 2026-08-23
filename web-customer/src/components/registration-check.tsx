@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../hooks/useWallet';
@@ -63,45 +63,37 @@ export function RegistrationCheck() {
 
       if (registered) {
         setShowModal(false);
-      } else {
-        // Address is connected but NOT registered on-chain or locally -> MANDATORY REDIRECT TO PROFILE REGISTRATION!
+      } else if (pathname === '/profile' && typeof window !== 'undefined' && window.location.search.includes('register=true')) {
         setShowModal(true);
-        if (pathname !== '/profile') {
-          router.replace('/profile?register=true');
-        }
       }
 
     } catch (err) {
       console.warn("Registration check error:", err);
     }
-  }, [isConnected, address, ecommerceAddress, pathname, router]);
+  }, [isConnected, address, ecommerceAddress, pathname]);
 
   useEffect(() => {
     checkRegistration();
   }, [checkRegistration]);
 
-  // MANDATORY ROUTE GUARD: If connected wallet is unregistered, enforce /profile navigation
   useEffect(() => {
-    if (isConnected && address && isRegistered === false && pathname !== '/profile') {
-      setShowModal(true);
-      router.replace('/profile?register=true');
-    }
-  }, [isConnected, address, isRegistered, pathname, router]);
+    const handleOpenModal = () => setShowModal(true);
+    window.addEventListener('open-customer-registration', handleOpenModal);
+    return () => {
+      window.removeEventListener('open-customer-registration', handleOpenModal);
+    };
+  }, []);
 
   return (
     <CustomerRegistrationModal
-      isOpen={showModal && isConnected && isRegistered === false}
-      onClose={() => {
-        // Closing modal without registration is restricted unless disconnected
-        setShowModal(false);
-      }}
+      isOpen={showModal}
+      onClose={() => setShowModal(false)}
       userAddress={address}
       onSuccess={() => {
         setIsRegistered(true);
         setShowModal(false);
-        // Requirement 2: Redirect to main page (/) upon successful registration
         if (typeof window !== 'undefined') {
-          window.location.href = '/';
+          window.location.reload();
         }
       }}
     />

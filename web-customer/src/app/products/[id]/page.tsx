@@ -122,7 +122,7 @@ export default function ProductDetailPage() {
       alert(`¡${quantity} unidad(es) de ${product.name} agregada(s) y firmada(s) con éxito en MetaMask!`);
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
-      alert(err.message);
+      console.warn("handleAddCart:", err.message);
     } finally {
       setAddingToCart(false);
     }

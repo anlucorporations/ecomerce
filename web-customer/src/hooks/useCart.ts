@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useContract } from './useContract';
@@ -173,16 +173,52 @@ export function useCart(
     [ecommerceAddress, loadCart, address]
   );
 
-  // Add to cart (MetaMask personal_sign Web3 Signature for Connected Users)
+  // Add to cart (Checks wallet connection & customer registration before adding)
   const addToCart = useCallback(
     async (productId: bigint, quantity: bigint) => {
       if (typeof window !== 'undefined') {
+        // 1. Mandatory Wallet Connection Check
+        if (!address || !signer) {
+          alert("⚠️ Debe conectar su billetera MetaMask e inscribirse como Cliente para poder agregar productos al carrito.");
+          window.dispatchEvent(new CustomEvent('open-customer-registration'));
+          throw new Error("Billetera no conectada. Debe conectar e inscribir su billetera para continuar.");
+        }
+
+        // 2. Mandatory On-Chain Customer Registration Check
+        const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
+        const checkContract = new ethers.Contract(ecommerceAddress, [
+          "function isCustomerRegistered(address _customer) view returns (bool)",
+          "function getEntityType(address account) view returns (uint8)"
+        ], rpcProvider);
+
+        let isRegistered = false;
+        try {
+          isRegistered = await checkContract.isCustomerRegistered(address);
+          if (!isRegistered) {
+            const eType = Number(await checkContract.getEntityType(address));
+            if (eType === 2) isRegistered = true;
+          }
+        } catch (checkErr) {
+          console.warn("Could not verify customer registration on-chain:", checkErr);
+        }
+
+        // Fallback local persistence check
+        if (!isRegistered) {
+          const localReg = localStorage.getItem(`customer_reg_${address.toLowerCase()}`);
+          if (localReg) isRegistered = true;
+        }
+
+        if (!isRegistered) {
+          alert("⚠️ Su billetera aún no está inscrita como Cliente en la plataforma.\n\nPor favor complete el formulario de inscripción para poder comprar y agregar productos a su carrito.");
+          window.dispatchEvent(new CustomEvent('open-customer-registration'));
+          throw new Error("Billetera no inscrita como Cliente. Por favor complete su registro en el formulario desplegado.");
+        }
+
         let prodName = `Producto #${productId.toString()}`;
         let compId = "1";
         let uPrice = "10000000";
 
         try {
-          const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
           const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
           const prod = await contract.getProduct(productId);
           if (prod && prod.name) {
@@ -191,20 +227,7 @@ export function useCart(
             uPrice = prod.price.toString();
           }
         } catch (e) {
-          console.warn("Could not fetch product from contract in addToCart, checking fallbacks:", e);
-          if (productId === BigInt(1)) {
-            prodName = "Café Gourmet Cacao Sol";
-            compId = "1";
-            uPrice = "18500000";
-          } else if (productId === BigInt(2)) {
-            prodName = "Cacao Puro Verde Manglar";
-            compId = "1";
-            uPrice = "24000000";
-          } else if (productId === BigInt(3)) {
-            prodName = "Chocolate Artesanal Azul Caribe";
-            compId = "2";
-            uPrice = "12000000";
-          }
+          console.warn("Could not fetch product from contract in addToCart:", e);
         }
 
         // Web3 MetaMask Personal Signature required when user is connected

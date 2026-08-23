@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWallet } from '../hooks/useWallet';
@@ -42,19 +42,11 @@ export function UserDropdown() {
       const rawEth = await rpcProvider.getBalance(address);
       setEthBalance((Number(rawEth) / 1e18).toFixed(4));
 
-      // 2. Fetch EURT Balance
-      const tokenContract = new ethers.Contract(
-        euroTokenAddress,
-        ['function balanceOf(address account) view returns (uint256)'],
-        rpcProvider
-      );
-      const rawEurt = await tokenContract.balanceOf(address);
-      setEurtBalance((Number(rawEurt) / 1e6).toFixed(2));
-
-      // 3. Fetch Registration, User Name & KYC Verification Status on-chain
+      // 2. Fetch Registration, User Name & KYC Verification Status on-chain
       let isReg = false;
       let fetchedName = '';
       let kyc = false;
+      let activeEuroToken = euroTokenAddress;
 
       try {
         const ecomContract = new ethers.Contract(
@@ -62,7 +54,8 @@ export function UserDropdown() {
           [
             'function isCustomerRegistered(address account) view returns (bool)',
             'function isKYCVerified(address account) view returns (bool)',
-            'function getCustomer(address _customer) view returns (tuple(uint256 id, address customerAddress, string name, string contactEmail, string shippingAddress, bool isKYCVerified, uint256 registrationDate))'
+            'function getCustomer(address _customer) view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive))',
+            'function euroTokenAddress() view returns (address)'
           ],
           rpcProvider
         );
@@ -70,12 +63,40 @@ export function UserDropdown() {
         isReg = await ecomContract.isCustomerRegistered(address);
         kyc = await ecomContract.isKYCVerified(address);
 
+        try {
+          const onChainToken = await ecomContract.euroTokenAddress();
+          if (onChainToken && onChainToken !== ethers.ZeroAddress) {
+            activeEuroToken = onChainToken;
+          }
+        } catch {}
+
         const cust = await ecomContract.getCustomer(address);
         if (cust && cust.name && cust.name.trim() !== '') {
           fetchedName = cust.name;
         }
       } catch (e) {
         console.warn('KYC/Customer fetch warning:', e);
+      }
+
+      // 3. Fetch EURT Balance
+      try {
+        const tokenContract = new ethers.Contract(
+          activeEuroToken,
+          ['function balanceOf(address account) view returns (uint256)'],
+          rpcProvider
+        );
+        const rawEurt = await tokenContract.balanceOf(address);
+        setEurtBalance((Number(rawEurt) / 1e6).toFixed(2));
+      } catch (tokenErr) {
+        console.warn('EURT balance fetch warning:', tokenErr);
+      }
+
+      // Check local storage fallback for KYC
+      if (!kyc && typeof window !== 'undefined') {
+        const localKyc = localStorage.getItem(`kyc_verified_${address.toLowerCase()}`);
+        if (localKyc === 'true') {
+          kyc = true;
+        }
       }
 
       setIsRegistered(isReg);
@@ -90,6 +111,16 @@ export function UserDropdown() {
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData, isOpen]);
+
+  useEffect(() => {
+    const handleKycUpdated = () => {
+      fetchUserData();
+    };
+    window.addEventListener('kyc-status-updated', handleKycUpdated);
+    return () => {
+      window.removeEventListener('kyc-status-updated', handleKycUpdated);
+    };
+  }, [fetchUserData]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

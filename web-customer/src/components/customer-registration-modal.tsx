@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { useWallet } from '../hooks/useWallet';
@@ -29,7 +29,7 @@ export function CustomerRegistrationModal({
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x68B1D87F95878fE05B998F19b66F4baba5De1aed";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
   if (!isOpen || !userAddress) return null;
 

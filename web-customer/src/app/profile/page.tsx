@@ -1,9 +1,10 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
 import { CustomerRegistrationModal } from '@/components/customer-registration-modal';
+import { KycModal } from '@/components/kyc-modal';
 
 interface AddressItem {
   id: string;
@@ -18,12 +19,13 @@ interface AddressItem {
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
   "function isCustomerRegistered(address _customer) view returns (bool)",
-  "function getCustomer(address _customer) view returns (tuple(uint256 id, address customerAddress, string name, string contactEmail, string shippingAddress, bool isKYCVerified, uint256 registrationDate))"
+  "function isKYCVerified(address account) view returns (bool)",
+  "function getCustomer(address _customer) view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive))"
 ];
 
 export default function ProfilePage() {
   const { provider, address, isConnected, connect } = useWallet();
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
   const [profile, setProfile] = useState({
     name: 'Cliente BARLO-VENTAS',
@@ -33,7 +35,9 @@ export default function ProfilePage() {
 
   const [entityType, setEntityType] = useState<number | null>(null);
   const [isRegistered, setIsRegistered] = useState<boolean>(false);
+  const [isKycVerified, setIsKycVerified] = useState<boolean>(false);
   const [showRegModal, setShowRegModal] = useState<boolean>(false);
+  const [showKycModal, setShowKycModal] = useState<boolean>(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const [addressesList, setAddressesList] = useState<AddressItem[]>([
@@ -112,19 +116,22 @@ export default function ProfilePage() {
           console.warn('getCustomer warning:', e);
         }
 
-        // Check local saved addresses
-        if (typeof window !== 'undefined') {
-          const savedAddrs = localStorage.getItem(`user_addresses_${address.toLowerCase()}`);
-          if (savedAddrs) {
-            try {
-              const parsed = JSON.parse(savedAddrs);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setAddressesList(parsed);
-              }
-            } catch {}
+        // 4. Check KYC Status
+        let kycStatus = false;
+        try {
+          kycStatus = await contract.isKYCVerified(address);
+        } catch (e) {
+          console.warn('isKYCVerified check warning:', e);
+        }
+
+        if (!kycStatus && typeof window !== 'undefined') {
+          const localKyc = localStorage.getItem(`kyc_verified_${address.toLowerCase()}`);
+          if (localKyc === 'true') {
+            kycStatus = true;
           }
         }
 
+        setIsKycVerified(kycStatus);
         setIsRegistered(registeredOnChain);
 
         // Auto open modal if user came from redirection with ?register=true or is unregistered
@@ -141,6 +148,14 @@ export default function ProfilePage() {
     };
 
     fetchStatus();
+
+    const handleKycUpdated = () => {
+      fetchStatus();
+    };
+    window.addEventListener('kyc-status-updated', handleKycUpdated);
+    return () => {
+      window.removeEventListener('kyc-status-updated', handleKycUpdated);
+    };
   }, [address, ecommerceAddress]);
 
   const [saving, setSaving] = useState(false);
@@ -287,6 +302,16 @@ export default function ProfilePage() {
         }}
       />
 
+      <KycModal
+        isOpen={showKycModal}
+        onClose={() => setShowKycModal(false)}
+        userAddress={address}
+        onSuccess={() => {
+          setIsKycVerified(true);
+          setShowKycModal(false);
+        }}
+      />
+
       <div className="max-w-4xl mx-auto space-y-8">
         
         {/* Registration Warning Callout if Unregistered */}
@@ -298,14 +323,14 @@ export default function ProfilePage() {
                 <h3 className="font-extrabold text-[#333333] text-sm font-poppins">Billetera No Inscrita en BARLO-VENTAS</h3>
               </div>
               <p className="text-xs text-[#A9A9A9] max-w-xl">
-                Su billetera <strong className="text-[#0077BB] font-mono">{address}</strong> aún no está inscripta en el registro del Smart Contract. Complete su inscripción para operar en la plataforma.
+                Su billetera <strong className="text-[#0077BB] font-mono">{address}</strong> aún no está inscrita como Cliente en la plataforma.
               </p>
             </div>
             <button
               onClick={() => setShowRegModal(true)}
-              className="px-5 py-2.5 bg-[#FF8800] hover:bg-[#E07700] text-white font-black text-xs rounded-xl shadow-md transition shrink-0 font-poppins"
+              className="btn-cacao-pulse text-xs font-poppins shrink-0"
             >
-              ✍️ Inscribir Billetera Ahora
+              Inscribirme Ahora
             </button>
           </div>
         )}
@@ -324,15 +349,28 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isRegistered || entityType === 2 ? (
               <span className="px-3 py-1 bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30 text-xs font-bold rounded-full flex items-center gap-1.5 font-poppins">
-                <span>✓</span> Billetera Inscrita (Comprador)
+                <span>✓</span> Billetera Inscrita
               </span>
             ) : (
               <span className="px-3 py-1 bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30 text-xs font-bold rounded-full flex items-center gap-1.5 font-poppins">
                 <span>⚠️</span> Registro Pendiente
               </span>
+            )}
+
+            {isKycVerified ? (
+              <span className="px-3 py-1 bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30 text-xs font-bold rounded-full flex items-center gap-1.5 font-poppins">
+                <span>✓</span> KYC Verificado 🟢
+              </span>
+            ) : (
+              <button
+                onClick={() => setShowKycModal(true)}
+                className="px-3 py-1 bg-[#FFF3E5] hover:bg-[#FFE8CC] text-[#FF8800] border border-[#FF8800]/40 text-xs font-bold rounded-full flex items-center gap-1.5 font-poppins transition cursor-pointer"
+              >
+                <span>🪪</span> Verificar KYC ➔
+              </button>
             )}
           </div>
         </div>

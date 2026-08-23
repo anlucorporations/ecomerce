@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -49,7 +49,7 @@ function PaymentGatewayContent() {
 
   const checkWalletState = useCallback(async (account: string) => {
     try {
-      const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+      const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
       
       // 1. Check Registration
       const ecommerceContract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
@@ -389,3 +389,4 @@ export default function PaymentGatewayPage() {
     </Suspense>
   );
 }
+

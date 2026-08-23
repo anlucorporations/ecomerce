@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useContract } from './useContract';
@@ -47,7 +47,7 @@ export function useCart(
       return;
     }
     try {
-      const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+      const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
       const tokenContract = new ethers.Contract(
         euroTokenAddress,
         ["function balanceOf(address account) view returns (uint256)"],
@@ -68,7 +68,7 @@ export function useCart(
   const loadCart = useCallback(async () => {
     try {
       setLoading(true);
-      const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+      const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
       if (address && ecommerce) {
@@ -182,7 +182,7 @@ export function useCart(
         let uPrice = "10000000";
 
         try {
-          const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+          const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
           const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
           const prod = await contract.getProduct(productId);
           if (prod && prod.name) {
@@ -342,3 +342,4 @@ export function useCart(
     refreshBalance: loadEurtBalance,
   };
 }
+

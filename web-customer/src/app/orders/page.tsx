@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
@@ -46,7 +46,7 @@ export default function CustomerOrdersPage() {
       if (!selectedOrder || !selectedOrder.invoiceId) return;
       try {
         setLoadingSelectedItems(true);
-        const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+        const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
         const contract = new ethers.Contract(ecommerceAddress, [
           "function getInvoiceItems(uint256 invoiceId) view returns (tuple(uint256 productId, string productName, uint256 quantity, uint256 unitPrice, uint256 totalPrice)[])"
         ], provider);
@@ -78,7 +78,7 @@ export default function CustomerOrdersPage() {
     if (!address) return;
     try {
       setLoading(true);
-      const provider = signer?.provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+      const provider = signer?.provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, provider);
 
       const rawOrders = await contract.getCustomerInvoices(address);
@@ -694,3 +694,4 @@ export default function CustomerOrdersPage() {
     </div>
   );
 }
+

@@ -25,18 +25,6 @@ const ECOMMERCE_ABI = [
 
 const BUSINESS_TYPE_LABELS = ["Venta / Distribución de Productos", "Prestación de Servicios"];
 
-const FALLBACK_COMPANIES: Company[] = [
-  {
-    companyId: BigInt(1),
-    companyAddress: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-    name: "Super Owner Enterprise",
-    description: "Empresa Principal del Administrador del Sistema E-Commerce",
-    businessType: 0,
-    isActive: true,
-    registrationDate: BigInt(Math.floor(Date.now() / 1000)),
-  }
-];
-
 export default function CompaniesPage() {
   const router = useRouter();
   const { provider, signer, chainId, isConnected, address } = useWallet();
@@ -61,20 +49,16 @@ export default function CompaniesPage() {
     if (!address) return;
     try {
       setLoading(true);
-      const jsonProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+      const jsonProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, jsonProvider);
 
       // 1. Fetch companies
       try {
         const allComp = await contract.getAllCompanies();
-        if (allComp && allComp.length > 0) {
-          setCompanies(Array.from(allComp));
-        } else {
-          setCompanies(FALLBACK_COMPANIES);
-        }
+        setCompanies(allComp ? Array.from(allComp) : []);
       } catch (compErr) {
-        console.warn("[web-admin] No se pudieron decodificar las empresas del contrato, usando lista fallback:", compErr);
-        setCompanies(FALLBACK_COMPANIES);
+        console.warn("[web-admin] No se pudieron decodificar las empresas del contrato:", compErr);
+        setCompanies([]);
       }
 
       // 2. Check company registration status
@@ -86,34 +70,15 @@ export default function CompaniesPage() {
           return;
         }
       } catch {
-        // Fallthrough to local persistence check
-      }
-
-      // Fallback: Check local storage for newly registered wallet
-      if (typeof window !== "undefined") {
-        const localReg = localStorage.getItem(`company_reg_${address.toLowerCase()}`);
-        if (localReg) {
-          try {
-            const parsed = JSON.parse(localReg);
-            setUserCompany({
-              ...parsed,
-              companyId: BigInt(parsed.companyId || Date.now()),
-              registrationDate: BigInt(parsed.registrationDate || Math.floor(Date.now() / 1000))
-            });
-            setIsRegistered(true);
-            return;
-          } catch {
-            // ignore
-          }
-        }
+        // Not registered on-chain
       }
 
       setUserCompany(null);
       setIsRegistered(false);
 
     } catch (error) {
-      console.warn("Failed to load companies, using fallback:", error);
-      setCompanies(FALLBACK_COMPANIES);
+      console.warn("Failed to load companies:", error);
+      setCompanies([]);
     } finally {
       setLoading(false);
     }
@@ -131,12 +96,36 @@ export default function CompaniesPage() {
     try {
       let activeSigner = signer;
 
-      // Fallback: If signer is null in state, request directly from window.ethereum
-      if (!activeSigner && typeof window !== "undefined" && (window as any).ethereum) {
+      // Ensure active signer and network
+      if (typeof window !== "undefined" && (window as any).ethereum) {
         const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
-        const accounts = await browserProvider.send("eth_requestAccounts", []);
-        if (accounts && accounts.length > 0) {
+        try {
+          const network = await browserProvider.getNetwork();
+          const currentChainId = Number(network.chainId);
+          
+          if (currentChainId !== 31337) {
+            try {
+              await (window as any).ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: '0x7a69' }]
+              });
+            } catch (switchErr: any) {
+              if (switchErr.code === 4902) {
+                await (window as any).ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: '0x7a69',
+                    chainName: 'Anvil Localhost 8545',
+                    nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 },
+                    rpcUrls: [process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545']
+                  }]
+                });
+              }
+            }
+          }
           activeSigner = await browserProvider.getSigner();
+        } catch (netErr) {
+          console.warn("Network check error:", netErr);
         }
       }
 
@@ -146,219 +135,287 @@ export default function CompaniesPage() {
         return;
       }
 
+      const signerAddress = await activeSigner.getAddress();
+      const currentBalance = await activeSigner.provider.getBalance(signerAddress);
       const feeAmount = ethers.parseEther("3.0");
+
+      if (currentBalance < feeAmount) {
+        const ethBalStr = ethers.formatEther(currentBalance);
+        alert(`⚠️ Saldo ETH insuficiente: La inscripción de una nueva empresa requiere una tasa obligatoria de 3.0 ETH en la blockchain.\n\nTu saldo actual es: ${ethBalStr} ETH.\n\nPor favor recarga tu cuenta con al menos 3.0 ETH para completar el registro.`);
+        setSubmitting(false);
+        return;
+      }
+
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
 
+      const tx = await contract.registerCompanySelf(
+        formData.name.trim(),
+        formData.description.trim(),
+        formData.businessType,
+        { value: feeAmount }
+      );
+
+      console.log("Transacción de inscripción enviada:", tx.hash);
+      const receipt = await tx.wait();
+      console.log("Transacción confirmada en bloque:", receipt.blockNumber);
+
+      if (receipt.status !== 1) {
+        throw new Error("La transacción on-chain fue revertida por la EVM.");
+      }
+
+      // Read back on-chain registered company
+      const jsonProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
+      const readContract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, jsonProvider);
+      let registeredComp: Company;
+
       try {
-        const tx = await contract.registerCompanySelf(
-          formData.name,
-          formData.description,
-          formData.businessType,
-          { value: feeAmount }
-        );
-        await tx.wait();
-      } catch (txErr: any) {
-        console.warn("Transacción on-chain registrada o fallback ejecutado:", txErr);
+        const onChainComp = await readContract.getCompanyByAddress(signerAddress);
+        registeredComp = {
+          companyId: onChainComp.companyId,
+          companyAddress: onChainComp.companyAddress,
+          name: onChainComp.name,
+          description: onChainComp.description,
+          businessType: Number(onChainComp.businessType),
+          isActive: onChainComp.isActive,
+          registrationDate: onChainComp.registrationDate
+        };
+      } catch {
+        registeredComp = {
+          companyId: BigInt(Date.now()),
+          companyAddress: signerAddress,
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          businessType: formData.businessType,
+          isActive: true,
+          registrationDate: BigInt(Math.floor(Date.now() / 1000)),
+        };
       }
 
-      // Store local persistence for instant verification & reflection
-      const newCompany: Company = {
-        companyId: BigInt(Date.now()),
-        companyAddress: address || "",
-        name: formData.name,
-        description: formData.description,
-        businessType: formData.businessType,
-        isActive: true,
-        registrationDate: BigInt(Math.floor(Date.now() / 1000)),
-      };
-
-      if (typeof window !== "undefined" && address) {
-        localStorage.setItem(`company_reg_${address.toLowerCase()}`, JSON.stringify(newCompany, (_, v) => typeof v === 'bigint' ? v.toString() : v));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`company_reg_${signerAddress.toLowerCase()}`, JSON.stringify(registeredComp, (_, v) => typeof v === 'bigint' ? v.toString() : v));
       }
 
-      setUserCompany(newCompany);
+      setUserCompany(registeredComp);
       setIsRegistered(true);
 
-      alert("¡Inscripción exitosa! Su empresa ha sido registrada y su wallet verificada. Redirigiendo al Dashboard...");
+      alert(`✅ ¡Inscripción exitosa!\n\nSu empresa "${formData.name}" ha sido registrada on-chain con ID #${registeredComp.companyId.toString()}.\nTasa de 3.0 ETH transferida al Administrador.\nRedirigiendo al Dashboard...`);
       await loadCompaniesData();
       router.push("/");
     } catch (error: any) {
       console.error("Failed to register company:", error);
-      alert("Error en la inscripción: " + (error?.reason || error?.message || "Transacción cancelada o fallida"));
+      const errorMsg = error?.reason || error?.shortMessage || error?.message || "Transacción cancelada o fallida";
+      alert("⚠️ Error en la inscripción on-chain: " + errorMsg);
     } finally {
       setSubmitting(false);
     }
   };
 
+  // 1. Not connected view
   if (!isConnected || !address) {
     return (
-      <div className="admin-card p-12 text-center max-w-xl mx-auto space-y-4 my-8">
+      <div className="admin-card p-12 text-center max-w-xl mx-auto space-y-4 my-8 bg-white border border-slate-200 shadow-xl rounded-3xl">
         <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-bold text-2xl mx-auto border border-indigo-200">
-          🔒
+          🏢
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Acceso Restringido al Web Administrador</h2>
-        <p className="text-xs text-slate-500">
-          Por favor conecte la billetera del Super Owner usando el botón superior "Conectar Wallet Admin".
+        <h2 className="text-2xl font-extrabold text-slate-900 font-poppins">Inscripción y Gestión de Empresas</h2>
+        <p className="text-xs text-slate-500 leading-relaxed font-medium">
+          Conecte su billetera Web3 para inscribir una nueva empresa comercial o gestionar su comercio registrado.
         </p>
       </div>
     );
   }
 
-  // STRICT ACCESS CONTROL: Only Super Owner address 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266 is allowed
-  if (!isOwner) {
+  // 2. UNREGISTERED WALLET: SHOW FULL DEDICATED REGISTRATION FORM
+  if (!isRegistered && !isOwner) {
     return (
-      <div className="admin-card p-10 text-center max-w-xl mx-auto space-y-4 my-8 bg-white border border-rose-200 shadow-xl rounded-3xl">
-        <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center font-bold text-3xl mx-auto border border-rose-200">
-          🔒
-        </div>
-        <div className="inline-block px-3 py-1 bg-rose-100 text-rose-800 text-xs font-bold rounded-full border border-rose-200">
-          Acceso Exclusivo al Super Owner (Admin)
-        </div>
-        <h2 className="text-2xl font-extrabold text-slate-900 font-poppins">Acceso Restringido a /companies</h2>
-        <p className="text-xs text-slate-600 leading-relaxed font-medium">
-          El Directorio General y Gestión de Comercios (<code className="bg-slate-100 px-1.5 py-0.5 rounded text-rose-600 font-mono">/companies</code>) está reservado estrictamente para la dirección del Super Administrador del Smart Contract:
-        </p>
-        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono font-bold text-indigo-600 break-all">
-          0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-        </div>
-        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 font-medium">
-          Billetera Conectada Actual: <span className="font-mono font-bold break-all">{address}</span> (No Autorizado)
-        </div>
-        <div className="pt-2 flex justify-center gap-3">
-          <Link href="/" className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition font-poppins">
-            🏠 Volver al Dashboard Principal
-          </Link>
-          <Link href="/inventory" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition font-poppins">
-            📦 Ir a Mi Inventario
-          </Link>
-        </div>
-      </div>
-    );
-  }
+      <div className="max-w-3xl mx-auto my-6 space-y-6">
+        <div className="admin-card p-8 bg-white border-2 border-indigo-200 shadow-2xl rounded-3xl space-y-6 relative overflow-hidden">
+          {/* Top Decorative Banner */}
+          <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800" />
 
-  return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Registration Status Banner */}
-      {!isRegistered && !isOwner ? (
-        /* Unregistered Wallet: Registration Form Paying 3 ETH */
-        <div className="admin-card p-6 sm:p-8 bg-white border-2 border-indigo-200 shadow-xl space-y-6">
-          <div className="border-b border-slate-100 pb-4">
-            <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200 mb-2 inline-block">
-              ⚠️ Wallet No Inscrita en la Plataforma
-            </span>
-            <h2 className="text-2xl font-extrabold text-slate-900">Inscripción Oficial de Comercio</h2>
-            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              Para obtener acceso al panel de administración y operar en el ecosistema, debe registrar su empresa cancelando la tarifa oficial de inscripción de <strong className="text-indigo-600">3.0 ETH</strong>. La wallet conectada quedará vinculada en blockchain.
+          <div className="border-b border-slate-100 pb-5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold font-poppins mb-3">
+              <span>⚠️ Billetera No Inscrita &bull; Proceso de Registro</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 font-poppins tracking-tight">
+              Inscripción Oficial de Empresa Comercial
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+              Complete los datos de su empresa en el siguiente formulario. La inscripción registrará su comercio de forma inmutable en el Smart Contract y transferirá la tasa oficial obligatoria de <strong className="text-indigo-600 font-bold">3.0 ETH</strong> al Administrador.
             </p>
           </div>
 
-          <form onSubmit={handleSelfRegister} className="space-y-5">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <div>
-                <span className="text-slate-500 block">Billetera a Inscribir:</span>
-                <span className="font-mono font-bold text-slate-900 break-all">{address}</span>
-              </div>
-              <span className="px-2.5 py-0.5 rounded-full font-bold badge-success">
-                🛡️ KYC Ligero Auto-Asignado
-              </span>
+          {/* Connected Wallet Info */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Billetera a Vincular:</span>
+              <span className="font-mono font-black text-xs sm:text-sm text-indigo-700 break-all">{address}</span>
             </div>
+            <span className="px-3 py-1 bg-indigo-100 text-indigo-800 font-bold text-xs rounded-xl border border-indigo-200 whitespace-nowrap">
+              Tasa: 3.0 ETH
+            </span>
+          </div>
 
+          {/* Registration Form */}
+          <form onSubmit={handleSelfRegister} className="space-y-5 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Nombre Comercial de la Empresa:</label>
+                <label className="block font-extrabold text-slate-800 mb-1.5">
+                  Razón Social / Nombre Comercial *
+                </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ej. Distribuidora Global S.A."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  placeholder="Ej. Distribuidora Barlovento S.L."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-xs text-slate-900 font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white transition"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Tipo de Actividad Comercial:</label>
+                <label className="block font-extrabold text-slate-800 mb-1.5">
+                  Tipo de Actividad Comercial *
+                </label>
                 <select
                   value={formData.businessType}
                   onChange={(e) => setFormData({ ...formData, businessType: parseInt(e.target.value) })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-xs text-slate-900 font-bold focus:outline-none focus:border-indigo-500 focus:bg-white transition"
                 >
-                  <option value={0}>🛒 Venta / Distribución de Productos</option>
+                  <option value={0}>🛒 Venta / Distribución de Productos Físicos</option>
                   <option value={1}>🛠️ Prestación de Servicios</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Descripción del Comercio:</label>
+              <label className="block font-extrabold text-slate-800 mb-1.5">
+                Descripción Detallada de la Empresa *
+              </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Describa brevemente los productos o servicios que ofrece su negocio..."
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                placeholder="Describa el giro comercial, tipos de productos que venderá y condiciones de atención..."
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-xs text-slate-900 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white transition"
                 rows={3}
                 required
               />
             </div>
 
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:opacity-95 text-white font-extrabold text-sm rounded-2xl shadow-xl transition disabled:opacity-50 flex justify-center items-center gap-2"
-              >
-                {submitting ? (
-                  "Procesando inscripción y pago en Ethereum..."
-                ) : (
-                  <span>💳 Pagar Tarifa de Inscripción (3.0 ETH) y Registrar Empresa</span>
-                )}
-              </button>
+            {/* Fee Confirmation Box */}
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-4 rounded-2xl text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-amber-900 flex items-center gap-1.5">
+                  <span>💳</span> Pago On-Chain de Tasa de Registro
+                </span>
+                <span className="font-mono font-black text-amber-900 text-sm">3.00 ETH</span>
+              </div>
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                Al hacer clic en el botón inferior, MetaMask le solicitará firmar y aprobar la transferencia de 3.0 ETH on-chain para dar de alta su comercio en la Blockchain.
+              </p>
             </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:opacity-95 text-white font-black text-sm rounded-2xl shadow-xl transition disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer font-poppins"
+            >
+              {submitting ? (
+                <>
+                  <span className="animate-spin text-lg">⏳</span>
+                  <span>Firmando y Confirmando Transacción On-Chain en MetaMask...</span>
+                </>
+              ) : (
+                <span>💳 Confirmar Inscripción y Pagar Tasa (3.0 ETH) →</span>
+              )}
+            </button>
           </form>
         </div>
-      ) : (
-        /* Registered Wallet or Owner Banner */
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex justify-between items-center">
+      </div>
+    );
+  }
+
+  // 3. REGISTERED MERCHANT VIEW
+  if (isRegistered && !isOwner) {
+    return (
+      <div className="space-y-6 max-w-7xl mx-auto">
+        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold badge-success">
-                ✅ Billetera Inscrita & Verificada
+            <div className="flex items-center gap-2 mb-2">
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                ✅ Empresa Comercial Registrada &bull; ID #{userCompany?.companyId.toString()}
               </span>
-              {isOwner && (
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                  Super Owner
-                </span>
-              )}
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                {BUSINESS_TYPE_LABELS[userCompany?.businessType || 0]}
+              </span>
             </div>
-            <h2 className="text-xl font-bold text-slate-900">
-              {userCompany ? userCompany.name : "Panel General de Comercios"}
-            </h2>
-            <p className="text-xs text-slate-500 font-mono mt-0.5">Wallet: {address}</p>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 font-poppins">
+              {userCompany?.name}
+            </h1>
+            <p className="text-xs text-slate-500 mt-1 max-w-2xl">{userCompany?.description}</p>
+            <p className="text-[11px] text-slate-400 font-mono mt-2">Wallet: {address}</p>
+          </div>
+
+          <div className="flex gap-3">
+            <Link
+              href="/inventory"
+              className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-2 font-poppins"
+            >
+              📦 Gestionar Mi Catálogo
+            </Link>
+            <Link
+              href="/"
+              className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-2 font-poppins"
+            >
+              📊 Ver Mi Dashboard
+            </Link>
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* Directory of All Companies */}
-      <div className="admin-card overflow-hidden">
+  // 4. SUPER OWNER VIEW (Directory of all companies)
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 p-6 sm:p-8 rounded-3xl text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30 text-xs font-bold mb-2">
+            <span>⚡ Super Admin Owner</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight font-poppins">
+            Directorio General de Comercios
+          </h1>
+          <p className="text-xs text-purple-200 mt-1">
+            Gestión global de todas las empresas y comercios registrados en el Smart Contract.
+          </p>
+        </div>
+        <span className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-2xl text-sm font-black border border-white/20">
+          Total Empresas: {companies.length}
+        </span>
+      </div>
+
+      {/* Table of Companies */}
+      <div className="admin-card overflow-hidden bg-white border border-slate-200 shadow-xl rounded-3xl">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <div>
-            <h3 className="font-bold text-sm text-slate-900">Directorio General de Comerciantes</h3>
-            <p className="text-xs text-slate-500">Listado completo de empresas registradas en el contrato</p>
-          </div>
-          <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-indigo-600">
-            Total: {companies.length}
-          </span>
+          <h3 className="font-bold text-sm text-slate-900 font-poppins">Listado de Empresas On-Chain</h3>
+          <button
+            onClick={loadCompaniesData}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+          >
+            🔄 Actualizar
+          </button>
         </div>
 
-        <div className="hidden md:block overflow-x-auto">
+        <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 tracking-wider">
+              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 tracking-wider font-poppins">
                 <th className="px-6 py-3.5">ID</th>
                 <th className="px-6 py-3.5">Nombre Comercial</th>
-                <th className="px-6 py-3.5">Tipo de Actividad</th>
-                <th className="px-6 py-3.5">Dirección Wallet</th>
-                <th className="px-6 py-3.5">Certificación KYC</th>
+                <th className="px-6 py-3.5">Tipo</th>
+                <th className="px-6 py-3.5">Billetera</th>
+                <th className="px-6 py-3.5">Fecha Alta</th>
                 <th className="px-6 py-3.5">Estado</th>
               </tr>
             </thead>
@@ -381,7 +438,7 @@ export default function CompaniesPage() {
                     <td className="px-6 py-4 font-mono font-bold text-indigo-600">
                       #{company.companyId.toString()}
                     </td>
-                    <td className="px-6 py-4 font-bold text-slate-900">
+                    <td className="px-6 py-4 font-bold text-slate-900 font-poppins">
                       {company.name}
                       <span className="block text-[11px] font-normal text-slate-400 truncate max-w-xs">{company.description}</span>
                     </td>
@@ -393,16 +450,14 @@ export default function CompaniesPage() {
                     <td className="px-6 py-4 font-mono text-slate-600">
                       {company.companyAddress.slice(0, 8)}...{company.companyAddress.slice(-6)}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold badge-success">
-                        🛡️ Verificado
-                      </span>
+                    <td className="px-6 py-4 font-mono text-slate-500 text-[11px]">
+                      {new Date(Number(company.registrationDate) * 1000).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                        company.isActive ? "badge-success" : "badge-amber"
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                        company.isActive ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-amber-100 text-amber-800 border border-amber-300"
                       }`}>
-                        {company.isActive ? "Activa" : "Inactiva"}
+                        {company.isActive ? "🟢 Activa" : "🟡 Inactiva"}
                       </span>
                     </td>
                   </tr>

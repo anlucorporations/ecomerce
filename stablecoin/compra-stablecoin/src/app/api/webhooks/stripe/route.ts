@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { ethers } from "ethers";
 
@@ -16,7 +16,7 @@ const EURO_TOKEN_ABI = [
 ];
 
 const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY || process.env.ANVIL_PRIVATE_KEY || "";
-const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545";
 const EURO_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 const processedIntents = new Set<string>();
@@ -71,3 +71,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: err?.message || "Error en Webhook de Stripe" }, { status: 500 });
   }
 }
+

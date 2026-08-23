@@ -23,7 +23,7 @@ export function CompanyRegistrationModal({
   onSuccess
 }: CompanyRegistrationModalProps) {
   const router = useRouter();
-  const { signer } = useWallet();
+  const { signer, provider } = useWallet();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -47,23 +47,79 @@ export function CompanyRegistrationModal({
     setSubmitting(true);
 
     try {
-      // 1. Verify entity type on-chain: Must NOT be a customer (2) or company (1)
-      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
+      // 1. Ensure active signer and network
+      let activeSigner = signer;
+      let activeProvider = provider;
+
+      if (typeof window !== 'undefined' && (window as any).ethereum) {
+        const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
+        activeProvider = browserProvider;
+        try {
+          const network = await browserProvider.getNetwork();
+          const currentChainId = Number(network.chainId);
+          
+          // Switch to Local Anvil if not on 31337
+          if (currentChainId !== 31337) {
+            try {
+              await (window as any).ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: '0x7a69' }] // 31337 in hex
+              });
+            } catch (switchErr: any) {
+              if (switchErr.code === 4902) {
+                await (window as any).ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: '0x7a69',
+                    chainName: 'Anvil Localhost 8545',
+                    nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 },
+                    rpcUrls: [process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545']
+                  }]
+                });
+              }
+            }
+          }
+          activeSigner = await browserProvider.getSigner();
+        } catch (netErr) {
+          console.warn("Network check error:", netErr);
+        }
+      }
+
+      if (!activeSigner) {
+        alert("Por favor instale o desbloquee su extensión MetaMask para proceder con la inscripción.");
+        setSubmitting(false);
+        return;
+      }
+
+      const signerAddress = await activeSigner.getAddress();
+      const currentBalance = await activeSigner.provider.getBalance(signerAddress);
+      const feeAmount = ethers.parseEther("3.0");
+
+      if (currentBalance < feeAmount) {
+        const ethBalStr = ethers.formatEther(currentBalance);
+        alert(`⚠️ Saldo ETH insuficiente: La inscripción de una nueva empresa requiere una tasa obligatoria de 3.0 ETH en la blockchain.\n\nTu saldo actual es: ${ethBalStr} ETH.\n\nPor favor recarga tu cuenta con al menos 3.0 ETH para completar el registro.`);
+        setSubmitting(false);
+        return;
+      }
+
+      // Check duplicate entity on-chain
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545";
       const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
       const checkContract = new ethers.Contract(ecommerceAddress, [
         "function getEntityType(address account) view returns (uint8)",
-        "function getAllCustomers() view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive)[])"
+        "function getAllCustomers() view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive)[])",
+        "function getCompanyByAddress(address _address) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))"
       ], rpcProvider);
-      
+
       let eTypeNum = 0;
       try {
-        eTypeNum = Number(await checkContract.getEntityType(userAddress));
+        eTypeNum = Number(await checkContract.getEntityType(signerAddress));
       } catch (err) {
-        console.warn("Could not check entity type on-chain, proceeding:", err);
+        console.warn("Could not check entity type on-chain:", err);
       }
 
       if (eTypeNum === 2) {
-        alert("⚠️ Esta billetera se encuentra registrada como Usuario / Cliente en la plataforma. La inscripción de una nueva Empresa únicamente se permite cuando la billetera conectada NO está inscrita como empresa ni como usuario. Por favor utilice una billetera nueva no inscrita.");
+        alert("⚠️ Esta billetera ya se encuentra registrada como Cliente/Usuario en la plataforma. La inscripción de una Empresa requiere una billetera no inscrita.");
         setSubmitting(false);
         return;
       }
@@ -75,7 +131,7 @@ export function CompanyRegistrationModal({
         return;
       }
 
-      // Check email uniqueness across all existing customers on-chain
+      // Check duplicate email
       try {
         const allCustomers = await checkContract.getAllCustomers();
         const inputEmailLower = formData.email.trim().toLowerCase();
@@ -85,7 +141,7 @@ export function CompanyRegistrationModal({
         );
 
         if (existingCust) {
-          alert(`⚠️ El correo electrónico "${formData.email}" ya se encuentra registrado en la plataforma por otro cliente o usuario. No se permiten inscripciones con correos duplicados.`);
+          alert(`⚠️ El correo electrónico "${formData.email}" ya se encuentra registrado en la plataforma por otro usuario. No se permiten correos duplicados.`);
           setSubmitting(false);
           return;
         }
@@ -93,57 +149,51 @@ export function CompanyRegistrationModal({
         console.warn("Could not check duplicate email on-chain:", err);
       }
 
-      let activeSigner = signer;
-
-      if (!activeSigner && typeof window !== 'undefined' && (window as any).ethereum) {
-        const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
-        activeSigner = await browserProvider.getSigner();
-      }
-
-      if (!activeSigner) {
-        alert("Por favor instale o desbloquee su extensión MetaMask para proceder con la inscripción.");
-        setSubmitting(false);
-        return;
-      }
-
+      // Send on-chain registration transaction
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
-      const feeAmount = ethers.parseEther("3.0");
+      
+      const tx = await contract.registerCompanySelf(
+        formData.name.trim(),
+        formData.description.trim(),
+        formData.businessType,
+        { value: feeAmount }
+      );
 
-      let tx;
-      try {
-        tx = await contract.registerCompanySelf(
-          formData.name,
-          formData.description,
-          formData.businessType,
-          { value: feeAmount }
-        );
-      } catch (valErr) {
-        console.warn("Attempting fallback 0 ETH registration for company:", valErr);
-        tx = await contract.registerCompanySelf(
-          formData.name,
-          formData.description,
-          formData.businessType
-        );
+      console.log("Transacción de inscripción enviada a la blockchain:", tx.hash);
+      const receipt = await tx.wait();
+      console.log("Transacción confirmada on-chain en bloque:", receipt.blockNumber);
+
+      if (receipt.status !== 1) {
+        throw new Error("La transacción on-chain fue revertida por la EVM.");
       }
 
-      await tx.wait();
+      // Retrieve registered company on-chain data
+      let registeredId = Date.now().toString();
+      try {
+        const regComp = await checkContract.getCompanyByAddress(signerAddress);
+        if (regComp && regComp.companyId) {
+          registeredId = regComp.companyId.toString();
+        }
+      } catch (e) {
+        console.warn("Could not read back company data:", e);
+      }
 
-      // Local persistence for instant reflection
+      // Local persistence for instant UI reflection
       const newCompany = {
-        companyId: Date.now(),
-        address: userAddress,
-        name: formData.name,
-        email: formData.email,
-        description: formData.description,
+        companyId: registeredId,
+        address: signerAddress,
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        description: formData.description.trim(),
         businessType: formData.businessType,
-        registrationDate: Date.now()
+        registrationDate: Math.floor(Date.now() / 1000)
       };
 
       if (typeof window !== 'undefined') {
-        localStorage.setItem(`company_reg_${userAddress.toLowerCase()}`, JSON.stringify(newCompany));
+        localStorage.setItem(`company_reg_${signerAddress.toLowerCase()}`, JSON.stringify(newCompany));
       }
 
-      alert("¡Inscripción de empresa registrada exitosamente en la Blockchain!");
+      alert(`✅ ¡Empresa "${formData.name}" inscrita exitosamente en la Blockchain!\n\nID Asignado: #${registeredId}\nTasa de 3.0 ETH transferida al Administrador.\nTx Hash: ${tx.hash}`);
 
       if (onSuccess) onSuccess();
       onClose();
@@ -151,7 +201,8 @@ export function CompanyRegistrationModal({
 
     } catch (error: any) {
       console.error("Error en inscripción de empresa:", error);
-      alert("Error en la inscripción: " + (error?.reason || error?.message || "Transacción cancelada o fallida"));
+      const errorMsg = error?.reason || error?.shortMessage || error?.message || "Transacción cancelada o fallida";
+      alert("⚠️ Error en la inscripción on-chain: " + errorMsg);
     } finally {
       setSubmitting(false);
     }

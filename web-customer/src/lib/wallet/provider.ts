@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { createStore, Store } from 'mipd';
 import { BrowserProvider, JsonRpcSigner, Eip1193Provider } from 'ethers';
@@ -125,7 +125,7 @@ export async function switchNetwork(chainId: number): Promise<void> {
                 symbol: 'ETH',
                 decimals: 18,
               },
-              rpcUrls: [process.env.NEXT_PUBLIC_RPC_URL || 'https://mcc-foundry-anvil-1095249147821.europe-west1.run.app'],
+              rpcUrls: [process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545'],
             },
           ],
         });
@@ -149,3 +149,4 @@ declare global {
     ethereum?: EthereumProvider;
   }
 }
+

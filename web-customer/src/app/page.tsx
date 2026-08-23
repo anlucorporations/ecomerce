@@ -40,39 +40,6 @@ interface CompanyDetails {
   businessType: number; // 0: Venta de Productos, 1: Prestacion de Servicios
 }
 
-const FALLBACK_PRODUCTS: Product[] = [
-  {
-    productId: BigInt(1),
-    companyId: BigInt(1),
-    name: "Café Gourmet Cacao Sol",
-    description: "Granos de café orgánico de alta montaña con notas de cacao y caribe.",
-    price: BigInt(18500000),
-    ipfsImageHash: "QmVerticalCoffeeCacaoSol",
-    stock: BigInt(50),
-    isActive: true,
-  },
-  {
-    productId: BigInt(2),
-    companyId: BigInt(1),
-    name: "Cacao Puro Verde Manglar",
-    description: "Cacao 100% orgánico prensado en frío para repostería y bebidas.",
-    price: BigInt(24000000),
-    ipfsImageHash: "QmCacaoPuroVerdeManglar",
-    stock: BigInt(30),
-    isActive: true,
-  },
-  {
-    productId: BigInt(3),
-    companyId: BigInt(2),
-    name: "Chocolate Artesanal Azul Caribe",
-    description: "Barra de chocolate fino de aroma con 75% cacao de barlovento.",
-    price: BigInt(12000000),
-    ipfsImageHash: "QmChocolateAzulCaribe",
-    stock: BigInt(100),
-    isActive: true,
-  }
-];
-
 export default function Home() {
   const { provider, signer, chainId, address } = useWallet();
   const { items, total, addToCart } = useCart(provider, signer, chainId, address);
@@ -101,37 +68,28 @@ export default function Home() {
     const loadStoreData = async () => {
       try {
         setLoading(true);
-        const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+        const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
 
-        // 1. Verify if contract bytecode exists at ecommerceAddress on RPC node
         const code = await rpcProvider.getCode(ecommerceAddress).catch(() => "0x");
         if (!code || code === "0x" || code === "0x0") {
-          console.warn(`[web-customer] Contrato no desplegado en ${ecommerceAddress}. Cargando catálogo fallback.`);
-          setProducts(FALLBACK_PRODUCTS);
-          setCompanyMap({
-            "1": { id: "1", name: "TechMarket Iberia S.L.", businessType: 0 },
-            "2": { id: "2", name: "ServiCloud Consultores S.A.", businessType: 1 }
-          });
+          setProducts([]);
+          setCompanyMap({});
           return;
         }
 
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
-        // 2. Fetch products with graceful fallback
+        // Fetch products on-chain
         try {
           const allProds = await contract.getAllProducts();
           const activeProds = Array.from(allProds).filter((p: any) => p.isActive);
-          if (activeProds.length > 0) {
-            setProducts(activeProds as Product[]);
-          } else {
-            setProducts(FALLBACK_PRODUCTS);
-          }
+          setProducts(activeProds as Product[]);
         } catch (prodErr) {
-          console.warn("[web-customer] No se pudieron decodificar productos del contrato, usando catálogo fallback:", prodErr);
-          setProducts(FALLBACK_PRODUCTS);
+          console.warn("[web-customer] No se pudieron decodificar productos del contrato:", prodErr);
+          setProducts([]);
         }
 
-        // 3. Fetch companies with graceful fallback
+        // Fetch companies on-chain
         try {
           const allComps = await contract.getAllCompanies();
           const compDict: Record<string, CompanyDetails> = {};
@@ -145,19 +103,13 @@ export default function Home() {
           setCompanyMap(compDict);
         } catch (compErr) {
           console.warn("[web-customer] No se pudieron cargar empresas:", compErr);
-          setCompanyMap({
-            "1": { id: "1", name: "TechMarket Iberia S.L.", businessType: 0 },
-            "2": { id: "2", name: "ServiCloud Consultores S.A.", businessType: 1 }
-          });
+          setCompanyMap({});
         }
 
       } catch (error) {
-        console.warn('[web-customer] Error al conectar con nodo Anvil, activando catálogo fallback:', error);
-        setProducts(FALLBACK_PRODUCTS);
-        setCompanyMap({
-          "1": { id: "1", name: "TechMarket Iberia S.L.", businessType: 0 },
-          "2": { id: "2", name: "ServiCloud Consultores S.A.", businessType: 1 }
-        });
+        console.warn('[web-customer] Error al conectar con nodo RPC:', error);
+        setProducts([]);
+        setCompanyMap({});
       } finally {
         setLoading(false);
       }
@@ -568,3 +520,4 @@ export default function Home() {
     </div>
   );
 }
+

@@ -8,8 +8,6 @@ import { WalletConnect } from "../components/wallet-connect";
 import { useWallet } from "../hooks/useWallet";
 import { ethers } from "ethers";
 
-import { CompanyRegistrationModal } from "../components/company-registration-modal";
-
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
   "function getCompanyByAddress(address _address) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))"
@@ -25,7 +23,6 @@ export default function RootLayout({
   const router = useRouter();
   const { address, isConnected, provider } = useWallet();
   const [entityType, setEntityType] = useState<number>(0); // 0: Unregistered, 1: Company, 2: Customer, 3: Owner
-  const [showCompanyRegModal, setShowCompanyRegModal] = useState<boolean>(false);
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
   const isOwner = address?.toLowerCase() === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
@@ -34,7 +31,7 @@ export default function RootLayout({
     async function checkEntityType() {
       if (address) {
         try {
-          const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+          const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
           const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
           const eType = await contract.getEntityType(address);
           let typeNum = Number(eType);
@@ -61,18 +58,15 @@ export default function RootLayout({
 
           setEntityType(typeNum);
 
-          // If connected wallet is unregistered (0), prompt registration modal in place
-          if (typeNum === 0) {
-            setShowCompanyRegModal(true);
-          } else {
-            setShowCompanyRegModal(false);
+          // If connected wallet is unregistered (0), automatically redirect to /companies registration page
+          if (typeNum === 0 && pathname !== "/companies" && pathname !== "/help") {
+            router.push("/companies");
           }
         } catch (e) {
           console.warn("Failed to fetch entity type in layout:", e);
         }
       } else {
         setEntityType(0);
-        setShowCompanyRegModal(false);
       }
     }
     checkEntityType();
@@ -344,13 +338,6 @@ export default function RootLayout({
             </div>
           </>
         )}
-
-        <CompanyRegistrationModal
-          isOpen={showCompanyRegModal && isConnected && !isAuthorizedMerchant}
-          onClose={() => setShowCompanyRegModal(false)}
-          userAddress={address}
-          onSuccess={handleCompanyRegSuccess}
-        />
       </body>
     </html>
   );

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/hooks/useWallet';
@@ -62,7 +62,7 @@ export default function ProfilePage() {
     const fetchStatus = async () => {
       if (!address) return;
       try {
-        const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'https://mcc-foundry-anvil-1095249147821.europe-west1.run.app');
+        const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545');
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
         let registeredOnChain = false;
@@ -551,3 +551,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

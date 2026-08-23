@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
@@ -65,7 +65,7 @@ export function InvoicePdfModal({ isOpen, onClose, data }: InvoicePdfModalProps)
 
       try {
         setLoadingItems(true);
-        const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
+        const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545";
         const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
         const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
         const contract = new ethers.Contract(ecommerceAddress, [
@@ -340,3 +340,4 @@ export function InvoicePdfModal({ isOpen, onClose, data }: InvoicePdfModalProps)
     </div>
   );
 }
+

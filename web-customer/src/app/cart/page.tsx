@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useContract } from '@/hooks/useContract';
@@ -184,7 +184,7 @@ export default function CartPage() {
       }
 
       // Check email uniqueness across all existing customers on-chain
-      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app";
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545";
       const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
       const readContract = new ethers.Contract(ecommerceAddress, [
         "function getAllCustomers() view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive)[])"
@@ -669,3 +669,4 @@ const EURO_TOKEN_ABI = [
     </div>
   );
 }
+

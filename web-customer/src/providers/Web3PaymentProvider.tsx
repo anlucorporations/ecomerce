@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
@@ -24,7 +24,7 @@ const Web3PaymentContext = createContext<Web3PaymentContextType>({
 });
 
 const EURO_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
-const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'https://mcc-foundry-anvil-1095249147821.europe-west1.run.app';
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545';
 
 const EURO_TOKEN_ABI = [
   'function balanceOf(address account) view returns (uint256)',
@@ -134,3 +134,4 @@ export function Web3PaymentProvider({ children }: { children: React.ReactNode })
 export function useWeb3Payment() {
   return useContext(Web3PaymentContext);
 }
+

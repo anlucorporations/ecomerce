@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
-import { CompanyRegistrationModal } from "../components/company-registration-modal";
-
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
   "function getAllCompanies() view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate)[])",
@@ -22,7 +20,6 @@ export default function DashboardHome() {
   const { address, isConnected, signer, provider, connect, wallets } = useWallet();
   const [loading, setLoading] = useState<boolean>(true);
   const [entityType, setEntityType] = useState<number>(0); // 0: Unregistered, 1: Company, 2: Customer, 3: Owner
-  const [showCompanyRegModal, setShowCompanyRegModal] = useState<boolean>(false);
 
   const [companyId, setCompanyId] = useState<string>("1");
   const [companyName, setCompanyName] = useState<string>("");
@@ -44,7 +41,7 @@ export default function DashboardHome() {
     async function loadDashboardData() {
       try {
         setLoading(true);
-        const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+        const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
         const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
         // Fetch registered companies for landing page
@@ -516,20 +513,13 @@ export default function DashboardHome() {
           Billetera Conectada: <span className="font-bold text-indigo-600 break-all">{address}</span>
         </div>
         <div className="pt-3 flex justify-center gap-3">
-          <button
-            onClick={() => setShowCompanyRegModal(true)}
+          <Link
+            href="/companies"
             className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white font-extrabold text-xs rounded-2xl shadow-xl transition flex items-center gap-2 cursor-pointer font-poppins"
           >
-            <span>✍️ Completar Formulario de Inscripción (3.0 ETH) →</span>
-          </button>
+            <span>✍️ Ir al Formulario de Inscripción de Empresa (3.0 ETH) →</span>
+          </Link>
         </div>
-
-        <CompanyRegistrationModal
-          isOpen={showCompanyRegModal}
-          onClose={() => setShowCompanyRegModal(false)}
-          userAddress={address}
-          onSuccess={() => window.location.reload()}
-        />
       </div>
     );
   }

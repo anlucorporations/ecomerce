@@ -18,7 +18,7 @@ const EURO_TOKEN_ABI = [
   "event Transfer(address indexed from, address indexed to, uint256 value)"
 ];
 
-const ORDER_STATUS_LABELS = ["Creado", "Pagado (Escrow)", "Enviado", "Entregado", "Completado (Liberado)"];
+const ORDER_STATUS_LABELS = ["Creado", "Pagado (Escrow)", "Enviado (Escrow)", "Entregado & Liberado ✅", "Completado 🎉"];
 
 export default function FinancePage() {
   const { provider, signer, chainId, address, isConnected } = useWallet();
@@ -26,6 +26,7 @@ export default function FinancePage() {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<"PRODUCTS" | "TOPUPS">("PRODUCTS");
+  const [productFilter, setProductFilter] = useState<"ALL" | "CUSTODY" | "COMPLETED">("ALL");
 
   const [companyId, setCompanyId] = useState<string>("");
   const [companyName, setCompanyName] = useState<string>("");
@@ -38,8 +39,8 @@ export default function FinancePage() {
   const [topupLogs, setTopupLogs] = useState<any[]>([]);
 
   // Financial Metrics
-  const [totalInvoicedEur, setTotalInvoicedEur] = useState<number>(0); // Solo órdenes liberadas (status === 4)
-  const [custodyBalanceEur, setCustodyBalanceEur] = useState<number>(0); // Saldo retenido en custodia (status < 4)
+  const [totalInvoicedEur, setTotalInvoicedEur] = useState<number>(0); // Solo órdenes liberadas (status >= 3)
+  const [custodyBalanceEur, setCustodyBalanceEur] = useState<number>(0); // Saldo estrictamente en custodia (status === 1 || status === 2)
   const [inventoryNominalCapital, setInventoryNominalCapital] = useState<number>(0);
   const [inventoryMarketCapital, setInventoryMarketCapital] = useState<number>(0);
   const [estimatedMarginEur, setEstimatedMarginEur] = useState<number>(0);
@@ -51,7 +52,7 @@ export default function FinancePage() {
     if (!address) return;
     try {
       setLoading(true);
-      const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "https://mcc-foundry-anvil-1095249147821.europe-west1.run.app");
+      const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
       const euroContract = new ethers.Contract(euroTokenAddress, EURO_TOKEN_ABI, rpcProvider);
 
@@ -79,7 +80,7 @@ export default function FinancePage() {
 
       if (isOwner && !compId) {
         compId = BigInt(1);
-        setCompanyName("Super Admin Owner");
+        setCompanyName("Super Admin Owner (TechZone Electronics)");
       } else if (!compId) {
         setCompanyId("");
         setCompanyName("Wallet no inscrita como Empresa");
@@ -92,20 +93,19 @@ export default function FinancePage() {
         const rawInvoices = await contract.getCompanyInvoices(compId);
         setInvoices(rawInvoices);
 
-        // Requirement 2: Compute Liberated Invoiced EURT vs Custody Balance EURT
+        // Compute Strictly Liberated Invoiced EURT vs Strictly Escrow Custody Balance
         let totalLiberated = 0;
         let totalCustody = 0;
 
         rawInvoices.forEach((inv: any) => {
           const st = Number(inv.status);
           const amt = Number(inv.totalAmount) / 1000000;
-          const isPaidInEscrow = inv.isPaid || st >= 1;
 
-          if (st === 4) {
-            // Ordenes Liberadas (Completadas y entregadas a la empresa)
+          if (st >= 3) {
+            // Órdenes Liberadas (Entregadas o Completadas -> Fondos transferidos a la wallet de la empresa)
             totalLiberated += amt;
-          } else if (isPaidInEscrow && st < 4) {
-            // Ordenes en Custodia Escrow (Pagadas por cliente pero aún no liberadas)
+          } else if (inv.isPaid || st === 1 || st === 2) {
+            // Órdenes estrictamente en Custodia Escrow (Pagadas o Enviadas, pendientes de entrega)
             totalCustody += amt;
           }
         });
@@ -212,17 +212,23 @@ export default function FinancePage() {
     } finally {
       setLoading(false);
     }
-  }, [address, ecommerceAddress, euroTokenAddress]);
+  }, [address, ecommerceAddress, euroTokenAddress, provider]);
 
   useEffect(() => {
     loadFinanceData();
   }, [address, loadFinanceData]);
 
-  // Requirement 2: Unreleased invoices currently held in Escrow (Paid but status < 4)
+  // Strict Categorization of Invoices:
+  // 1. Unreleased / Custody Invoices: Strictly Paid (1) or Shipped (2)
   const unreleasedInvoices = invoices.filter((inv: any) => {
     const st = Number(inv.status);
-    const isPaidInEscrow = inv.isPaid || st >= 1;
-    return isPaidInEscrow && st < 4;
+    return (inv.isPaid || st === 1 || st === 2) && st < 3;
+  });
+
+  // 2. Completed / Liberated Invoices: Delivered (3) or Completed (4)
+  const completedInvoices = invoices.filter((inv: any) => {
+    const st = Number(inv.status);
+    return st >= 3;
   });
 
   if (!isConnected || !address) {
@@ -359,173 +365,326 @@ export default function FinancePage() {
       {/* TAB 1: MOVIMIENTOS POR COMPRA DE PRODUCTOS */}
       {activeTab === "PRODUCTS" && (
         <div className="space-y-8">
-          
-          {/* Requirement 2: PANEL DE RESUMEN DE EURT EN CUSTODIA (ÓRDENES PAGADAS NO LIBERADAS) */}
-          <div className="admin-card overflow-hidden border-2 border-amber-300 shadow-lg bg-gradient-to-r from-amber-50/60 via-white to-amber-50/40">
-            <div className="p-5 border-b border-amber-200/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-amber-100/50">
-              <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-2xl bg-amber-500 text-white font-black text-lg flex items-center justify-center shadow-xs">
-                  🔒
+
+          {/* QUICK FILTER SWITCHER */}
+          <div className="flex flex-wrap gap-2 items-center justify-between bg-slate-100 p-2 rounded-2xl border border-slate-200">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setProductFilter("ALL")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  productFilter === "ALL"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                }`}
+              >
+                <span>🧾 Todas las Órdenes</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-900/30 text-white font-mono">
+                  {invoices.length}
                 </span>
-                <div>
-                  <h3 className="font-extrabold text-sm text-amber-950 font-poppins">
-                    Resumen de EURT en Custodia Escrow (Órdenes Pagadas No Liberadas)
-                  </h3>
-                  <p className="text-xs text-amber-800">
-                    Fondos retenidos en el contrato inteligente hasta la confirmación de recepción y entrega del pedido.
-                  </p>
+              </button>
+
+              <button
+                onClick={() => setProductFilter("CUSTODY")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  productFilter === "CUSTODY"
+                    ? "bg-amber-600 text-white shadow-sm"
+                    : "bg-white text-amber-900 hover:bg-amber-50 border border-amber-200"
+                }`}
+              >
+                <span>🔒 En Custodia Escrow (Pendientes)</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-900/30 text-white font-mono">
+                  {unreleasedInvoices.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setProductFilter("COMPLETED")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  productFilter === "COMPLETED"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-white text-emerald-900 hover:bg-emerald-50 border border-emerald-200"
+                }`}
+              >
+                <span>✅ Completadas & Liberadas</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-900/30 text-white font-mono">
+                  {completedInvoices.length}
+                </span>
+              </button>
+            </div>
+
+            <div className="text-xs font-medium text-slate-500 px-2">
+              Mostrando: <strong className="text-slate-800">
+                {productFilter === "ALL" ? "Historial Completo" : productFilter === "CUSTODY" ? "Solo Fondos en Custodia" : "Solo Órdenes Completadas"}
+              </strong>
+            </div>
+          </div>
+          
+          {/* SECCIÓN 1: PANEL DE RESUMEN DE EURT EN CUSTODIA (ESTRICTAMENTE ÓRDENES NO LIBERADAS) */}
+          {(productFilter === "ALL" || productFilter === "CUSTODY") && (
+            <div className="admin-card overflow-hidden border-2 border-amber-300 shadow-lg bg-gradient-to-r from-amber-50/60 via-white to-amber-50/40">
+              <div className="p-5 border-b border-amber-200/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-amber-100/50">
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl bg-amber-500 text-white font-black text-lg flex items-center justify-center shadow-xs">
+                    🔒
+                  </span>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-amber-950 font-poppins">
+                      Resumen de EURT en Custodia Escrow (Órdenes Pagadas Pendientes de Entrega)
+                    </h3>
+                    <p className="text-xs text-amber-800">
+                      Fondos retenidos estrictamente en el contrato inteligente `Ecommerce.sol` hasta la confirmación de entrega por el comprador.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right bg-white px-4 py-2 rounded-xl border border-amber-300 shadow-xs shrink-0">
+                  <span className="text-[10px] uppercase font-bold text-amber-800 block">Total Estricto en Custodia:</span>
+                  <span className="text-lg font-black font-mono text-amber-600">
+                    €{custodyBalanceEur.toFixed(4)} EURT
+                  </span>
                 </div>
               </div>
 
-              <div className="text-right bg-white px-4 py-2 rounded-xl border border-amber-300 shadow-xs shrink-0">
-                <span className="text-[10px] uppercase font-bold text-amber-800 block">Total en Custodia:</span>
-                <span className="text-lg font-black font-mono text-amber-600">
-                  €{custodyBalanceEur.toFixed(4)} EURT
-                </span>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-amber-100/30 border-b border-amber-200 text-[11px] font-bold uppercase text-amber-900 tracking-wider">
+                      <th className="px-6 py-3.5">Número de Orden</th>
+                      <th className="px-6 py-3.5">Cliente Comprador</th>
+                      <th className="px-6 py-3.5">Monto en Custodia</th>
+                      <th className="px-6 py-3.5">Fecha de Pago</th>
+                      <th className="px-6 py-3.5">Estado Escrow</th>
+                      <th className="px-6 py-3.5 text-right">Acción Requerida</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-100 text-xs text-slate-700">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-6 text-center text-amber-700">
+                          Cargando órdenes en custodia escrow...
+                        </td>
+                      </tr>
+                    ) : unreleasedInvoices.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-8 text-center text-emerald-700 font-bold bg-white/80">
+                          🎉 ¡Sin fondos retenidos! No hay órdenes pendientes de liberación en Custodia Escrow.
+                        </td>
+                      </tr>
+                    ) : (
+                      unreleasedInvoices.map((inv: any) => {
+                        const amtEur = (Number(inv.totalAmount) / 1000000).toFixed(4);
+                        const dt = inv.timestamp > 0 ? new Date(Number(inv.timestamp) * 1000).toLocaleString() : "Reciente";
+                        const st = Number(inv.status);
+
+                        return (
+                          <tr key={inv.invoiceId.toString()} className="hover:bg-amber-50/80 transition bg-white/90">
+                            <td className="px-6 py-4 font-mono font-black text-amber-700 text-sm">
+                              Orden #{inv.invoiceId.toString()}
+                            </td>
+                            <td className="px-6 py-4 font-mono text-slate-800 font-bold">
+                              {inv.customerAddress.slice(0, 8)}...{inv.customerAddress.slice(-6)}
+                            </td>
+                            <td className="px-6 py-4 font-mono font-black text-amber-600 text-sm">
+                              €{amtEur} EURT
+                            </td>
+                            <td className="px-6 py-4 text-slate-500 font-medium">
+                              {dt}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="px-3 py-1 bg-amber-100 text-amber-900 font-bold rounded-full text-xs border border-amber-300">
+                                🔒 {ORDER_STATUS_LABELS[st] || "En Custodia"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <Link
+                                href="/orders"
+                                className="inline-block px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition shadow-xs"
+                              >
+                                {st === 1 ? "📦 Realizar Envío ➔" : "🔍 Ver Tracking ➔"}
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
+          )}
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-amber-100/30 border-b border-amber-200 text-[11px] font-bold uppercase text-amber-900 tracking-wider">
-                    <th className="px-6 py-3.5">Número de Orden</th>
-                    <th className="px-6 py-3.5">Cliente Comprador</th>
-                    <th className="px-6 py-3.5">Monto Retenido en Custodia</th>
-                    <th className="px-6 py-3.5">Fecha de Pago</th>
-                    <th className="px-6 py-3.5">Estado del Pedido</th>
-                    <th className="px-6 py-3.5 text-right">Acción Requerida</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-amber-100 text-xs text-slate-700">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-6 text-center text-amber-700">
-                        Cargando resumen de custodia escrow...
-                      </td>
-                    </tr>
-                  ) : unreleasedInvoices.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-emerald-700 font-bold bg-white/80">
-                        🎉 ¡Sin fondos retenidos! No hay órdenes pendientes de liberación en Custodia Escrow.
-                      </td>
-                    </tr>
-                  ) : (
-                    unreleasedInvoices.map((inv: any) => {
-                      const amtEur = (Number(inv.totalAmount) / 1000000).toFixed(4);
-                      const dt = inv.timestamp > 0 ? new Date(Number(inv.timestamp) * 1000).toLocaleString() : "Reciente";
-                      const st = Number(inv.status);
+          {/* SECCIÓN 2: PANEL DE ÓRDENES COMPLETADAS Y LIBERADAS (FONDOS ACREDITADOS A LA EMPRESA) */}
+          {(productFilter === "ALL" || productFilter === "COMPLETED") && (
+            <div className="admin-card overflow-hidden border-2 border-emerald-300 shadow-lg bg-gradient-to-r from-emerald-50/60 via-white to-emerald-50/40">
+              <div className="p-5 border-b border-emerald-200/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-emerald-100/50">
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl bg-emerald-600 text-white font-black text-lg flex items-center justify-center shadow-xs">
+                    ✅
+                  </span>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-emerald-950 font-poppins">
+                      Lista de Órdenes Completadas & Liberadas (Cobros Efectivos Acreditados)
+                    </h3>
+                    <p className="text-xs text-emerald-800">
+                      Órdenes entregadas y validadas cuyos fondos EURT ya fueron transferidos directamente a la billetera de la empresa.
+                    </p>
+                  </div>
+                </div>
 
-                      return (
-                        <tr key={inv.invoiceId.toString()} className="hover:bg-amber-50/80 transition bg-white/90">
-                          <td className="px-6 py-4 font-mono font-black text-amber-700 text-sm">
-                            Orden #{inv.invoiceId.toString()}
-                          </td>
-                          <td className="px-6 py-4 font-mono text-slate-800 font-bold">
-                            {inv.customerAddress.slice(0, 8)}...{inv.customerAddress.slice(-6)}
-                          </td>
-                          <td className="px-6 py-4 font-mono font-black text-amber-600 text-sm">
-                            €{amtEur} EURT
-                          </td>
-                          <td className="px-6 py-4 text-slate-500 font-medium">
-                            {dt}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="px-3 py-1 bg-amber-100 text-amber-900 font-bold rounded-full text-xs border border-amber-300">
-                              {ORDER_STATUS_LABELS[st] || "Pendiente"}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <Link
-                              href="/orders"
-                              className="inline-block px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition shadow-xs"
-                            >
-                              Gestión de Envío ➔
-                            </Link>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                <div className="text-right bg-white px-4 py-2 rounded-xl border border-emerald-300 shadow-xs shrink-0">
+                  <span className="text-[10px] uppercase font-bold text-emerald-800 block">Total Liberado a Wallet:</span>
+                  <span className="text-lg font-black font-mono text-emerald-600">
+                    €{totalInvoicedEur.toFixed(4)} EURT
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-emerald-100/30 border-b border-emerald-200 text-[11px] font-bold uppercase text-emerald-900 tracking-wider">
+                      <th className="px-6 py-3.5">Número de Orden</th>
+                      <th className="px-6 py-3.5">Cliente Comprador</th>
+                      <th className="px-6 py-3.5">Monto Liberado (EURT)</th>
+                      <th className="px-6 py-3.5">Fecha de Entrega</th>
+                      <th className="px-6 py-3.5">Estado de Pago</th>
+                      <th className="px-6 py-3.5 text-right">Comprobante / Tx</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-emerald-100 text-xs text-slate-700">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-6 text-center text-emerald-700">
+                          Cargando órdenes completadas y liberadas...
+                        </td>
+                      </tr>
+                    ) : completedInvoices.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-8 text-center text-slate-500 font-medium bg-white/80">
+                          Aún no hay órdenes completadas/liberadas. Una vez que el cliente confirme la entrega, aparecerán aquí.
+                        </td>
+                      </tr>
+                    ) : (
+                      completedInvoices.map((inv: any) => {
+                        const amtEur = (Number(inv.totalAmount) / 1000000).toFixed(4);
+                        const deliveredTs = Number(inv.deliveredTimestamp) > 0 
+                          ? new Date(Number(inv.deliveredTimestamp) * 1000).toLocaleString()
+                          : (inv.timestamp > 0 ? new Date(Number(inv.timestamp) * 1000).toLocaleString() : "Confirmada");
+
+                        return (
+                          <tr key={inv.invoiceId.toString()} className="hover:bg-emerald-50/80 transition bg-white/90">
+                            <td className="px-6 py-4 font-mono font-black text-emerald-700 text-sm">
+                              Orden #{inv.invoiceId.toString()}
+                            </td>
+                            <td className="px-6 py-4 font-mono text-slate-800 font-bold">
+                              {inv.customerAddress.slice(0, 8)}...{inv.customerAddress.slice(-6)}
+                            </td>
+                            <td className="px-6 py-4 font-mono font-black text-emerald-600 text-sm">
+                              €{amtEur} EURT
+                            </td>
+                            <td className="px-6 py-4 text-slate-600 font-medium">
+                              {deliveredTs}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="px-3 py-1 bg-emerald-100 text-emerald-900 font-bold rounded-full text-xs border border-emerald-300 flex items-center gap-1.5 w-fit">
+                                <span>🟢</span>
+                                <span>Liberado a Billetera</span>
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <Link
+                                href="/orders"
+                                className="inline-block px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg text-xs transition shadow-xs"
+                              >
+                                Ver Detalle / Factura PDF ➔
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* HISTORIAL COMPLETO DE VENTAS DE PRODUCTOS */}
-          <div className="admin-card overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <div>
-                <h3 className="font-bold text-sm text-slate-900">🧾 Historial General de Compras de Producto</h3>
-                <p className="text-xs text-slate-500">Listado de todas las órdenes y facturas registradas en la empresa</p>
+          {productFilter === "ALL" && (
+            <div className="admin-card overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">🧾 Historial General de Compras de Producto</h3>
+                  <p className="text-xs text-slate-500">Listado consolidado de todas las órdenes y facturas registradas en la empresa</p>
+                </div>
+                <span className="text-xs font-bold text-slate-500">Total Facturas: {invoices.length}</span>
               </div>
-              <span className="text-xs font-bold text-slate-500">Total Facturas: {invoices.length}</span>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 tracking-wider">
-                    <th className="px-6 py-3.5">ID Orden</th>
-                    <th className="px-6 py-3.5">Cliente Comprador</th>
-                    <th className="px-6 py-3.5">Monto EURT</th>
-                    <th className="px-6 py-3.5">Fecha</th>
-                    <th className="px-6 py-3.5">Estatus de Liberación</th>
-                    <th className="px-6 py-3.5 text-right">Tx Hash Blockchain</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                        Cargando compras de productos...
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 tracking-wider">
+                      <th className="px-6 py-3.5">ID Orden</th>
+                      <th className="px-6 py-3.5">Cliente Comprador</th>
+                      <th className="px-6 py-3.5">Monto EURT</th>
+                      <th className="px-6 py-3.5">Fecha</th>
+                      <th className="px-6 py-3.5">Estatus de Liberación</th>
+                      <th className="px-6 py-3.5 text-right">Tx Hash Blockchain</th>
                     </tr>
-                  ) : invoices.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                        No se registran facturas de productos emitidas aún.
-                      </td>
-                    </tr>
-                  ) : (
-                    invoices.map((inv: any) => {
-                      const amtEur = (Number(inv.totalAmount) / 1000000).toFixed(4);
-                      const dt = inv.timestamp > 0 ? new Date(Number(inv.timestamp) * 1000).toLocaleString() : "Reciente";
-                      const st = Number(inv.status);
-                      const isLiberated = st === 4;
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                          Cargando compras de productos...
+                        </td>
+                      </tr>
+                    ) : invoices.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                          No se registran facturas de productos emitidas aún.
+                        </td>
+                      </tr>
+                    ) : (
+                      invoices.map((inv: any) => {
+                        const amtEur = (Number(inv.totalAmount) / 1000000).toFixed(4);
+                        const dt = inv.timestamp > 0 ? new Date(Number(inv.timestamp) * 1000).toLocaleString() : "Reciente";
+                        const st = Number(inv.status);
+                        const isLiberated = st >= 3;
 
-                      return (
-                        <tr key={inv.invoiceId.toString()} className="hover:bg-slate-50 transition">
-                          <td className="px-6 py-4 font-mono font-bold text-indigo-600">
-                            #{inv.invoiceId.toString()}
-                          </td>
-                          <td className="px-6 py-4 font-mono text-slate-800">
-                            {inv.customerAddress.slice(0, 6)}...{inv.customerAddress.slice(-4)}
-                          </td>
-                          <td className="px-6 py-4 font-mono font-extrabold text-emerald-600">
-                            €{amtEur} EURT
-                          </td>
-                          <td className="px-6 py-4 text-slate-500">
-                            {dt}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              isLiberated ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-amber-100 text-amber-800 border border-amber-300"
-                            }`}>
-                              {isLiberated ? "🟢 Liberado de Custodia" : `🔒 En Custodia (${ORDER_STATUS_LABELS[st] || "Pendiente"})`}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right font-mono text-[11px] text-slate-400">
-                            {inv.paymentTxHash ? `${inv.paymentTxHash.slice(0, 8)}...` : "Confirmado"}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                        return (
+                          <tr key={inv.invoiceId.toString()} className="hover:bg-slate-50 transition">
+                            <td className="px-6 py-4 font-mono font-bold text-indigo-600">
+                              #{inv.invoiceId.toString()}
+                            </td>
+                            <td className="px-6 py-4 font-mono text-slate-800 font-bold">
+                              {inv.customerAddress.slice(0, 6)}...{inv.customerAddress.slice(-4)}
+                            </td>
+                            <td className="px-6 py-4 font-mono font-extrabold text-emerald-600">
+                              €{amtEur} EURT
+                            </td>
+                            <td className="px-6 py-4 text-slate-500">
+                              {dt}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                isLiberated ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-amber-100 text-amber-800 border border-amber-300"
+                              }`}>
+                                {isLiberated ? "🟢 Liberado de Custodia" : `🔒 En Custodia (${ORDER_STATUS_LABELS[st] || "Pendiente"})`}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right font-mono text-[11px] text-slate-400">
+                              {inv.paymentTxHash ? `${inv.paymentTxHash.slice(0, 8)}...` : "Confirmado On-Chain"}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
       )}

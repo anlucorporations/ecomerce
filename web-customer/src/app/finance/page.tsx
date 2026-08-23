@@ -254,6 +254,7 @@ export default function UserFinancePage() {
                   {invoices.map((inv) => {
                     const compName = companyNames[inv.companyId.toString()] || `Empresa #${inv.companyId.toString()}`;
                     const dateStr = new Date(Number(inv.timestamp) * 1000).toLocaleString();
+                    const st = Number(inv.status);
 
                     return (
                       <tr key={inv.invoiceId.toString()} className="hover:bg-white/60 transition">
@@ -270,13 +271,21 @@ export default function UserFinancePage() {
                           €{formatPrice(inv.totalAmount)}
                         </td>
                         <td className="py-4 px-4 text-center">
-                          {inv.isPaid ? (
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#EAF5EF] text-[#2E8B57] border border-[#2E8B57]/30 font-poppins">
-                              ✓ Pagado
+                          {st >= 3 ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 font-poppins">
+                              ✅ Entregado & Liberado
+                            </span>
+                          ) : st === 2 ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 font-poppins">
+                              📦 Enviado (En Custodia)
+                            </span>
+                          ) : inv.isPaid || st === 1 ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 font-poppins">
+                              🔒 Pagado (En Custodia)
                             </span>
                           ) : (
                             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30 font-poppins">
-                              ⏳ Pendiente
+                              ⏳ Pendiente de Pago
                             </span>
                           )}
                         </td>

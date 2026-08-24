@@ -85,10 +85,11 @@ export default function TopupPage() {
       return;
     }
 
-    // Enforce KYC Check (Inscrito vs Verificado)
+    // KYC solo se valida on-chain (el estado local NO es prueba válida)
     let isVerified = false;
     try {
-      const rpcProvider = provider || new ethers.JsonRpcProvider('http://localhost:8545');
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545';
+      const rpcProvider = provider || new ethers.JsonRpcProvider(rpcUrl);
       const contract = new ethers.Contract(
         ecommerceAddress,
         ['function isKYCVerified(address account) view returns (bool)'],
@@ -97,14 +98,6 @@ export default function TopupPage() {
       isVerified = await contract.isKYCVerified(dest);
     } catch (e) {
       console.warn('isKYCVerified check warning:', e);
-    }
-
-    // Check local persistence for instant reflect after KycModal completes
-    if (!isVerified && typeof window !== 'undefined') {
-      const localKyc = localStorage.getItem(`kyc_verified_${dest.toLowerCase()}`);
-      if (localKyc === 'true') {
-        isVerified = true;
-      }
     }
 
     if (!isVerified) {

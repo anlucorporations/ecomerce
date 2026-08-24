@@ -109,6 +109,31 @@ library ShoppingCartLib {
         emit CartCleared(_customer);
     }
 
+    /// @notice Elimina del carrito los productos ya facturados (A1: evita doble factura/pago del mismo carrito)
+    function removeItemsFromCart(
+        CartStorage storage self,
+        uint256[] memory _productIds,
+        address _customer
+    ) external {
+        for (uint256 i = 0; i < _productIds.length; i++) {
+            uint256 productId = _productIds[i];
+            if (self.carts[_customer][productId].productId == 0) continue;
+
+            delete self.carts[_customer][productId];
+
+            uint256[] storage productIds = self.customerProductIds[_customer];
+            for (uint256 j = 0; j < productIds.length; j++) {
+                if (productIds[j] == productId) {
+                    productIds[j] = productIds[productIds.length - 1];
+                    productIds.pop();
+                    break;
+                }
+            }
+
+            emit ItemRemoved(_customer, productId);
+        }
+    }
+
     function calculateTotal(CartStorage storage self, address _customer) external view returns (uint256) {
         uint256[] memory productIds = self.customerProductIds[_customer];
         uint256 total = 0;

@@ -19,22 +19,24 @@ anvil
 ### Deploy EuroToken
 
 ```bash
-# In terminal 2
+# In terminal 2 — desplegar el token real (EuroTokenOptimized, NUNCA MockEuroToken)
 cd stablecoin/sc
-forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast --private-key <ANVIL_PRIVATE_KEY>
+forge script script/DeployEuroTokenOptimized.s.sol:DeployEuroTokenOptimized --rpc-url http://localhost:8545 --broadcast --private-key <ANVIL_PRIVATE_KEY>
 ```
 
 Save the `EuroToken` address.
+
+> ⚠️ El bytecode de `Ecommerce` supera el límite EIP-170 (24.576 bytes). Anvil debe arrancarse con `--code-size-limit 100000`, p. ej.: `anvil --port 8545 --chain-id 31337 --code-size-limit 100000`.
 
 ### Deploy E-commerce contracts
 
 ```bash
 cd ../../sc-ecommerce
 export EURO_TOKEN_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
-forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+forge script script/DeployEcommerce.s.sol:DeployEcommerceScript --rpc-url http://localhost:8545 --broadcast --private-key <ANVIL_PRIVATE_KEY>
 ```
 
-This will output all contract addresses. Save them for the next step.
+`EURO_TOKEN_ADDRESS` es OBLIGATORIO (el script revierte sin él; nunca despliega el mock). Esto imprimirá la dirección de `Ecommerce`. Guárdala para el siguiente paso.
 
 ## 2. Configure Web Applications
 

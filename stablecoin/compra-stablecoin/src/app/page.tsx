@@ -1,15 +1,101 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle, type FormEvent } from "react";
 import { ethers } from "ethers";
+import { loadStripe, type Stripe } from "@stripe/stripe-js";
+import {
+  Elements,
+  CardNumberElement,
+  CardExpiryElement,
+  CardCvcElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
+
+// M11: integración real de Stripe Elements. Si falta la clave pública, la UI
+// entra en modo DEMO honesto: no se captura tarjeta y no se afirma PCI-DSS.
+const STRIPE_PUBLIC_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY;
+const stripeEnabled = !!STRIPE_PUBLIC_KEY;
+const stripePromise: Promise<Stripe | null> | null = stripeEnabled ? loadStripe(STRIPE_PUBLIC_KEY) : null;
+
+export interface StripeCardFieldsHandle {
+  createPaymentMethod(): Promise<string>;
+}
+
+/**
+ * Campos de tarjeta reales de Stripe Elements. El PAN/CVC/expiración se capturan
+ * dentro de iframes de Stripe (PCI-DSS); este sitio solo recibe un
+ * paymentMethod.id tokenizado que se envía a /api/checkout.
+ */
+const StripeCardFields = forwardRef<StripeCardFieldsHandle>(function StripeCardFields(_props, ref) {
+  const stripe = useStripe();
+  const elements = useElements();
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      async createPaymentMethod(): Promise<string> {
+        if (!stripe || !elements) {
+          throw new Error("Stripe aún no está listo. Intente nuevamente en unos segundos.");
+        }
+        const cardElement = elements.getElement(CardNumberElement);
+        if (!cardElement) {
+          throw new Error("No se pudo acceder al formulario de tarjeta de Stripe.");
+        }
+        const { error, paymentMethod } = await stripe.createPaymentMethod({
+          type: "card",
+          card: cardElement,
+        });
+        if (error) {
+          throw new Error(error.message || "No se pudo validar la tarjeta.");
+        }
+        if (!paymentMethod) {
+          throw new Error("No se pudo tokenizar la tarjeta. Intente nuevamente.");
+        }
+        return paymentMethod.id;
+      },
+    }),
+    [stripe, elements]
+  );
+
+  const elementOptions = {
+    style: {
+      base: {
+        fontSize: "14px",
+        color: "#0f172a",
+        "::placeholder": { color: "#94a3b8" },
+      },
+      invalid: { color: "#e11d48" },
+    },
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3">
+        <CardNumberElement options={elementOptions} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3">
+          <CardExpiryElement options={elementOptions} />
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3">
+          <CardCvcElement options={elementOptions} />
+        </div>
+      </div>
+      <p className="text-[10px] text-slate-500 font-mono">
+        🔒 Los datos de la tarjeta se capturan en un iframe seguro de Stripe (PCI-DSS Level 1); este sitio nunca ve el PAN/CVC.
+      </p>
+    </div>
+  );
+});
 
 export default function CompraStablecoinPage() {
   const [amount, setAmount] = useState<string>("50");
   const [walletAddress, setWalletAddress] = useState<string>("");
-  const [cardNumber, setCardNumber] = useState<string>("4242 4242 4242 4242");
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
   const [message, setMessage] = useState<string>("");
   const [txDetails, setTxDetails] = useState<{ stripeId?: string; mintHash?: string }>({});
+  const cardFieldsRef = useRef<StripeCardFieldsHandle>(null);
 
   // Auto-detect wallet address from URL query parameter or window.ethereum
   useEffect(() => {
@@ -73,7 +159,7 @@ export default function CompraStablecoinPage() {
     }
   };
 
-  const handleBuyTokens = async (e: React.FormEvent) => {
+  const handleBuyTokens = async (e: FormEvent) => {
     e.preventDefault();
 
     if (typeof window === "undefined" || !(window as any).ethereum) {
@@ -88,7 +174,7 @@ export default function CompraStablecoinPage() {
 
       const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
       const accounts = await browserProvider.send("eth_requestAccounts", []);
-      
+
       if (!accounts || accounts.length === 0) {
         throw new Error("No se detectó ninguna cuenta activa en MetaMask.");
       }
@@ -99,7 +185,7 @@ export default function CompraStablecoinPage() {
 
       const timestamp = Math.floor(Date.now() / 1000);
       const authMessage = `Autorizacion de Recarga EURT - BARLO-VENTAS\n\nMonto a recargar: ${amount} EURT\nBilletera destino: ${targetAddress}\nTimestamp: ${timestamp}`;
-      
+
       let signature = "";
       try {
         signature = await activeSigner.signMessage(authMessage);
@@ -107,21 +193,52 @@ export default function CompraStablecoinPage() {
         throw new Error("Solicitud cancelada: Debe autorizar y firmar la transacción en MetaMask para efectuar la recarga.");
       }
 
-      setMessage("💳 2/3 Procesando pago seguro con tarjeta en Stripe PCI-DSS...");
+      // 2/3: tokenizar la tarjeta REAL con Stripe Elements, o modo demo honesto
+      let paymentMethodId: string;
+      if (stripeEnabled) {
+        if (!cardFieldsRef.current) {
+          throw new Error("El formulario de tarjeta de Stripe no está disponible.");
+        }
+        paymentMethodId = await cardFieldsRef.current.createPaymentMethod();
+        setMessage("💳 2/3 Procesando pago seguro con tarjeta (Stripe Elements, PCI-DSS)...");
+      } else {
+        // Sin NEXT_PUBLIC_STRIPE_PUBLIC_KEY => pago de prueba/demo, sin tarjeta real
+        paymentMethodId = "pm_card_visa"; // tarjeta de test de Stripe
+        setMessage("💳 2/3 Procesando PAGO DE PRUEBA/DEMO (no se solicita ni se cobra una tarjeta real)...");
+      }
 
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount,
-          walletAddress: targetAddress,
-          paymentMethodId: "pm_card_visa",
-          signature,
-          authMessage
-        })
-      });
+      const body = {
+        amount,
+        walletAddress: targetAddress,
+        paymentMethodId,
+        signature,
+        authMessage
+      };
+      const postCheckout = () =>
+        fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
 
-      const data = await res.json();
+      let res = await postCheckout();
+      let data = await res.json();
+
+      // 3D-Secure / requires_action: completar la acción en Stripe y reintentar
+      // (la misma firma => misma idempotency key => mismo PaymentIntent, ya confirmado)
+      if (!res.ok && data?.requiresAction && data?.clientSecret && stripeEnabled) {
+        const stripe = stripePromise ? await stripePromise : null;
+        if (!stripe) {
+          throw new Error("Stripe no está disponible para completar la verificación 3D-Secure.");
+        }
+        const { error: actionError } = await stripe.handleNextAction({ clientSecret: data.clientSecret });
+        if (actionError) {
+          throw new Error(actionError.message || "No se pudo completar la verificación 3D-Secure.");
+        }
+        res = await postCheckout();
+        data = await res.json();
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || data.message || "Falló la compra en Stripe.");
       }
@@ -131,7 +248,11 @@ export default function CompraStablecoinPage() {
         stripeId: data.stripePaymentId,
         mintHash: data.mintTxHash
       });
-      setMessage(`¡Recarga autorizada y exitosa! Se han emitido €${amount} EURT a su billetera tras confirmación en MetaMask.`);
+      setMessage(
+        stripeEnabled
+          ? `¡Recarga autorizada y exitosa! Se han emitido €${amount} EURT a su billetera tras confirmación en MetaMask.`
+          : `¡Recarga de PRUEBA/DEMO procesada! Se emitieron €${amount} EURT (modo demo: no se cobró una tarjeta real).`
+      );
     } catch (err: any) {
       setStatus("error");
       setMessage(err.message || "Error procesando la solicitud.");
@@ -140,11 +261,11 @@ export default function CompraStablecoinPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      
+
       {/* BARLO-VENTAS PLATFORM HEADER BANNER */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl border border-slate-800 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
-          
+
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold font-poppins">
               <span>💳 BARLO-VENTAS &bull; Pasarela de Recarga EURT (Stripe)</span>
@@ -174,7 +295,7 @@ export default function CompraStablecoinPage() {
 
       {/* KPI METRICS BADGES */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        
+
         <div className="card-minimal p-4 text-center space-y-1 border-l-4 border-l-emerald-500">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Tasa de Cambio</span>
           <span className="text-base font-black text-emerald-600 block font-mono">1 EUR = 1 EURT</span>
@@ -187,7 +308,9 @@ export default function CompraStablecoinPage() {
 
         <div className="card-minimal p-4 text-center space-y-1 border-l-4 border-l-purple-600">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Seguridad Bancaria</span>
-          <span className="text-base font-black text-purple-600 block font-mono">Stripe PCI-DSS</span>
+          <span className="text-base font-black text-purple-600 block font-mono">
+            {stripeEnabled ? "Stripe PCI-DSS" : "Modo Demo / Prueba"}
+          </span>
         </div>
 
         <div className="card-minimal p-4 text-center space-y-1 border-l-4 border-l-amber-500">
@@ -199,7 +322,7 @@ export default function CompraStablecoinPage() {
 
       {/* MAIN FORM CONTAINER */}
       <div className="card-minimal p-6 sm:p-8 bg-white border border-slate-200/80 shadow-md rounded-3xl space-y-6">
-        
+
         <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-black text-slate-900 font-poppins">Formulario de Recarga Comercial</h2>
@@ -211,7 +334,7 @@ export default function CompraStablecoinPage() {
         </div>
 
         <form onSubmit={handleBuyTokens} className="space-y-6">
-          
+
           {/* Preset Amount Pills */}
           <div className="space-y-2.5">
             <label className="block text-xs font-bold text-slate-800 font-poppins">
@@ -273,27 +396,29 @@ export default function CompraStablecoinPage() {
             />
           </div>
 
-          {/* Stripe Card Mockup */}
+          {/* Stripe Card — Elements reales (M11) o modo demo honesto */}
           <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-800 font-bold font-poppins">Tarjeta de Crédito / Débito (Stripe Simulado):</span>
-              <span className="text-indigo-700 font-bold font-mono bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-200">
-                Visa / Mastercard PCI-DSS
+              <span className="text-slate-800 font-bold font-poppins">Tarjeta de Crédito / Débito:</span>
+              <span className={`font-bold font-mono px-2.5 py-0.5 rounded-lg border ${
+                stripeEnabled
+                  ? "text-indigo-700 bg-indigo-50 border-indigo-200"
+                  : "text-amber-700 bg-amber-50 border-amber-200"
+              }`}>
+                {stripeEnabled ? "Visa / Mastercard PCI-DSS" : "PAGO DE PRUEBA / DEMO"}
               </span>
             </div>
 
-            <input
-              type="text"
-              value={cardNumber}
-              onChange={(e) => setCardNumber(e.target.value)}
-              className="input-minimal w-full bg-white font-mono text-slate-900 text-xs font-bold"
-            />
-
-            <div className="flex justify-between items-center text-[11px] text-slate-500 font-mono pt-1">
-              <span>Vencimiento: 12 / 28</span>
-              <span>CVC: 123</span>
-              <span className="text-emerald-600 font-bold">✓ Cifrado SSL 256-bit</span>
-            </div>
+            {stripeEnabled ? (
+              <Elements stripe={stripePromise}>
+                <StripeCardFields ref={cardFieldsRef} />
+              </Elements>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3.5 py-3 text-[11px] text-amber-900 font-mono space-y-1">
+                <p>⚠️ Modo demostración: no se solicita ni se cobra una tarjeta real.</p>
+                <p>Configure <code>NEXT_PUBLIC_STRIPE_PUBLIC_KEY</code> para activar Stripe Elements (PCI-DSS).</p>
+              </div>
+            )}
           </div>
 
           {/* Status Messages */}
@@ -331,42 +456,47 @@ export default function CompraStablecoinPage() {
               : `💳 Comprar €${amount || "0"} EURT y Autorizar en MetaMask ➔`}
           </button>
 
-          {/* Stripe Webhook Simulator Button */}
-          <div className="pt-2 text-center">
-            <button
-              type="button"
-              disabled={status === "processing"}
-              onClick={async () => {
-                if (!walletAddress || !ethers.isAddress(walletAddress)) {
-                  setStatus("error");
-                  setMessage("Por favor introduzca una billetera Ethereum válida para probar la simulación.");
-                  return;
-                }
-                try {
-                  setStatus("processing");
-                  setMessage("⚡ Ejecutando Simulador de Webhook Stripe (payment_intent.succeeded)...");
-                  const res = await fetch("/api/webhooks/simulate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ amount, walletAddress })
-                  });
-                  const data = await res.json();
-                  if (!res.ok || !data.success) {
-                    throw new Error(data.error || "Falló la simulación de Webhook");
+          {/* Stripe Webhook Simulator Button — SOLO visible con flag de desarrollo */}
+          {process.env.NEXT_PUBLIC_ENABLE_SIMULATOR === "true" && (
+            <div className="pt-2 text-center">
+              <button
+                type="button"
+                disabled={status === "processing"}
+                onClick={async () => {
+                  if (!walletAddress || !ethers.isAddress(walletAddress)) {
+                    setStatus("error");
+                    setMessage("Por favor introduzca una billetera Ethereum válida para probar la simulación.");
+                    return;
                   }
-                  setStatus("success");
-                  setTxDetails({ stripeId: data.stripePaymentId, mintHash: data.mintTxHash });
-                  setMessage(data.message || `¡Webhook simulado! Se emitieron €${amount} EURT a ${walletAddress}.`);
-                } catch (e: any) {
-                  setStatus("error");
-                  setMessage(e.message || "Error al ejecutar el simulador de Webhook.");
-                }
-              }}
-              className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 rounded-2xl text-xs font-bold font-mono transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>⚡ Probar Simulación Webhook Stripe (Desarrollo)</span>
-            </button>
-          </div>
+                  try {
+                    setStatus("processing");
+                    setMessage("⚡ Ejecutando Simulador de Webhook Stripe (payment_intent.succeeded)...");
+                    const res = await fetch("/api/webhooks/simulate", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "x-simulator-token": process.env.NEXT_PUBLIC_SIMULATOR_TOKEN || ""
+                      },
+                      body: JSON.stringify({ amount, walletAddress })
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                      throw new Error(data.error || "Falló la simulación de Webhook");
+                    }
+                    setStatus("success");
+                    setTxDetails({ stripeId: data.stripePaymentId, mintHash: data.mintTxHash });
+                    setMessage(data.message || `¡Webhook simulado! Se emitieron €${amount} EURT a ${walletAddress}.`);
+                  } catch (e: any) {
+                    setStatus("error");
+                    setMessage(e.message || "Error al ejecutar el simulador de Webhook.");
+                  }
+                }}
+                className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 rounded-2xl text-xs font-bold font-mono transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>⚡ Probar Simulación Webhook Stripe (Desarrollo)</span>
+              </button>
+            </div>
+          )}
 
         </form>
 

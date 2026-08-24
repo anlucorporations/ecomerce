@@ -6,10 +6,14 @@ import { ethers } from 'ethers';
 import { useRouter, usePathname } from 'next/navigation';
 import { CustomerRegistrationModal } from './customer-registration-modal';
 
+// B7: tupla alineada con CustomerLib.Customer real
+// (address customerAddress, string name, string contactEmail, string shippingAddress,
+//  uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate,
+//  uint256 lastPurchaseDate, bool isActive)
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
   "function isCustomerRegistered(address _customer) view returns (bool)",
-  "function getCustomer(address _customer) view returns (tuple(uint256 id, address customerAddress, string name, string contactEmail, string shippingAddress, bool isKYCVerified, uint256 registrationDate))"
+  "function getCustomer(address _customer) view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive))"
 ];
 
 export function RegistrationCheck() {
@@ -52,11 +56,7 @@ export function RegistrationCheck() {
         }
       }
 
-      // Check local persistence fallback
-      if (!registered && typeof window !== 'undefined') {
-        const localReg = localStorage.getItem(`customer_reg_${address.toLowerCase()}`);
-        if (localReg) registered = true;
-      }
+      // NOTA: NO se usa localStorage — el registro se valida SOLO on-chain (Web3-only)
 
       setCheckedAddress(address);
       setIsRegistered(registered);

@@ -1,4 +1,4 @@
-[
+﻿[
   {
     "type": "constructor",
     "inputs": [
@@ -9,6 +9,19 @@
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "REGISTRATION_FEE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -119,12 +132,105 @@
   },
   {
     "type": "function",
+    "name": "cancelOrder",
+    "inputs": [
+      {
+        "name": "_invoiceId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "checkoutMultiCompany",
+    "inputs": [
+      {
+        "name": "_companyIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "_productIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "_quantities",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "createdInvoiceIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "clearCart",
     "inputs": [
       {
         "name": "_customer",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "companyRatingCount",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "companyTotalRating",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "confirmDelivery",
+    "inputs": [
+      {
+        "name": "_invoiceId",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -213,6 +319,41 @@
   },
   {
     "type": "function",
+    "name": "getActivityLogs",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct Ecommerce.ActivityLog[]",
+        "components": [
+          {
+            "name": "user",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "action",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "details",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getAllCompanies",
     "inputs": [],
     "outputs": [
@@ -240,6 +381,11 @@
             "name": "description",
             "type": "string",
             "internalType": "string"
+          },
+          {
+            "name": "businessType",
+            "type": "uint8",
+            "internalType": "enum CompanyLib.BusinessType"
           },
           {
             "name": "isActive",
@@ -270,6 +416,21 @@
             "name": "customerAddress",
             "type": "address",
             "internalType": "address"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "contactEmail",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "shippingAddress",
+            "type": "string",
+            "internalType": "string"
           },
           {
             "name": "totalPurchases",
@@ -453,6 +614,11 @@
             "internalType": "string"
           },
           {
+            "name": "businessType",
+            "type": "uint8",
+            "internalType": "enum CompanyLib.BusinessType"
+          },
+          {
             "name": "isActive",
             "type": "bool",
             "internalType": "bool"
@@ -502,6 +668,11 @@
             "name": "description",
             "type": "string",
             "internalType": "string"
+          },
+          {
+            "name": "businessType",
+            "type": "uint8",
+            "internalType": "enum CompanyLib.BusinessType"
           },
           {
             "name": "isActive",
@@ -568,6 +739,157 @@
             "name": "paymentTxHash",
             "type": "string",
             "internalType": "string"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum Ecommerce.OrderStatus"
+          },
+          {
+            "name": "trackingNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "shippedTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deliveredTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCompanyProducts",
+    "inputs": [
+      {
+        "name": "_companyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct ProductLib.Product[]",
+        "components": [
+          {
+            "name": "productId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "companyId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "price",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "ipfsImageHash",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "stock",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCompanyRating",
+    "inputs": [
+      {
+        "name": "_companyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "avgRatingTimes100",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalReviews",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCompanyReviews",
+    "inputs": [
+      {
+        "name": "_companyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct Ecommerce.Rating[]",
+        "components": [
+          {
+            "name": "rating",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "comment",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "reviewer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -594,6 +916,21 @@
             "name": "customerAddress",
             "type": "address",
             "internalType": "address"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "contactEmail",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "shippingAddress",
+            "type": "string",
+            "internalType": "string"
           },
           {
             "name": "totalPurchases",
@@ -675,8 +1012,47 @@
             "name": "paymentTxHash",
             "type": "string",
             "internalType": "string"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum Ecommerce.OrderStatus"
+          },
+          {
+            "name": "trackingNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "shippedTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deliveredTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getEntityType",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ],
     "stateMutability": "view"
@@ -731,6 +1107,26 @@
             "name": "paymentTxHash",
             "type": "string",
             "internalType": "string"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum Ecommerce.OrderStatus"
+          },
+          {
+            "name": "trackingNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "shippedTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deliveredTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -785,6 +1181,82 @@
   },
   {
     "type": "function",
+    "name": "getInvoicesBatch",
+    "inputs": [
+      {
+        "name": "_invoiceIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct Ecommerce.Invoice[]",
+        "components": [
+          {
+            "name": "invoiceId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "companyId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "customerAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "totalAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isPaid",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "paymentTxHash",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum Ecommerce.OrderStatus"
+          },
+          {
+            "name": "trackingNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "shippedTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deliveredTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getProduct",
     "inputs": [
       {
@@ -798,6 +1270,72 @@
         "name": "",
         "type": "tuple",
         "internalType": "struct ProductLib.Product",
+        "components": [
+          {
+            "name": "productId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "companyId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "price",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "ipfsImageHash",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "stock",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getProductsBatch",
+    "inputs": [
+      {
+        "name": "_productIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct ProductLib.Product[]",
         "components": [
           {
             "name": "productId",
@@ -917,6 +1455,30 @@
   },
   {
     "type": "function",
+    "name": "hasPaidInvoiceWithCompany",
+    "inputs": [
+      {
+        "name": "_customer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_companyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "isCompanyActive",
     "inputs": [
       {
@@ -955,6 +1517,25 @@
   },
   {
     "type": "function",
+    "name": "isKYCVerified",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "isProductAvailable",
     "inputs": [
       {
@@ -966,6 +1547,44 @@
         "name": "_quantity",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isRegisteredEntity",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isSystemsAdmin",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [
@@ -1021,6 +1640,47 @@
   },
   {
     "type": "function",
+    "name": "rateCompany",
+    "inputs": [
+      {
+        "name": "_companyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_rating",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "_comment",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "recordPaymentTxHash",
+    "inputs": [
+      {
+        "name": "_invoiceId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_txHash",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "registerCompany",
     "inputs": [
       {
@@ -1050,10 +1710,96 @@
   },
   {
     "type": "function",
+    "name": "registerCompany",
+    "inputs": [
+      {
+        "name": "_address",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_description",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_businessType",
+        "type": "uint8",
+        "internalType": "enum CompanyLib.BusinessType"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerCompanySelf",
+    "inputs": [
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_description",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_businessType",
+        "type": "uint8",
+        "internalType": "enum CompanyLib.BusinessType"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
     "name": "registerCustomer",
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerCustomerSelf",
+    "inputs": [
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_contactEmail",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_shippingAddress",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -1063,6 +1809,73 @@
         "name": "_productId",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "rescueToken",
+    "inputs": [
+      {
+        "name": "_token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "resolveDisputeReleaseEscrow",
+    "inputs": [
+      {
+        "name": "_invoiceId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "shipOrder",
+    "inputs": [
+      {
+        "name": "_invoiceId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_trackingNumber",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateKYCStatus",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "status",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "outputs": [],
@@ -1138,6 +1951,75 @@
     "stateMutability": "nonpayable"
   },
   {
+    "type": "function",
+    "name": "withdrawETH",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "ActivityLogged",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "action",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "details",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CompanyRated",
+    "inputs": [
+      {
+        "name": "companyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "reviewer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "rating",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "comment",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "event",
     "name": "InvoiceCreated",
     "inputs": [
@@ -1189,6 +2071,88 @@
   },
   {
     "type": "event",
+    "name": "KYCStatusUpdated",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "isVerified",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OrderCancelled",
+    "inputs": [
+      {
+        "name": "invoiceId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "customer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OrderDelivered",
+    "inputs": [
+      {
+        "name": "invoiceId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "customer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OrderShipped",
+    "inputs": [
+      {
+        "name": "invoiceId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "companyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "trackingNumber",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "PaymentProcessed",
     "inputs": [
       {
@@ -1211,5 +2175,10 @@
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
   }
 ]

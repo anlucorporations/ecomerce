@@ -306,26 +306,34 @@ export function InvoicePdfModal({ isOpen, onClose, data }: InvoicePdfModalProps)
                 <span>Verificación de Autenticidad Blockchain</span>
               </div>
               <p className="text-[11px] text-slate-600 leading-relaxed font-sans max-w-sm">
-                Escanee el código QR adyacente para verificar la inmutabilidad de esta transacción en la plataforma Web3 BARLO-VENTAS.
+                {data.paymentTxHash
+                  ? "Escanee el código QR adyacente para verificar la inmutabilidad de esta transacción en la plataforma Web3 BARLO-VENTAS."
+                  : "El QR de verificación estará disponible únicamente cuando el pago haya sido confirmado on-chain con un hash de transacción real."}
               </p>
               <div className="pt-1 font-mono text-[10px] text-slate-500">
                 <span className="block font-bold text-slate-700">Tx Hash:</span>
-                <span className="text-[#0077BB] font-bold break-all">{data.paymentTxHash || "0x..."}</span>
+                <span className="text-[#0077BB] font-bold break-all">{data.paymentTxHash || "Pendiente"}</span>
               </div>
             </div>
 
             {/* QR CODE BOX */}
             <div className="bg-white p-2.5 rounded-xl border border-[#0077BB]/20 text-center shrink-0 shadow-sm">
-              {qrCodeUrl ? (
-                /* eslint-disable-next-html-element-cap-location */
-                <img src={qrCodeUrl} alt="QR Code Transacción" className="w-28 h-28 mx-auto" />
+              {data.paymentTxHash ? (
+                qrCodeUrl ? (
+                  /* eslint-disable-next-html-element-cap-location */
+                  <img src={qrCodeUrl} alt="QR Code Transacción" className="w-28 h-28 mx-auto" />
+                ) : (
+                  <div className="w-28 h-28 bg-slate-100 flex items-center justify-center text-[10px] text-slate-400">
+                    Cargando QR...
+                  </div>
+                )
               ) : (
                 <div className="w-28 h-28 bg-slate-100 flex items-center justify-center text-[10px] text-slate-400">
-                  Cargando QR...
+                  QR no disponible
                 </div>
               )}
               <span className="text-[9px] font-mono font-bold text-[#0077BB] block mt-1">
-                VALIDAR ON-CHAIN
+                {data.paymentTxHash ? "VALIDAR ON-CHAIN" : "PENDIENTE DE PAGO"}
               </span>
             </div>
           </div>

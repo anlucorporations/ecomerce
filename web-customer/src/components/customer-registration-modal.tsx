@@ -84,44 +84,13 @@ export function CustomerRegistrationModal({
       }
 
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
-      const requiredWei = ethers.parseEther("3.0");
 
-      // Check User ETH Balance
-      let balanceWei = BigInt(0);
-      try {
-        if (activeSigner.provider) {
-          balanceWei = await activeSigner.provider.getBalance(userAddress);
-        }
-      } catch (e) {
-        console.warn("Could not check balance:", e);
-      }
-
-      let tx;
-      if (balanceWei >= requiredWei) {
-        try {
-          // Attempt sending with 3.0 ETH deposit
-          tx = await contract.registerCustomerSelf(
-            formData.name,
-            formData.email,
-            formData.shippingAddress,
-            { value: requiredWei }
-          );
-        } catch (valErr) {
-          console.warn("Error sending 3 ETH deposit, falling back to 0 ETH register:", valErr);
-          tx = await contract.registerCustomerSelf(
-            formData.name,
-            formData.email,
-            formData.shippingAddress
-          );
-        }
-      } else {
-        // Fallback for demo testnet accounts with lower ETH balance
-        tx = await contract.registerCustomerSelf(
-          formData.name,
-          formData.email,
-          formData.shippingAddress
-        );
-      }
+      // El registro de cliente es GRATUITO: no se envía ETH (el contrato rechaza msg.value != 0).
+      const tx = await contract.registerCustomerSelf(
+        formData.name,
+        formData.email,
+        formData.shippingAddress
+      );
 
       await tx.wait();
 
@@ -182,17 +151,17 @@ export function CustomerRegistrationModal({
           </p>
         </div>
 
-        {/* Depósito Alert Badge */}
-        <div className="bg-[#FFF3E5] border border-[#FF8800]/40 p-3.5 rounded-2xl flex items-center justify-between text-xs">
+        {/* Registro gratuito */}
+        <div className="bg-[#EAF5EF] border border-[#2E8B57]/30 p-3.5 rounded-2xl flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-xl">💰</span>
+            <span className="text-xl">🆓</span>
             <div>
-              <span className="font-bold text-[#FF8800] block font-poppins">Depósito Recomendado</span>
-              <span className="text-[11px] text-[#333333]">Garantía de cuenta en blockchain:</span>
+              <span className="font-bold text-[#2E8B57] block font-poppins">Registro Gratuito</span>
+              <span className="text-[11px] text-[#333333]">Inscripción de comprador sin depósito:</span>
             </div>
           </div>
-          <span className="px-3 py-1 bg-[#FF8800] text-white font-black text-xs rounded-xl shadow-xs font-mono">
-            3.0 ETH
+          <span className="px-3 py-1 bg-[#2E8B57] text-white font-black text-xs rounded-xl shadow-xs font-mono">
+            0 ETH
           </span>
         </div>
 

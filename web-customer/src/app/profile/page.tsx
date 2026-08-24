@@ -116,19 +116,12 @@ export default function ProfilePage() {
           console.warn('getCustomer warning:', e);
         }
 
-        // 4. Check KYC Status
+        // 4. Check KYC Status on-chain (localStorage NO es prueba válida)
         let kycStatus = false;
         try {
           kycStatus = await contract.isKYCVerified(address);
         } catch (e) {
           console.warn('isKYCVerified check warning:', e);
-        }
-
-        if (!kycStatus && typeof window !== 'undefined') {
-          const localKyc = localStorage.getItem(`kyc_verified_${address.toLowerCase()}`);
-          if (localKyc === 'true') {
-            kycStatus = true;
-          }
         }
 
         setIsKycVerified(kycStatus);

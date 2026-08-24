@@ -1,7 +1,13 @@
 FROM dpage/pgadmin4:latest
 
-ENV PGADMIN_DEFAULT_EMAIL=anlucorporations@gmail.com
-ENV PGADMIN_DEFAULT_PASSWORD=KeLuDa.2324
+# Credenciales de pgAdmin parametrizadas: NUNCA fijar contraseñas en el Dockerfile.
+# Proporcionar en build:  docker build --build-arg PGADMIN_DEFAULT_EMAIL=... --build-arg PGADMIN_DEFAULT_PASSWORD=...
+# o inyectar en runtime:  docker run -e PGADMIN_DEFAULT_PASSWORD=...
+ARG PGADMIN_DEFAULT_EMAIL=admin@example.com
+ARG PGADMIN_DEFAULT_PASSWORD
+
+ENV PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
+ENV PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
 ENV PGADMIN_LISTEN_PORT=80
 
 EXPOSE 80

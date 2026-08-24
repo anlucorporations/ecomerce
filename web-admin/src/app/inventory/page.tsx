@@ -190,8 +190,13 @@ export default function InventoryPage() {
       let imageHashOrUrl = "QmDefaultIpfsHash";
 
       // 1. Upload compressed lightweight WebP image to server API
+      //    (autorización Web3: la wallet dueña de la empresa firma la petición)
       if (compressedBase64) {
         try {
+          const timestamp = Date.now();
+          const uploadAuthMessage = `BARLO-VENTAS UPLOAD\nEmpresa: ${companyId}\nWallet: ${address}\nTimestamp: ${timestamp}`;
+          const uploadSignature = await signer.signMessage(uploadAuthMessage);
+
           const uploadRes = await fetch("/api/upload", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -199,6 +204,9 @@ export default function InventoryPage() {
               companyId: companyId,
               filename: selectedFile?.name || "producto",
               imageBase64: compressedBase64,
+              walletAddress: address,
+              authMessage: uploadAuthMessage,
+              signature: uploadSignature,
             }),
           });
           const uploadData = await uploadRes.json();

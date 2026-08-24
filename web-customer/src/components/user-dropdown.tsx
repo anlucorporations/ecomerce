@@ -91,14 +91,6 @@ export function UserDropdown() {
         console.warn('EURT balance fetch warning:', tokenErr);
       }
 
-      // Check local storage fallback for KYC
-      if (!kyc && typeof window !== 'undefined') {
-        const localKyc = localStorage.getItem(`kyc_verified_${address.toLowerCase()}`);
-        if (localKyc === 'true') {
-          kyc = true;
-        }
-      }
-
       setIsRegistered(isReg);
       setUserName(fetchedName || (isReg ? `Cliente ${address.slice(0, 6)}...${address.slice(-4)}` : 'Cuenta No Inscrita'));
       setIsKycVerified(kyc);

@@ -202,11 +202,7 @@ export function useCart(
           console.warn("Could not verify customer registration on-chain:", checkErr);
         }
 
-        // Fallback local persistence check
-        if (!isRegistered) {
-          const localReg = localStorage.getItem(`customer_reg_${address.toLowerCase()}`);
-          if (localReg) isRegistered = true;
-        }
+        // NOTA: NO se usa localStorage — el registro se valida SOLO on-chain (Web3-only)
 
         if (!isRegistered) {
           alert("⚠️ Su billetera aún no está inscrita como Cliente en la plataforma.\n\nPor favor complete el formulario de inscripción para poder comprar y agregar productos a su carrito.");

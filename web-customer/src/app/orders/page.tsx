@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
@@ -490,9 +490,10 @@ export default function CustomerOrdersPage() {
                         customerAddress: address,
                         totalAmount: formatPrice(selectedOrder.totalAmount),
                         timestamp: Date.now() / 1000,
-                        paymentTxHash: selectedOrder.paymentTxHash || "0x5f8b91a27e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1d2c3b4a5f6e7d8c9b",
+                        // A4: nunca inventar hashes — se muestra "Pendiente" hasta que exista un hash real on-chain
+                        paymentTxHash: selectedOrder.paymentTxHash || "",
                         statusLabel: ORDER_STATUS_LABELS[Number(selectedOrder.status)] || "Pagado",
-                        trackingNumber: selectedOrder.trackingNumber || "BARLO-TRACK-98214"
+                        trackingNumber: selectedOrder.trackingNumber || ""
                       })}
                       className="px-4 py-2 bg-[#FF8800] hover:bg-[#E07700] text-white font-extrabold text-xs rounded-xl shadow-xs transition font-poppins flex items-center gap-1.5 shrink-0 cursor-pointer"
                     >
@@ -519,7 +520,7 @@ export default function CustomerOrdersPage() {
                         <div>
                           <span className="text-[#A9A9A9] block">Datos de Transporte y Guía:</span>
                           <span className="font-bold text-[#0077BB] text-sm block mt-0.5">
-                            {selectedOrder.trackingNumber || "Despacho Express BARLO-VENTAS (Tracking #894726)"}
+                            {selectedOrder.trackingNumber || "Pendiente de asignación de guía"}
                           </span>
                         </div>
                       </div>
@@ -598,7 +599,7 @@ export default function CustomerOrdersPage() {
                     <div className="bg-white/80 rounded-2xl p-4 border border-[#0077BB]/15 space-y-1 font-mono text-[11px]">
                       <span className="text-[#A9A9A9] block">Hash de Transacción On-Chain:</span>
                       <span className="text-[#0077BB] font-bold truncate block" title={selectedOrder.paymentTxHash}>
-                        {selectedOrder.paymentTxHash || "0x..."}
+                        {selectedOrder.paymentTxHash || "Pendiente"}
                       </span>
                     </div>
                   </div>

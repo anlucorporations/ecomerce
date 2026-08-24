@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
 const ECOMMERCE_ABI = [
@@ -10,7 +11,7 @@ const ECOMMERCE_ABI = [
   "function getCompanyProducts(uint256 companyId) view returns (tuple(uint256 productId, uint256 companyId, string name, string description, uint256 price, string ipfsImageHash, uint256 stock, bool isActive)[])",
   "function getProductsByCompany(uint256 companyId) view returns (tuple(uint256 productId, uint256 companyId, string name, string description, uint256 price, string ipfsImageHash, uint256 stock, bool isActive)[])",
   "function getCompanyInvoices(uint256 companyId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
-  "function getCompanyRating(uint256 companyId) view returns (uint256 totalRatingSum, uint256 reviewCount, uint256 averageRating)"
+  "function getCompanyRating(uint256 companyId) view returns (uint256 avgRatingTimes100, uint256 totalReviews)"
 ];
 
 const ORDER_STATUS_LABELS = ["Creado", "Pagado (EURT)", "Enviado", "Entregado", "Completado"];
@@ -18,6 +19,7 @@ const BUSINESS_TYPE_LABELS = ["Venta de Productos", "Prestación de Servicios"];
 
 export default function DashboardHome() {
   const { address, isConnected, signer, provider, connect, wallets } = useWallet();
+  const router = useRouter();
   const [loading, setLoading] = useState<boolean>(true);
   const [entityType, setEntityType] = useState<number>(0); // 0: Unregistered, 1: Company, 2: Customer, 3: Owner
 
@@ -88,12 +90,13 @@ export default function DashboardHome() {
         // Fetch company rating
         try {
           const ratingData = await contract.getCompanyRating(targetCompanyId);
+          // El contrato devuelve el promedio ya multiplicado por 100 (avgRatingTimes100)
           setCompanyRating({
-            average: Number(ratingData.averageRating) || 5,
-            count: Number(ratingData.reviewCount) || 0,
+            average: Number(ratingData.avgRatingTimes100) / 100 || 0,
+            count: Number(ratingData.totalReviews) || 0,
           });
         } catch {
-          setCompanyRating({ average: 5, count: 0 });
+          setCompanyRating({ average: 0, count: 0 });
         }
 
         // Compute status breakdown
@@ -167,7 +170,7 @@ export default function DashboardHome() {
                 <button
                   onClick={() => {
                     if (isConnected && address) {
-                      setShowCompanyRegModal(true);
+                      router.push("/companies");
                     } else {
                       handleConnectWalletBtn();
                     }
@@ -553,11 +556,11 @@ export default function DashboardHome() {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">Nivel de Reputación</span>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-black text-amber-500">
-              ⭐ {companyRating.count > 0 ? `${companyRating.average}.0 / 5.0` : "5.0 / 5.0"}
+              ⭐ {companyRating.count > 0 ? `${companyRating.average.toFixed(1)} / 5.0` : "Sin valoraciones"}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            {companyRating.count > 0 ? `${companyRating.count} opiniones registradas` : "Reputación sobresaliente (5 estrellas)"}
+            {companyRating.count > 0 ? `${companyRating.count} opiniones registradas` : "Aún no hay valoraciones de clientes"}
           </p>
         </div>
 

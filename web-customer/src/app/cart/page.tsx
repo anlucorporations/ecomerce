@@ -117,18 +117,13 @@ export default function CartPage() {
         return;
       }
 
-      // Step 2b: Check KYC Status (Inscrito vs Verificado)
+      // Step 2b: Check KYC Status on-chain (el estado local NO es válido como prueba)
       let isVerified = false;
       try {
         const isKyc = await contract.isKYCVerified(activeAddress);
         if (isKyc) isVerified = true;
       } catch (e) {
         console.warn("isKYCVerified check warning:", e);
-      }
-
-      if (!isVerified && typeof window !== 'undefined') {
-        const localKyc = localStorage.getItem(`kyc_verified_${activeAddress.toLowerCase()}`);
-        if (localKyc === 'true') isVerified = true;
       }
 
       // If status is ONLY "Inscrito" (NOT Verificado), block payment and trigger KYC Modal!

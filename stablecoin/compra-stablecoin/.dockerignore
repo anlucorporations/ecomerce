@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+build
+dist
+.git
+.env
+.env.*
+!.env.example
+anvil-metamask-accounts.json
+anvil_state.json
+deployment.log
+*.log
+.data
+Dockerfile
+.dockerignore

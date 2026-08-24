@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -25,27 +25,105 @@ function sanitizeText(str: string): string {
   return str.replace(/[<>]/g, "").trim().substring(0, 100);
 }
 
+// ---------------------------------------------------------------------------
+// A12: Open-redirect & postMessage hardening.
+// Only hosts listed in the allowed env URLs (or localhost) are accepted as
+// redirect destinations / postMessage target origins.
+// ---------------------------------------------------------------------------
+const DEFAULT_WEB_CUSTOMER_URL = "https://mcc-web-customer-1095249147821.europe-west1.run.app";
+
+function buildAllowedRedirectHosts(): Set<string> {
+  const hosts = new Set<string>(["localhost", "127.0.0.1"]);
+  const candidates = [
+    process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || DEFAULT_WEB_CUSTOMER_URL,
+    process.env.NEXT_PUBLIC_WEB_ADMIN_URL,
+    process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL,
+  ];
+  for (const url of candidates) {
+    if (!url) continue;
+    try {
+      hosts.add(new URL(url).hostname.toLowerCase());
+    } catch {
+      // Ignorar valores de entorno mal formados
+    }
+  }
+  return hosts;
+}
+
+const ALLOWED_REDIRECT_HOSTS = buildAllowedRedirectHosts();
+
+function isAllowedRedirectUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    return ALLOWED_REDIRECT_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+// Origin concreto de la ventana padre (nunca "*"). Se deriva de document.referrer
+// y solo se usa si pertenece a un host permitido.
+function getOpenerTargetOrigin(): string | null {
+  if (typeof document === "undefined") return null;
+  try {
+    const referrer = new URL(document.referrer);
+    if (isAllowedRedirectUrl(referrer.toString())) {
+      return referrer.origin;
+    }
+  } catch {
+    // Sin referrer o no parseable: no se envía postMessage
+  }
+  return null;
+}
+
 function PaymentGatewayContent() {
   const searchParams = useSearchParams();
-  const amountParam = searchParams.get("amount") || "10.00";
-  const invoiceIdParam = searchParams.get("invoiceId") || "1";
+
+  // --- Validación estricta del query string (A12) ---
+  const rawAmount = searchParams.get("amount") || "10.00";
+  const parsedAmount = Number(rawAmount);
+  const isAmountValid = /^(?:\d+)(?:\.\d+)?$/.test(rawAmount.trim()) && parsedAmount > 0;
+  const numericAmount = isAmountValid ? parsedAmount : 0;
+  const rawAmountBigInt = isAmountValid ? BigInt(Math.round(parsedAmount * 1000000)) : BigInt(0);
+
+  const rawInvoiceId = searchParams.get("invoiceId");
+  let invoiceIdParam = "1";
+  let isInvoiceValid = true;
+  if (rawInvoiceId !== null) {
+    const parsedInvoice = Number(rawInvoiceId);
+    isInvoiceValid = Number.isInteger(parsedInvoice) && parsedInvoice > 0;
+    if (isInvoiceValid) invoiceIdParam = String(parsedInvoice);
+  }
+  const invoiceIdBigInt = isInvoiceValid ? BigInt(invoiceIdParam) : BigInt(1);
+
   const rawMerchant = searchParams.get("merchant") || "Tienda BARLO-VENTAS";
   const merchantParam = sanitizeText(rawMerchant);
-  const defaultCustomerOrdersUrl = (process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || "https://mcc-web-customer-1095249147821.europe-west1.run.app") + "/orders";
-  const redirectUrlParam = searchParams.get("redirectUrl") || defaultCustomerOrdersUrl;
+  const defaultCustomerOrdersUrl = (process.env.NEXT_PUBLIC_WEB_CUSTOMER_URL || DEFAULT_WEB_CUSTOMER_URL) + "/orders";
+  const rawRedirectUrl = searchParams.get("redirectUrl");
+  const redirectUrlParam = rawRedirectUrl && isAllowedRedirectUrl(rawRedirectUrl) ? rawRedirectUrl : defaultCustomerOrdersUrl;
 
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [balance, setBalance] = useState<string>("0");
   const [isRegistered, setIsRegistered] = useState<boolean>(true);
   const [status, setStatus] = useState<"idle" | "connecting" | "approving" | "paying" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [inputError, setInputError] = useState<string>("");
   const [txHash, setTxHash] = useState<string>("");
 
-  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650";
+  const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
-  const numericAmount = parseFloat(amountParam);
-  const rawAmountBigInt = BigInt(Math.round(numericAmount * 1000000));
+  // Refleja en la UI los errores de validación del query string
+  useEffect(() => {
+    if (!isAmountValid) {
+      setInputError("El parámetro 'amount' debe ser un número mayor que 0.");
+    } else if (rawInvoiceId !== null && !isInvoiceValid) {
+      setInputError("El parámetro 'invoiceId' debe ser un número entero positivo.");
+    } else {
+      setInputError("");
+    }
+  }, [isAmountValid, isInvoiceValid, rawInvoiceId]);
 
   const checkWalletState = useCallback(async (account: string) => {
     try {
@@ -139,6 +217,12 @@ function PaymentGatewayContent() {
 
   const handleExecutePayment = async () => {
     try {
+      if (!isAmountValid) {
+        setStatus("error");
+        setErrorMessage("El monto indicado en la URL es inválido. Verifique el parámetro 'amount' (debe ser un número mayor que 0).");
+        return;
+      }
+
       if (!walletAddress || !window.ethereum) {
         await connectWallet();
         return;
@@ -170,18 +254,22 @@ function PaymentGatewayContent() {
 
       // Paso 2: Ejecutar Procesamiento de Pago en Blockchain
       setStatus("paying");
-      const payTx = await ecommerceContract.processPayment(walletAddress, rawAmountBigInt, invoiceIdParam);
+      const payTx = await ecommerceContract.processPayment(walletAddress, rawAmountBigInt, invoiceIdBigInt);
       const receipt = await payTx.wait();
 
       setTxHash(receipt.hash);
       setStatus("success");
 
       if (window.opener) {
-        window.opener.postMessage({
-          type: "PAYMENT_SUCCESS",
-          txHash: receipt.hash,
-          invoiceId: invoiceIdParam
-        }, "*");
+        // targetOrigin explícito (allowlist), nunca "*"
+        const targetOrigin = getOpenerTargetOrigin();
+        if (targetOrigin) {
+          window.opener.postMessage({
+            type: "PAYMENT_SUCCESS",
+            txHash: receipt.hash,
+            invoiceId: invoiceIdParam
+          }, targetOrigin);
+        }
       }
 
       setTimeout(() => {
@@ -328,6 +416,12 @@ function PaymentGatewayContent() {
           )}
 
           {/* Status Messages */}
+          {inputError && (
+            <div className="p-3.5 rounded-xl bg-[#FCEAEB] border border-[#CC2233]/40 text-[#CC2233] text-xs text-center font-semibold font-poppins">
+              ⚠️ {inputError}
+            </div>
+          )}
+
           {status === "approving" && (
             <div className="p-4 rounded-xl bg-[#FFF3E5] border border-[#FF8800]/40 text-[#FF8800] text-xs text-center space-y-1 font-poppins">
               <p className="font-bold">🦊 Paso 1 de 2: Autorice en su ventana emergente de MetaMask</p>
@@ -360,7 +454,7 @@ function PaymentGatewayContent() {
           {status !== "success" && (
             <button
               onClick={handleExecutePayment}
-              disabled={status === "approving" || status === "paying"}
+              disabled={status === "approving" || status === "paying" || !!inputError}
               className="w-full btn-cacao-pulse text-sm font-poppins uppercase tracking-wider text-center flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {status === "approving" || status === "paying" ? (

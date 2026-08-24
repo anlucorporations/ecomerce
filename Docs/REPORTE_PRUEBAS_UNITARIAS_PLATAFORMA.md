@@ -2,7 +2,7 @@
 
 **Plataforma BARLO-VENTAS E-Commerce Web3**  
 **Alcance:** Smart Contracts (Foundry), Web Admin, Web Customer, Pasarela Web3 y Compra EURT Stripe  
-**Resultado Global:** **62 / 62 PRUEBAS PASADAS (100% ÉXITO)**
+**Resultado Global:** **82 / 82 PRUEBAS PASADAS (100% ÉXITO)** *(verificado tras remediación de auditoría: 63 Foundry sc-ecommerce + 5 Foundry token + 14 suites Node de las apps)*
 
 ---
 
@@ -14,14 +14,14 @@
 ==========================================================================================
   Servicio / Microservicio   | Tipo de Test / Runner     | Pruebas  | Estado | Resultado
 -----------------------------+---------------------------+----------+--------+------------
-  sc-ecommerce (Escrow)      | Foundry (forge test)      | 43 / 43  | ✅ OK  | 100% Passed
+  sc-ecommerce (Escrow)      | Foundry (forge test)      | 63 / 63  | ✅ OK  | 100% Passed
   stablecoin/sc (EuroToken)  | Foundry (forge test)      | 5 / 5    | ✅ OK  | 100% Passed
   web-customer (Storefront)  | Node Unit Test Suite      | 4 / 4    | ✅ OK  | 100% Passed
   web-admin (Console Admin)  | Node Unit Test Suite      | 3 / 3    | ✅ OK  | 100% Passed
   pasarela-de-pago (Escrow)  | Node Unit Test Suite      | 3 / 3    | ✅ OK  | 100% Passed
   compra-stablecoin (Stripe) | Node Unit Test Suite      | 4 / 4    | ✅ OK  | 100% Passed
 -----------------------------+---------------------------+----------+--------+------------
-  TOTAL DE LA PLATAFORMA     | 10 SUITES DE PRUEBAS      | 62 / 62  | ✅ OK  | 100% PASSED
+  TOTAL DE LA PLATAFORMA     | 10 SUITES DE PRUEBAS      | 82 / 82  | ✅ OK  | 100% PASSED
 ==========================================================================================
 ```
 
@@ -29,12 +29,13 @@
 
 ## 🔍 2. Desglose de Pruebas por Subsistema
 
-### 1. Smart Contracts & EVM Core (`sc-ecommerce` & `stablecoin/sc` - 48 Pruebas):
+### 1. Smart Contracts & EVM Core (`sc-ecommerce` & `stablecoin/sc` - 68 Pruebas):
 - **`EscrowSecurityTest` (2/2):** Verificación de Custodia Escrow en `address(this)`, retención de saldo y liberación a la empresa al confirmar la entrega (`confirmDelivery`).
-- **`IntegrationTest` (6/6):** Flujo completo de compra, sesiones de compra multi-empresa, validación de saldos en EURT e historial de facturas.
+- **`IntegrationTest` (7/7):** Flujo completo de compra, sesiones de compra multi-empresa, validación de saldos en EURT e historial de facturas.
 - **`CompanyRegistryTest` (11/11):** Auditoría de empresas, activación/desactivación y permisos.
 - **`ShoppingCartTest` (12/12):** Lógica de carrito, cálculo de totales en EURT y validación de stock.
-- **`ProductCatalogTest` (12/12):** Inventario de productos, precios y hashes IPFS.
+- **`ProductCatalogTest` (13/13):** Inventario de productos, precios, hashes IPFS y control de acceso de `decreaseStock` (C2).
+- **`SecurityRemediationTest` (18/18):** Tests de remediación de auditoría — C2 auth de stock, C3 dedupe en `checkoutMultiCompany`, C4 ETH atrapado/`withdrawETH`/`rescueToken`, C5 cancelación/reembolso y disputas desde `Paid`, A1 consumo de carrito, A2 pago de factura ajena, A3 productos/empresas inactivos, M3 tarifa exacta, M4 dedupe de ratings, A4 registro de tx hash.
 - **`EuroTokenOptimizedTest` (5/5):** Precisión de 6 decimales, roles de minteo, quema (`burn`) y pausado de emergencia.
 
 ### 2. Portal de Clientes (`web-customer` - 4 Pruebas):
@@ -65,7 +66,7 @@
 Para ejecutar y verificar la suite de pruebas unitarias de cualquier microservicio:
 
 ```bash
-# 1. Pruebas de Smart Contracts E-Commerce y Escrow (43 pruebas)
+# 1. Pruebas de Smart Contracts E-Commerce y Escrow (63 pruebas)
 cd sc-ecommerce && forge test
 
 # 2. Pruebas del EuroToken Stablecoin (5 pruebas)

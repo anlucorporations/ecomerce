@@ -91,10 +91,24 @@ contract ProductCatalogTest is Test {
             companyId1, "Product 1", "Desc", 1000000, "QmHash", 100
         );
 
+        // Solo el dueño de la empresa puede decrementar stock (C2)
+        vm.prank(company1);
         ecommerce.decreaseStock(productId, 30);
 
         ProductLib.Product memory product = ecommerce.getProduct(productId);
         assertEq(product.stock, 70);
+    }
+
+    function test_RevertWhen_DecreaseStockNotCompanyOwner() public {
+        vm.prank(company1);
+        uint256 productId = ecommerce.addProduct(
+            companyId1, "Product 1", "Desc", 1000000, "QmHash", 100
+        );
+
+        // C2: otra dirección (ni dueño de empresa ni owner) NO puede decrementar stock
+        vm.prank(company2);
+        vm.expectRevert("Only company owner can decrease stock");
+        ecommerce.decreaseStock(productId, 30);
     }
 
     function test_DeactivateProduct() public {
@@ -167,6 +181,7 @@ contract ProductCatalogTest is Test {
             companyId1, "Product 1", "Desc", 1000000, "QmHash", 100
         );
 
+        vm.prank(company1);
         vm.expectRevert("Insufficient stock");
         ecommerce.decreaseStock(productId, 101);
     }

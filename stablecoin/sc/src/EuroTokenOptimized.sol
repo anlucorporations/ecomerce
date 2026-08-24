@@ -83,6 +83,10 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
 
     /**
      * @dev Override _update to enforce Pausable status on transfers
+     * @notice RIESGO CONOCIDO (auditoría B2): si un admin pausa el token, también se bloquean
+     * las liberaciones del escrow de Ecommerce (transfer del contrato al comerciante) y los
+     * reembolsos de cancelOrder. El pause debe usarse solo como circuito de emergencia y
+     * coordinarse con el owner de Ecommerce; no excluir el escrow del pause sin revisión.
      */
     function _update(address from, address to, uint256 value) internal override whenNotPaused {
         super._update(from, to, value);

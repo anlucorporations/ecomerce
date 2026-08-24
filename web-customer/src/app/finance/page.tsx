@@ -3,9 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
-import { StripeTopupModal } from '@/components/stripe-topup-modal';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 interface Invoice {
   invoiceId: bigint;
@@ -34,9 +32,6 @@ export default function UserFinancePage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [companyNames, setCompanyNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-
-  // Stripe Modal State
-  const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
 
   const formatPrice = (price: bigint) => {
     return (Number(price) / 1_000_000).toFixed(2);
@@ -321,13 +316,6 @@ export default function UserFinancePage() {
 
       </div>
 
-      {/* STRIPE TOP-UP MODAL */}
-      <StripeTopupModal
-        isOpen={isStripeModalOpen}
-        onClose={() => setIsStripeModalOpen(false)}
-        userAddress={address}
-        onSuccess={fetchFinancesData}
-      />
     </div>
   );
 }

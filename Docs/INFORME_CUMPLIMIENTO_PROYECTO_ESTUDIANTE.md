@@ -36,7 +36,7 @@ Tras auditar exhaustivamente la arquitectura, smart contracts, backend API route
 ### 🟢 Parte 1: Smart Contract EuroToken (Stablecoin)
 - **Requerimiento Requerido:** Token ERC-20 con 6 decimales de precisión representativo de Euros (1 EURT = 1 EUR), función `mint` restringida al owner, eventos de auditoría y tests de despliegue con Foundry/Forge en Anvil.
 - **Implementación en BARLO-VENTAS:**  
-  - Archivo: [`sc-ecommerce/src/EuroTokenOptimized.sol`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/sc-ecommerce/src/EuroTokenOptimized.sol) (Dirección: `0x5FbDB2315678afecb367f032d93F642f64180aa3`).
+  - Archivo: [`stablecoin/sc/src/EuroTokenOptimized.sol`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/stablecoin/sc/src/EuroTokenOptimized.sol) (Dirección: `0x5FbDB2315678afecb367f032d93F642f64180aa3`).
   - Hereda de OpenZeppelin ERC20 y Ownable.
   - Implementa precisión exacta de 6 decimales (`decimals() pure returns (8)` en 6).
   - Función `mint(address to, uint256 amount)` resguardada con `onlyOwner`.

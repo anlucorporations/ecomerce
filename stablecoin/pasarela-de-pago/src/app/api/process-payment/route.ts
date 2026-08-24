@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ethers } from 'ethers';
 
 interface PaymentRequest {
   transactionHash: string;
@@ -20,7 +21,32 @@ interface PaymentResponse {
     date: string;
   };
   processedAt: string;
-  status: 'completed' | 'failed' | 'pending';
+  status: 'completed' | 'pending' | 'failed';
+  verification: {
+    receiptStatus: number | null;
+    blockNumber: number | null;
+  };
+}
+
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || process.env.RPC_URL || "http://127.0.0.1:8545";
+
+/**
+ * A12: La API nunca reporta "success" sin antes verificar el estado real de la
+ * transacción on-chain. Sin receipt => "pending" (pendiente de verificación);
+ * receipt con status 1 => "completed"; status 0 => "failed".
+ */
+async function verifyTransaction(transactionHash: string): Promise<{ status: 'completed' | 'pending' | 'failed'; receiptStatus: number | null; blockNumber: number | null }> {
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
+  const receipt = await provider.getTransactionReceipt(transactionHash);
+  if (!receipt) {
+    return { status: 'pending', receiptStatus: null, blockNumber: null };
+  }
+  const status = receipt.status === 1 ? 'completed' : 'failed';
+  return { status, receiptStatus: receipt.status, blockNumber: receipt.blockNumber };
+}
+
+function isValidTxHash(hash: string): boolean {
+  return /^0x[a-fA-F0-9]{64}$/.test(hash);
 }
 
 export async function POST(request: NextRequest) {
@@ -39,14 +65,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Here you could add additional verification:
-    // - Verify the transaction on the blockchain
-    // - Check if the payment amount is correct
-    // - Validate the merchant and customer addresses
-    // - Store the payment in a database
+    if (!isValidTxHash(paymentData.transactionHash)) {
+      return NextResponse.json(
+        { error: 'Invalid transaction hash' },
+        { status: 400 }
+      );
+    }
+
+    const verification = await verifyTransaction(paymentData.transactionHash);
+    const status = verification.status;
 
     const response: PaymentResponse = {
-      success: true,
+      success: status === 'completed',
       transactionHash: paymentData.transactionHash,
       paymentData: {
         merchant_address: paymentData.merchantAddress,
@@ -56,18 +86,24 @@ export async function POST(request: NextRequest) {
         date: paymentData.date
       },
       processedAt: new Date().toISOString(),
-      status: 'completed'
+      status,
+      verification: {
+        receiptStatus: verification.receiptStatus,
+        blockNumber: verification.blockNumber
+      }
     };
 
-    // Log successful payment
-    console.log('Payment processed successfully:', {
+    console.log('Payment verification result:', {
       transactionHash: paymentData.transactionHash,
-      amount: paymentData.amount,
-      invoice: paymentData.invoice,
+      status,
+      receiptStatus: verification.receiptStatus,
       timestamp: new Date().toISOString()
     });
 
-    return NextResponse.json(response);
+    // 200 solo cuando la transacción está confirmada; 202 mientras está
+    // pendiente de verificación; 422 cuando la transacción falló on-chain.
+    const httpStatus = status === 'completed' ? 200 : status === 'pending' ? 202 : 422;
+    return NextResponse.json(response, { status: httpStatus });
 
   } catch (error) {
     console.error('Error processing payment:', error);
@@ -92,17 +128,28 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  if (!isValidTxHash(transactionHash)) {
+    return NextResponse.json(
+      { error: 'Invalid transaction hash' },
+      { status: 400 }
+    );
+  }
+
   try {
-    // Here you could query the blockchain or your database
-    // to get the payment status by transaction hash
+    const verification = await verifyTransaction(transactionHash);
 
     const response = {
       transactionHash,
-      status: 'completed', // This would come from your verification logic
-      verifiedAt: new Date().toISOString()
+      status: verification.status,
+      verifiedAt: new Date().toISOString(),
+      verification: {
+        receiptStatus: verification.receiptStatus,
+        blockNumber: verification.blockNumber
+      }
     };
 
-    return NextResponse.json(response);
+    const httpStatus = verification.status === 'completed' ? 200 : verification.status === 'pending' ? 202 : 422;
+    return NextResponse.json(response, { status: httpStatus });
 
   } catch (error) {
     console.error('Error getting payment status:', error);

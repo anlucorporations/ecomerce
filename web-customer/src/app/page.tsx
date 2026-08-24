@@ -183,12 +183,12 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="glass-card p-5 space-y-2 border-l-4 border-l-[#CC2233]">
             <div className="flex justify-between items-center">
-              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-[#CC2233] text-white uppercase font-poppins">PROMO SAN JUAN</span>
-              <span className="text-[11px] font-mono text-[#2E8B57] font-bold">15% Cashback EURT</span>
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-[#CC2233] text-white uppercase font-poppins">PROXIMAMENTE</span>
+              <span className="text-[11px] font-mono text-[#A9A9A9] font-bold">Cashback</span>
             </div>
-            <h3 className="text-base font-bold text-[#333333] font-poppins">Reembolso en Compras</h3>
+            <h3 className="text-base font-bold text-[#333333] font-poppins">Cashback Disponible Próximamente</h3>
             <p className="text-xs text-[#A9A9A9] leading-relaxed">
-              Recibe 15% de reembolso directo en EuroTokens al completar tus órdenes en la plataforma.
+              El programa de reembolsos en EuroTokens aún no está implementado en los contratos. Estará disponible próximamente.
             </p>
           </div>
 

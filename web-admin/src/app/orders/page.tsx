@@ -8,7 +8,6 @@ import { InvoicePdfModal, InvoiceModalData } from "../../components/InvoicePdfMo
 const ECOMMERCE_ABI = [
   "function getCompanyInvoices(uint256 companyId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
   "function getCompanyByAddress(address account) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))",
-  "function processPayment(address customer, uint256 amount, uint256 invoiceId) returns (bool)",
   "function shipOrder(uint256 invoiceId, string trackingNumber)"
 ];
 
@@ -32,13 +31,11 @@ interface ShippingFormData {
   invoiceId: string;
   customerAddress: string;
   totalAmountEur: string;
-  rawAmountBigInt: bigint;
   isPaid: boolean;
   carrier: string;
   trackingNumber: string;
   notes: string;
   estimatedDeliveryDate: string;
-  autoApprovePayment: boolean;
 }
 
 export default function ShippingManagementPage() {
@@ -56,13 +53,11 @@ export default function ShippingManagementPage() {
     invoiceId: "",
     customerAddress: "",
     totalAmountEur: "",
-    rawAmountBigInt: BigInt(0),
     isPaid: false,
     carrier: CARRIER_OPTIONS[0],
     trackingNumber: "",
     notes: "",
     estimatedDeliveryDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-    autoApprovePayment: true
   });
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
@@ -110,13 +105,11 @@ export default function ShippingManagementPage() {
       invoiceId: ord.invoiceId.toString(),
       customerAddress: ord.customerAddress,
       totalAmountEur: amountEur,
-      rawAmountBigInt: BigInt(ord.totalAmount),
       isPaid: ord.isPaid,
       carrier: CARRIER_OPTIONS[0],
       trackingNumber: ord.trackingNumber || `TRK-${Math.floor(100000 + Math.random() * 900000)}`,
       notes: "Despacho prioritario con confirmación en blockchain.",
       estimatedDeliveryDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-      autoApprovePayment: !ord.isPaid
     });
     setIsShippingModalOpen(true);
   };
@@ -136,29 +129,16 @@ export default function ShippingManagementPage() {
       setProcessingId(shippingForm.invoiceId);
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, signer);
 
-      // Step 1: Handle unpaid invoices (Process payment first if requested)
+      // M7: el comerciante NO puede pagar en nombre del cliente.
+      // processPayment solo permite msg.sender == customer || owner, por lo que
+      // el auto-pago desde la consola del comerciante siempre revierte.
       if (!shippingForm.isPaid) {
-        if (!shippingForm.autoApprovePayment) {
-          alert("⚠️ Esta factura no está pagada en blockchain. Active la casilla de 'Confirmar Pago en Escrow' o pida al cliente que complete el pago en pasarela.");
-          setProcessingId(null);
-          return;
-        }
-
-        try {
-          // Attempt to process payment on-chain
-          const payTx = await contract.processPayment(
-            shippingForm.customerAddress,
-            shippingForm.rawAmountBigInt,
-            shippingForm.invoiceId
-          );
-          await payTx.wait();
-        } catch (payErr: any) {
-          console.error("Payment processing error:", payErr);
-          throw new Error("No se pudo procesar el pago de la orden en la blockchain.");
-        }
+        alert("⚠️ Esta factura aún no está pagada en blockchain. Solo el cliente titular (o el owner) puede pagarla en la pasarela. El despacho se habilitará cuando el pago esté confirmado.");
+        setProcessingId(null);
+        return;
       }
 
-      // Step 2: Execute shipOrder on-chain
+      // Execute shipOrder on-chain
       const fullTrackingInfo = `[${shippingForm.carrier}] Guía: ${shippingForm.trackingNumber} (Est: ${shippingForm.estimatedDeliveryDate})`;
       const tx = await contract.shipOrder(shippingForm.invoiceId, fullTrackingInfo);
       await tx.wait();
@@ -312,16 +292,18 @@ export default function ShippingManagementPage() {
 
                       {/* SHIPPING ACTION BUTTON - Open Form Modal */}
                       <div className="shrink-0 flex items-center gap-2">
-                        {statusIdx < 2 && (
+                        {statusIdx === 0 && (
+                          <span className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                            ⏳ Pendiente de pago del cliente
+                          </span>
+                        )}
+
+                        {statusIdx === 1 && (
                           <button
                             onClick={() => openShippingModal(ord)}
-                            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition flex items-center gap-2 ${
-                              isPaidOnChain 
-                                ? "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-indigo-600/20"
-                                : "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-amber-500/20"
-                            }`}
+                            className="px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-indigo-600/20"
                           >
-                            <span>📦</span> {isPaidOnChain ? "Marcar como Enviado" : "Confirmar Pago y Despachar"}
+                            <span>📦</span> Marcar como Enviado
                           </button>
                         )}
 
@@ -343,7 +325,7 @@ export default function ShippingManagementPage() {
                               customerAddress: ord.customerAddress,
                               totalAmount: amountEur,
                               timestamp: Number(ord.timestamp),
-                              paymentTxHash: ord.paymentTxHash || "0x8be375342b299e1fcd505efbdac1e9f6ec46d419ad97935c7b39bfb1d98f6ccc",
+                              paymentTxHash: ord.paymentTxHash || "",
                               statusLabel: ORDER_STATUS_LABELS[statusIdx] || "Entregado & Liberado",
                               trackingNumber: ord.trackingNumber || "N/A"
                             })}
@@ -401,20 +383,11 @@ export default function ShippingManagementPage() {
                 </p>
               </div>
 
-              {/* Unpaid Invoice Auto-Confirm Checkbox */}
+              {/* Unpaid Invoice Notice */}
               {!shippingForm.isPaid && (
-                <div className="bg-amber-50 border border-amber-300 p-3 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
-                  <input
-                    type="checkbox"
-                    id="autoApprove"
-                    checked={shippingForm.autoApprovePayment}
-                    onChange={(e) => setShippingForm({ ...shippingForm, autoApprovePayment: e.target.checked })}
-                    className="mt-0.5 w-4 h-4 text-indigo-600 rounded border-amber-400 focus:ring-indigo-500"
-                  />
-                  <label htmlFor="autoApprove" className="leading-tight cursor-pointer font-medium">
-                    <strong className="block font-bold text-amber-950">Confirmar Pago en Escrow antes de Despachar</strong>
-                    Esta orden aún no ha sido pagada por el cliente. Al marcar esta opción, el sistema autorizará el pago en la blockchain y procesará el despacho inmediatamente.
-                  </label>
+                <div className="bg-amber-50 border border-amber-300 p-3 rounded-xl text-xs text-amber-900">
+                  <strong className="block font-bold text-amber-950">Factura pendiente de pago</strong>
+                  El despacho solo puede ejecutarse cuando el cliente haya pagado la factura en la pasarela (pago en Escrow confirmado on-chain).
                 </div>
               )}
 

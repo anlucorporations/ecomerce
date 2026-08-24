@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '../hooks/useWallet';
 
-const EXPECTED_CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '81234');
+// M20: la red por defecto es Anvil Local (chain id 31337), no la Besu legacy (81234)
+const EXPECTED_CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '31337');
 
 export function WalletConnect() {
   const { address, chainId, isConnected, isConnecting, connect, disconnect, switchNetwork, error } = useWallet();
@@ -62,7 +63,7 @@ export function WalletConnect() {
             disabled={switching}
             className="px-3 py-1.5 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 disabled:opacity-50"
           >
-            {switching ? 'Switching...' : 'Switch to Besu'}
+            {switching ? 'Switching...' : 'Switch Network'}
           </button>
         )}
 

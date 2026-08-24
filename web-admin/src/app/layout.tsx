@@ -10,6 +10,7 @@ import { ethers } from "ethers";
 
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
+  "function isSystemsAdmin(address account) view returns (bool)",
   "function getCompanyByAddress(address _address) view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate))"
 ];
 
@@ -25,7 +26,8 @@ export default function RootLayout({
   const [entityType, setEntityType] = useState<number>(0); // 0: Unregistered, 1: Company, 2: Customer, 3: Owner
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
-  const isOwner = address?.toLowerCase() === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
+  // Web3-only: el owner se determina ON-CHAIN (getEntityType === 3), nunca por dirección hardcodeada
+  const isOwner = entityType === 3;
 
   useEffect(() => {
     async function checkEntityType() {
@@ -36,8 +38,8 @@ export default function RootLayout({
           const eType = await contract.getEntityType(address);
           let typeNum = Number(eType);
 
-          // Check company by address fallback
-          if (typeNum === 0 && !isOwner) {
+          // Fallback: detectar empresa por dirección on-chain (getCompanyByAddress)
+          if (typeNum === 0) {
             try {
               const comp = await contract.getCompanyByAddress(address);
               if (comp && comp.companyId > BigInt(0)) {
@@ -46,15 +48,7 @@ export default function RootLayout({
             } catch {}
           }
 
-          // Check local storage fallback
-          if (typeNum === 0 && typeof window !== "undefined") {
-            const localReg = localStorage.getItem(`company_reg_${address.toLowerCase()}`);
-            if (localReg) {
-              typeNum = 1;
-            }
-          }
-
-          if (isOwner) typeNum = 3;
+          // NOTA: NO se usa localStorage — el estado on-chain es la única fuente de verdad (Web3-only)
 
           setEntityType(typeNum);
 
@@ -70,11 +64,10 @@ export default function RootLayout({
       }
     }
     checkEntityType();
-  }, [address, provider, pathname, router, ecommerceAddress, isOwner]);
+  }, [address, provider, pathname, router, ecommerceAddress]);
 
   const handleCompanyRegSuccess = () => {
     setEntityType(1);
-    setShowCompanyRegModal(false);
     if (typeof window !== "undefined") {
       window.location.href = "/";
     }

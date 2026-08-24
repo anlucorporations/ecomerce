@@ -1,304 +1,167 @@
-# Pasarela de Pago EuroToken
+# Pasarela de Pago EuroToken (BARLO-VENTAS)
 
-Una pasarela de pago Web3 construida con Next.js que permite realizar pagos con el token EuroToken (EURT) en Ethereum utilizando MetaMask.
+Pasarela de pago Web3 construida con Next.js (App Router) que permite autorizar
+pagos con **EuroToken (EURT)** en **Anvil (chainId 31337)** conectando MetaMask.
+El flujo real vive en `src/app/page.tsx` (componente `PaymentGatewayContent`).
 
-## Descripción
-
-Esta aplicación funciona como una pasarela de pago descentralizada que permite a comerciantes recibir pagos en EuroToken de sus clientes. La pasarela maneja todo el flujo de pago, desde la conexión de la billetera hasta la confirmación de la transacción en blockchain.
+> ⚠️ **Nota histórica:** `src/app/components/PaymentGateway.tsx` (versión legacy
+> para red Besu 81234 con parámetros `merchant_address/address_customer/invoice/date`
+> y envs `NEXT_PUBLIC_EUROTOKEN_CONTRACT_ADDRESS`) fue **eliminado** por estar sin
+> uso: ningún componente ni página lo importa. Si necesitas esa integración legacy,
+> recupérala desde el historial de Git.
 
 ## Características
 
-- ✅ Conexión con MetaMask para autenticación Web3
-- ✅ Interfaz de pago intuitiva y responsiva
-- ✅ Validación de dirección de cliente
-- ✅ Verificación de saldo antes de procesar pagos
-- ✅ Confirmación visual de transacciones
-- ✅ Redirección automática después del pago
-- ✅ Soporte para integración mediante URL parameters
-- ✅ Comunicación con ventana padre via postMessage
+- ✅ Conexión MetaMask (EIP-1193) y auto-detección de cuenta
+- ✅ Validación de inscripción del cliente en el contrato `Ecommerce`
+- ✅ Verificación de saldo EURT antes de procesar
+- ✅ `approve()` + `processPayment()` en la custodia Escrow
+- ✅ Validación estricta del query string (evita `BigInt(NaN)`)
+- ✅ Allowlist de redirección post-pago (sin open redirect)
+- ✅ `postMessage` con `targetOrigin` explícito (nunca `"*"`)
+- ✅ API `/api/process-payment` con verificación on-chain del receipt
 
 ## Tecnologías
 
-- **Framework:** Next.js 15.5.4 con App Router
-- **React:** 19.1.0
-- **Blockchain:** Ethers.js 6.15.0
-- **Estilos:** Tailwind CSS 4
-- **TypeScript:** 5.x
-- **Turbopack:** Para desarrollo y build optimizados
+- **Framework:** Next.js 15 (App Router) · puerto `3002`
+- **Blockchain:** ethers.js 6 · Anvil `http://127.0.0.1:8545` · chainId `31337`
+- **Estilos:** Tailwind CSS 3 (config en `tailwind.config.ts` con `content`)
 
-## Requisitos Previos
+## Requisitos previos
 
-- Node.js 20.x o superior
-- MetaMask instalado en el navegador
-- Acceso a una red Ethereum (local o testnet)
-- Token EuroToken (EURT) desplegado en la red
+- Node.js 20+
+- MetaMask (red localhost 8545, chainId 31337)
+- Anvil corriendo con límite de tamaño de código ampliado:
+
+```bash
+anvil --code-size-limit 100000
+```
+
+- Contratos desplegados: `EuroTokenOptimized` y `Ecommerce`
+  (usa `./deploy-all.sh` o `./simple-deploy.sh` en la raíz del repo)
 
 ## Instalación
 
 ```bash
-# Instalar dependencias
 npm install
-
-# Ejecutar servidor de desarrollo
-npm run dev
-
-# Build de producción
-npm run build
-
-# Iniciar servidor de producción
-npm start
-
-# Ejecutar linter
-npm run lint
+npm run dev   # http://localhost:3002
 ```
 
-El servidor de desarrollo estará disponible en [http://localhost:3000](http://localhost:3000).
+## Configuración (variables reales)
 
-## Configuración
+Copia `.env.local` con las variables que usa el código actual
+(`src/app/page.tsx` y `src/app/api/process-payment/route.ts`):
 
-### Contrato EuroToken
+```bash
+NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8545
+NEXT_PUBLIC_CHAIN_ID=31337
 
-El contrato EuroToken está configurado en [src/app/components/PaymentGateway.tsx:31](src/app/components/PaymentGateway.tsx#L31):
+# Direcciones reales de los contratos (las genera deploy-all.sh)
+NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS=0x...
+NEXT_PUBLIC_EURO_TOKEN_ADDRESS=0x...
 
-```typescript
-const EUROTOKEN_CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+# Orígenes permitidos (allowlist de redirectUrl y postMessage)
+NEXT_PUBLIC_WEB_CUSTOMER_URL=http://localhost:3001
+NEXT_PUBLIC_WEB_ADMIN_URL=http://localhost:3000
+NEXT_PUBLIC_COMPRA_STABLECOIN_URL=http://localhost:3003
 ```
 
-**Importante:** Actualiza esta dirección con la dirección del contrato desplegado en tu red.
+Si una variable de contrato falta, se usan fallbacks de Anvil:
+`NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS` → `0x5FC8d32690cc91D4c39d9d3abcBD16989F875707`
+y `NEXT_PUBLIC_EURO_TOKEN_ADDRESS` → `0x5FbDB2315678afecb367f032d93F642f64180aa3`.
 
-### ABI del Contrato
+## Uso (parámetros reales de `page.tsx`)
 
-El ABI utilizado incluye las siguientes funciones:
+| Parámetro     | Tipo   | Descripción                                          | Requerido |
+|---------------|--------|------------------------------------------------------|-----------|
+| `merchant`    | string | Nombre del comercio (saneado, máx. 100 chars)        | ❌ (default: "Tienda BARLO-VENTAS") |
+| `amount`      | number | Monto en EURT, **numérico > 0** (ej. `10.00`)        | ❌ (default: 10.00) |
+| `invoiceId`   | number | ID de factura/orden, **entero positivo** si se envía  | ❌ (default: 1) |
+| `redirectUrl` | string | URL post-pago — solo hosts de la allowlist            | ❌ (default: `{WEB_CUSTOMER_URL}/orders`) |
 
-```typescript
-const EUROTOKEN_ABI = [
-  "function transfer(address to, uint256 amount) returns (bool)",
-  "function balanceOf(address account) view returns (uint256)",
-  "function decimals() view returns (uint8)",
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)"
-];
-```
-
-## Uso
-
-### Parámetros URL Requeridos
-
-La pasarela requiere los siguientes parámetros en la URL:
-
-| Parámetro | Tipo | Descripción | Requerido |
-|-----------|------|-------------|-----------|
-| `merchant_address` | string | Dirección Ethereum del comerciante | ✅ |
-| `address_customer` | string | Dirección Ethereum del cliente | ✅ |
-| `amount` | string | Cantidad a pagar en EURT | ✅ |
-| `invoice` | string | Número de factura o identificador | ✅ |
-| `date` | string | Fecha de la transacción | ✅ |
-| `redirect` | string | URL de retorno después del pago | ❌ |
-
-### Ejemplo de URL
+Ejemplo:
 
 ```
-http://localhost:3000/?merchant_address=0x1234...&address_customer=0x5678...&amount=100.50&invoice=INV-001&date=2025-10-14&redirect=https://miapp.com/success
+http://localhost:3002/?merchant=BARLO-VENTAS&amount=10.00&invoiceId=42&redirectUrl=http://localhost:3001/orders
 ```
 
-### Integración en una Aplicación
+### Seguridad de la redirección
 
-#### Opción 1: Redirección Directa
+`redirectUrl` solo se acepta si su `host` está en la allowlist
+(`NEXT_PUBLIC_WEB_CUSTOMER_URL`, `NEXT_PUBLIC_WEB_ADMIN_URL`,
+`NEXT_PUBLIC_COMPRA_STABLECOIN_URL` o `localhost`/`127.0.0.1`). Cualquier otra
+URL cae al default `{WEB_CUSTOMER_URL}/orders`. El `postMessage` hacia la ventana
+padre usa como `targetOrigin` el origin de `document.referrer` cuando pertenece a
+la misma allowlist; en caso contrario no se envía.
 
-```javascript
-const paymentUrl = new URL('http://localhost:3000');
-paymentUrl.searchParams.append('merchant_address', '0x...');
-paymentUrl.searchParams.append('address_customer', '0x...');
-paymentUrl.searchParams.append('amount', '100.50');
-paymentUrl.searchParams.append('invoice', 'INV-001');
-paymentUrl.searchParams.append('date', new Date().toISOString());
-paymentUrl.searchParams.append('redirect', 'https://miapp.com/success');
+## Flujo de pago
 
-window.location.href = paymentUrl.toString();
-```
+1. Validación del query string (`amount` > 0, `invoiceId` entero si existe)
+2. Conexión MetaMask y verificación de inscripción en `Ecommerce`
+3. Verificación de saldo EURT
+4. `approve()` del EuroToken hacia el contrato `Ecommerce` (si falta allowance)
+5. `processPayment(customer, amount, invoiceId)` → custodia Escrow
+6. Confirmación con `txHash` + `postMessage(PAYMENT_SUCCESS)` + redirect
 
-#### Opción 2: Ventana Emergente (Popup)
-
-```javascript
-const paymentUrl = /* URL con parámetros */;
-const popup = window.open(paymentUrl, 'payment', 'width=600,height=800');
-
-// Escuchar mensaje de confirmación
-window.addEventListener('message', (event) => {
-  if (event.data.type === 'PAYMENT_COMPLETED') {
-    console.log('Pago completado:', event.data.result);
-    popup.close();
-  }
-});
-```
-
-## Flujo de Pago
-
-1. **Validación de Parámetros:** La aplicación verifica que todos los parámetros requeridos estén presentes
-2. **Conexión de Billetera:** El usuario conecta su MetaMask
-3. **Validación de Dirección:** Se verifica que la dirección conectada coincida con `address_customer`
-4. **Verificación de Saldo:** Se comprueba que el cliente tenga suficiente EURT
-5. **Confirmación de Detalles:** El usuario revisa los detalles del pago
-6. **Firma de Transacción:** El usuario firma la transacción en MetaMask
-7. **Procesamiento:** La transacción se envía a la blockchain
-8. **Confirmación:** Se muestra el resultado con el hash de transacción
-9. **Redirección:** (Opcional) Se redirige al usuario a la URL especificada
-
-## API Endpoints
+## API
 
 ### POST /api/process-payment
 
-Procesa la confirmación de un pago (endpoint de ejemplo para uso futuro).
+Verifica el receipt on-chain de la transacción antes de responder:
 
-**Request Body:**
+| Estado del receipt       | `status`    | `success` | HTTP |
+|--------------------------|-------------|-----------|------|
+| receipt status `1`       | `completed` | `true`    | 200  |
+| receipt no encontrado    | `pending`   | `false`   | 202  |
+| receipt status `0`       | `failed`    | `false`   | 422  |
+
+**Request:**
 ```json
 {
   "transactionHash": "0x...",
   "merchantAddress": "0x...",
   "customerAddress": "0x...",
-  "amount": "100.50",
-  "invoice": "INV-001",
+  "amount": "10.00",
+  "invoice": "42",
   "date": "2025-10-14T12:00:00Z"
 }
 ```
 
-**Response:**
+**Response (200):**
 ```json
 {
   "success": true,
   "transactionHash": "0x...",
-  "paymentData": {
-    "merchant_address": "0x...",
-    "address_customer": "0x...",
-    "amount": "100.50",
-    "invoice": "INV-001",
-    "date": "2025-10-14T12:00:00Z"
-  },
+  "paymentData": { "merchant_address": "0x...", "address_customer": "0x...", "amount": "10.00", "invoice": "42", "date": "2025-10-14T12:00:00Z" },
   "processedAt": "2025-10-14T12:00:05Z",
-  "status": "completed"
+  "status": "completed",
+  "verification": { "receiptStatus": 1, "blockNumber": 12 }
 }
 ```
 
 ### GET /api/process-payment?transactionHash=0x...
 
-Obtiene el estado de un pago por hash de transacción.
+Devuelve `{ transactionHash, status, verifiedAt, verification }` con el mismo
+criterio de estados (200/202/422).
 
-**Response:**
-```json
-{
-  "transactionHash": "0x...",
-  "status": "completed",
-  "verifiedAt": "2025-10-14T12:00:05Z"
-}
-```
-
-## Estructura del Proyecto
+## Estructura
 
 ```
 pasarela-de-pago/
-├── src/
-│   ├── app/
-│   │   ├── components/
-│   │   │   ├── PaymentGateway.tsx      # Componente principal de pago
-│   │   │   └── PaymentGatewayDirect.tsx # Versión alternativa
-│   │   ├── api/
-│   │   │   └── process-payment/
-│   │   │       └── route.ts             # API endpoint para procesar pagos
-│   │   ├── test/
-│   │   │   └── page.tsx                 # Página de prueba
-│   │   ├── page.tsx                     # Página principal
-│   │   ├── layout.tsx                   # Layout de la app
-│   │   ├── globals.css                  # Estilos globales
-│   │   └── favicon.ico
-│   └── types/
-│       └── ethereum.d.ts                # Tipos TypeScript para Ethereum
-├── public/                              # Recursos estáticos
-├── next.config.ts                       # Configuración Next.js
-├── tsconfig.json                        # Configuración TypeScript
-├── tailwind.config.js                   # Configuración Tailwind
+├── src/app/
+│   ├── page.tsx                  # Pasarela real (A12: validación + allowlist)
+│   ├── components/
+│   │   └── PaymentGatewayDirect.tsx  # Vista de prueba (solo lee parámetros)
+│   ├── api/process-payment/route.ts  # Verificación on-chain
+│   └── test/page.tsx             # Página de prueba (PaymentGatewayDirect)
+├── tailwind.config.ts            # Tailwind con `content` (B12)
 └── package.json
 ```
 
-## Tipos TypeScript
+## Limitaciones conocidas
 
-### PaymentData
-
-```typescript
-interface PaymentData {
-  merchant_address: string;
-  address_customer: string;
-  amount: string;
-  invoice: string;
-  date: string;
-  redirect?: string;
-}
-```
-
-### PaymentResult
-
-```typescript
-interface PaymentResult {
-  success: boolean;
-  transactionHash?: string;
-  error?: string;
-  paymentData: PaymentData;
-}
-```
-
-## Seguridad
-
-- ✅ Validación de dirección de cliente antes de procesar pagos
-- ✅ Verificación de saldo antes de ejecutar transacciones
-- ✅ Manejo de errores exhaustivo
-- ✅ No almacena claves privadas (usa MetaMask)
-- ⚠️ **Importante:** Valida siempre las transacciones en el backend antes de confirmar pedidos
-- ⚠️ **Importante:** Implementa límites de rate-limiting en producción
-
-## Limitaciones Conocidas
-
-- Solo funciona con el token EuroToken (EURT) de 6 decimales
-- Requiere MetaMask instalado en el navegador
-- No incluye persistencia de datos de pagos (implementar en backend)
-- No verifica la transacción en blockchain después de enviarla
-
-## Mejoras Futuras
-
-- [ ] Soporte para múltiples tokens
-- [ ] Verificación de transacción en blockchain
-- [ ] Persistencia de pagos en base de datos
-- [ ] Soporte para WalletConnect y otras billeteras
-- [ ] Panel de administración para comerciantes
-- [ ] Webhooks para notificaciones
-- [ ] Soporte para pagos parciales
-- [ ] Sistema de reembolsos
-
-## Desarrollo
-
-### Ejecutar en Modo Desarrollo
-
-```bash
-npm run dev
-```
-
-La aplicación se ejecutará con Turbopack para hot-reload optimizado.
-
-### Build de Producción
-
-```bash
-npm run build
-npm start
-```
-
-## Licencia
-
-Este proyecto es privado.
-
-## Soporte
-
-Para reportar problemas o solicitar características, contacta al equipo de desarrollo.
-
-
-http://localhost:3002/?merchant_address=0x70997970C51812dc3A010C7d01b50e0d17dc79C8&address_customer=0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266&amount=100.50&invoice=INV-001&date=2025-10-14&redirect=https://miapp.com/success
-
-
-http://localhost:3002/?merchant_address=0x70997970C51812dc3A010C7d01b50e0d17dc79C8&address_customer=0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266&amount=100.50&invoice=INV-001&date=2025-10-14&redirect=https://miapp.com/success
+- Solo funciona con EuroToken de 6 decimales y MetaMask
+- La verificación del receipt en `/api/process-payment` es básica (estado del
+  receipt); para producción conviene validar también emisor, monto y destinatario
+  del evento del contrato
+- No persiste pagos en base de datos

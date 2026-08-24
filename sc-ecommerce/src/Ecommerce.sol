@@ -28,7 +28,7 @@ contract Ecommerce is ReentrancyGuard {
     CustomerLib.CustomerStorage internal customerStorage;
     ShoppingCartLib.CartStorage internal cartStorage;
 
-    enum OrderStatus { Created, Paid, Shipped, Delivered, Completed }
+    enum OrderStatus { Created, Paid, Shipped, Delivered, Completed, Cancelled }
 
     // Invoice and Payment structures
     struct Invoice {
@@ -71,6 +71,8 @@ contract Ecommerce is ReentrancyGuard {
     mapping(uint256 => uint256) public companyTotalRating;
     mapping(uint256 => uint256) public companyRatingCount;
     mapping(uint256 => Rating[]) private companyRatings;
+    // M4: una sola reseña por cliente y empresa
+    mapping(address => mapping(uint256 => bool)) private customerHasRated;
 
     // Light KYC Certification Storage
     mapping(address => bool) public isKYCVerified;
@@ -92,6 +94,7 @@ contract Ecommerce is ReentrancyGuard {
     event PaymentProcessed(uint256 indexed invoiceId, address indexed customer, uint256 amount);
     event OrderShipped(uint256 indexed invoiceId, uint256 indexed companyId, string trackingNumber);
     event OrderDelivered(uint256 indexed invoiceId, address indexed customer);
+    event OrderCancelled(uint256 indexed invoiceId, address indexed customer);
     event CompanyRated(uint256 indexed companyId, address indexed reviewer, uint8 rating, string comment);
     event KYCStatusUpdated(address indexed account, bool isVerified);
     event ActivityLogged(address indexed user, string action, string details, uint256 timestamp);
@@ -102,7 +105,7 @@ contract Ecommerce is ReentrancyGuard {
     }
 
     modifier onlyCustomerOrAdmin(address _customer) {
-        require(msg.sender == _customer || msg.sender == owner, "AccessControl: Caller is not customer nor admin");
+        require(msg.sender == _customer || msg.sender == owner, "AccessControl: Only the customer or the admin can perform this action");
         _;
     }
 
@@ -139,11 +142,17 @@ contract Ecommerce is ReentrancyGuard {
         string memory _name,
         string memory _description,
         CompanyLib.BusinessType _businessType
-    ) external payable returns (uint256) {
+    ) external payable nonReentrant returns (uint256) {
         require(msg.value >= REGISTRATION_FEE, "Registration fee is 3 ETH");
 
-        // Transfer 3 ETH fee to owner
-        payable(owner).transfer(msg.value);
+        // M3: transferir EXACTAMENTE la tarifa y devolver el exceso al remitente
+        uint256 excess = msg.value - REGISTRATION_FEE;
+        (bool feeSent, ) = payable(owner).call{value: REGISTRATION_FEE}("");
+        require(feeSent, "Fee transfer failed");
+        if (excess > 0) {
+            (bool refundSent, ) = payable(msg.sender).call{value: excess}("");
+            require(refundSent, "Excess refund failed");
+        }
 
         isKYCVerified[msg.sender] = false;
         emit KYCStatusUpdated(msg.sender, false);
@@ -231,6 +240,13 @@ contract Ecommerce is ReentrancyGuard {
     }
 
     function decreaseStock(uint256 _productId, uint256 _quantity) external {
+        // C2: control de acceso — solo el dueño de la empresa del producto (o el owner) puede decrementar stock
+        ProductLib.Product memory product = productStorage.getProduct(_productId);
+        CompanyLib.Company memory company = companyStorage.getCompany(product.companyId);
+        require(
+            msg.sender == company.companyAddress || msg.sender == owner,
+            "Only company owner can decrease stock"
+        );
         productStorage.decreaseStock(_productId, _quantity);
     }
 
@@ -293,6 +309,9 @@ contract Ecommerce is ReentrancyGuard {
         string memory _contactEmail,
         string memory _shippingAddress
     ) external payable {
+        // C4: el registro es gratuito — rechazar ETH para que nunca quede atrapado en el contrato
+        require(msg.value == 0, "Customer registration is free; do not send ETH");
+
         require(bytes(_contactEmail).length > 0, "El correo electronico es obligatorio");
         require(bytes(_shippingAddress).length > 0, "La direccion de despacho es obligatoria");
 
@@ -301,6 +320,25 @@ contract Ecommerce is ReentrancyGuard {
 
         customerStorage.registerCustomerSelf(msg.sender, _name, _contactEmail, _shippingAddress);
         _logActivity(msg.sender, "REGISTER_CUSTOMER_SELF", "Customer Registered");
+    }
+
+    /// @notice Permite al owner retirar ETH mal enviado al contrato (C4)
+    function withdrawETH() external onlyOwner nonReentrant {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No ETH balance to withdraw");
+        (bool sent, ) = payable(owner).call{value: balance}("");
+        require(sent, "ETH withdrawal failed");
+        _logActivity(msg.sender, "WITHDRAW_ETH", "Recovered misdirected ETH");
+    }
+
+    /// @notice Permite al owner rescatar tokens ERC20 mal enviados al contrato (C4)
+    function rescueToken(address _token, uint256 _amount) external onlyOwner {
+        require(_token != address(0), "Invalid token address");
+        IERC20 token = IERC20(_token);
+        uint256 balance = token.balanceOf(address(this));
+        require(balance >= _amount, "Insufficient token balance");
+        require(token.transfer(owner, _amount), "Token rescue transfer failed");
+        _logActivity(msg.sender, "RESCUE_TOKEN", "Recovered misdirected tokens");
     }
 
     function registerCustomer() external {
@@ -361,22 +399,29 @@ contract Ecommerce is ReentrancyGuard {
         uint256 total = 0;
         uint256 invoiceId = nextInvoiceId++;
 
+        // Productos de esta empresa que se marcarán como consumidos (A1)
+        uint256[] memory consumedProductIds = new uint256[](cartItems.length);
+        uint256 consumedCount = 0;
+
         // Create invoice items
         for (uint256 i = 0; i < cartItems.length; i++) {
             ProductLib.Product memory product = productStorage.getProduct(cartItems[i].productId);
 
             // Only include items from this company
             if (product.companyId == _companyId) {
-                uint256 itemTotal = cartItems[i].unitPrice * cartItems[i].quantity;
+                // M2: usar el PRECIO VIVO del producto (consistente con checkoutMultiCompany)
+                uint256 itemTotal = product.price * cartItems[i].quantity;
                 total += itemTotal;
 
                 invoiceItems[invoiceId].push(InvoiceItem({
                     productId: cartItems[i].productId,
                     productName: product.name,
                     quantity: cartItems[i].quantity,
-                    unitPrice: cartItems[i].unitPrice,
+                    unitPrice: product.price,
                     totalPrice: itemTotal
                 }));
+
+                consumedProductIds[consumedCount++] = cartItems[i].productId;
             }
         }
 
@@ -400,6 +445,13 @@ contract Ecommerce is ReentrancyGuard {
         companyInvoices[_companyId].push(invoiceId);
         invoiceIds.push(invoiceId);
 
+        // A1: consumir del carrito los items facturados (evita doble factura/pago del mismo carrito)
+        uint256[] memory toRemove = new uint256[](consumedCount);
+        for (uint256 i = 0; i < consumedCount; i++) {
+            toRemove[i] = consumedProductIds[i];
+        }
+        cartStorage.removeItemsFromCart(toRemove, _customer);
+
         emit InvoiceCreated(invoiceId, _customer, _companyId, total);
         return invoiceId;
     }
@@ -420,14 +472,32 @@ contract Ecommerce is ReentrancyGuard {
         createdInvoiceIds = new uint256[](_companyIds.length);
         uint256 grandTotal = 0;
 
+        // C3: validar unicidad de empresas y productos (evita doble cobro / doble decremento de stock)
+        for (uint256 i = 0; i < _companyIds.length; i++) {
+            for (uint256 j = i + 1; j < _companyIds.length; j++) {
+                require(_companyIds[i] != _companyIds[j], "Duplicate company id");
+            }
+        }
+        for (uint256 i = 0; i < _productIds.length; i++) {
+            for (uint256 j = i + 1; j < _productIds.length; j++) {
+                require(_productIds[i] != _productIds[j], "Duplicate product id");
+            }
+        }
+
         // Step 1: Validate stock and compute grand total across all companies
         for (uint256 c = 0; c < _companyIds.length; c++) {
             uint256 companyId = _companyIds[c];
             uint256 companyTotal = 0;
 
+            // A3: la empresa debe estar activa
+            CompanyLib.Company memory company = companyStorage.getCompany(companyId);
+            require(company.isActive, "Company not active");
+
             for (uint256 i = 0; i < _productIds.length; i++) {
                 ProductLib.Product memory product = productStorage.getProduct(_productIds[i]);
                 if (product.companyId == companyId) {
+                    // A3: el producto debe estar activo
+                    require(product.isActive, "Product not active");
                     require(product.stock >= _quantities[i], "Insufficient stock for product");
                     companyTotal += product.price * _quantities[i];
                 }
@@ -541,6 +611,8 @@ contract Ecommerce is ReentrancyGuard {
         require(invoice.invoiceId != 0, "Invoice not found");
         require(!invoice.isPaid, "Invoice already paid");
         require(invoice.totalAmount == _amount, "Amount mismatch");
+        // A2: solo el cliente titular de la factura puede pagarla
+        require(invoice.customerAddress == _customer, "Not invoice customer");
 
         IERC20 euroToken = IERC20(euroTokenAddress);
         require(euroToken.balanceOf(_customer) >= _amount, "Insufficient balance");
@@ -556,8 +628,12 @@ contract Ecommerce is ReentrancyGuard {
         // Update customer stats
         customerStorage.updatePurchaseStats(_customer, _amount);
 
-        // Decrease stock for all invoice items
+        // M1: validar disponibilidad de stock con mensaje claro ANTES de decrementar
         InvoiceItem[] memory items = invoiceItems[_invoiceId];
+        for (uint256 i = 0; i < items.length; i++) {
+            ProductLib.Product memory product = productStorage.getProduct(items[i].productId);
+            require(product.stock >= items[i].quantity, "Insufficient stock to pay invoice");
+        }
         for (uint256 i = 0; i < items.length; i++) {
             productStorage.decreaseStock(items[i].productId, items[i].quantity);
         }
@@ -609,10 +685,63 @@ contract Ecommerce is ReentrancyGuard {
         emit OrderDelivered(_invoiceId, msg.sender);
     }
 
+    /// @notice Cancela una factura pagada que aún no fue despachada y REEMBOLSA el escrow al cliente (C5)
+    function cancelOrder(uint256 _invoiceId) external nonReentrant {
+        Invoice storage invoice = invoices[_invoiceId];
+        require(invoice.invoiceId != 0, "Invoice not found");
+        require(invoice.isPaid, "Invoice not paid");
+        require(invoice.status == OrderStatus.Paid, "Only paid orders not yet shipped can be cancelled");
+        require(
+            invoice.customerAddress == msg.sender || msg.sender == owner,
+            "Only buyer or owner can cancel order"
+        );
+
+        // EFFECTS (State changes BEFORE external interaction)
+        invoice.status = OrderStatus.Cancelled;
+        invoice.isPaid = false;
+
+        // INTERACTIONS (Refund escrow to the buyer)
+        IERC20 euroToken = IERC20(euroTokenAddress);
+        require(
+            euroToken.transfer(invoice.customerAddress, invoice.totalAmount),
+            "Escrow refund transfer failed"
+        );
+
+        _logActivity(msg.sender, "ORDER_CANCELLED", "Escrow Refunded to Buyer");
+        emit OrderCancelled(_invoiceId, invoice.customerAddress);
+    }
+
+    /// @notice Registra el hash real de la transacción de pago (A4) — lo invoca el relayer/owner tras el pago
+    function recordPaymentTxHash(uint256 _invoiceId, string calldata _txHash) external onlyOwner {
+        Invoice storage invoice = invoices[_invoiceId];
+        require(invoice.invoiceId != 0, "Invoice not found");
+        require(invoice.isPaid, "Invoice not paid");
+        require(bytes(_txHash).length > 0, "Tx hash required");
+        invoice.paymentTxHash = _txHash;
+        emit InvoicePaid(_invoiceId, _txHash);
+    }
+
     function resolveDisputeReleaseEscrow(uint256 _invoiceId) external onlyOwner nonReentrant {
         Invoice storage invoice = invoices[_invoiceId];
         require(invoice.invoiceId != 0, "Invoice not found");
         require(invoice.isPaid, "Invoice not paid");
+
+        // C5: resolución de disputas desde Paid (comerciante nunca envió) o Shipped
+        if (invoice.status == OrderStatus.Paid) {
+            // Reembolso al cliente (el comerciante no envió el pedido)
+            invoice.status = OrderStatus.Cancelled;
+            invoice.isPaid = false;
+
+            IERC20 euroToken = IERC20(euroTokenAddress);
+            require(
+                euroToken.transfer(invoice.customerAddress, invoice.totalAmount),
+                "Dispute refund transfer failed"
+            );
+            _logActivity(msg.sender, "DISPUTE_RESOLVED_REFUND", "Escrow Refunded to Buyer by Admin");
+            emit OrderCancelled(_invoiceId, invoice.customerAddress);
+            return;
+        }
+
         require(invoice.status == OrderStatus.Shipped, "Order must be shipped to resolve dispute");
 
         CompanyLib.Company memory company = companyStorage.getCompany(invoice.companyId);
@@ -646,7 +775,10 @@ contract Ecommerce is ReentrancyGuard {
         require(_rating >= 1 && _rating <= 5, "Rating must be 1 to 5");
         require(companyStorage.isCompanyActive(_companyId), "Company inactive");
         require(hasPaidInvoiceWithCompany(msg.sender, _companyId), "ReviewDenied: Customer has no verified purchase with this company");
+        // M4: dedupe por cliente (una sola reseña por empresa)
+        require(!customerHasRated[msg.sender][_companyId], "Already rated this company");
 
+        customerHasRated[msg.sender][_companyId] = true;
         companyTotalRating[_companyId] += _rating;
         companyRatingCount[_companyId] += 1;
 

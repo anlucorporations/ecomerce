@@ -65,6 +65,7 @@ require(euroToken.transferFrom(_customer, address(this), _amount), "Transfer to 
 - **`Ecommerce.sol` (Escrow Core):** `0x5FC8d32690cc91D4c39d9d3abcBD16989F875707`
 
 ### Cuentas Preconfiguradas para Pruebas (MetaMask):
+> ⚠️ **Solo entorno local (Anvil).** Estas claves privadas son las públicas por defecto de Anvil y NUNCA deben usarse en producción. En producción, las claves del owner/relayer se inyectan por variables de entorno.
 - **Administrador & Empresa ID #1:** `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`  
   *(PrivateKey: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`)*
 - **Cliente Frecuente (Cuenta #9):** `0xa0Ee7A142d267C1f36714E4a8F75612F20a79720`  
@@ -96,6 +97,9 @@ require(euroToken.transferFrom(_customer, address(this), _amount), "Transfer to 
 
 # 5. Apagar y detener todos los servicios de la plataforma
 .\manage-platform.ps1 -Action stop
+
+# 6. Inyectar datos de prueba locales (2 empresas, 10 productos, 2 clientes + 1000 EURT)
+.\manage-platform.ps1 -Action seed
 ```
 
 ---

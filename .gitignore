@@ -1,3 +1,4 @@
+# Dependencies
 node_modules/
 .next/
 out/
@@ -5,8 +6,39 @@ build/
 dist/
 cache/
 artifacts/
+
+# Foundry
 broadcast/
 foundry-pp/
-.env*.local
+cache/
+out/
+sc-ecommerce/out/
+stablecoin/sc/out/
+
+# Environment & secrets (nunca versionar)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Datos locales de desarrollo (contienen claves privadas de Anvil / estados)
+anvil-metamask-accounts.json
+anvil_state.json
+deployment.log
+*.log
+.data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+
+# Otros
 anvil.exe
 docker-build
+Docs/*.tmp
+# Artefactos de evidencia de browser-test (capturas Playwright, ~472 MB) — no versionar
+scripts/browser-test/

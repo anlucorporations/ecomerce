@@ -14,8 +14,9 @@ interface KycModalProps {
   customReason?: string;
 }
 
+// B7: ABI alineada con el contrato real. registerCustomer() no se invoca aquí;
+// la verificación KYC se resuelve vía /api/kyc/verify (firma + owner). Solo se consulta isKYCVerified.
 const ECOMMERCE_ABI = [
-  "function registerCustomer() external",
   "function isKYCVerified(address account) view returns (bool)"
 ];
 

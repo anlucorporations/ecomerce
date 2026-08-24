@@ -7,6 +7,7 @@ import { InvoicePdfModal, InvoiceModalData } from "../../components/InvoicePdfMo
 
 // --- ABIs ---
 const ECOMMERCE_ABI = [
+  "function getEntityType(address account) view returns (uint8)",
   "function getAllCompanies() view returns (tuple(uint256 companyId, address companyAddress, string name, string description, uint8 businessType, bool isActive, uint256 registrationDate)[])",
   "function getCompanyProducts(uint256 companyId) view returns (tuple(uint256 productId, uint256 companyId, string name, string description, uint256 price, string ipfsHash, uint256 stock, bool isAvailable)[])",
   "function getCompanyInvoices(uint256 companyId) view returns (tuple(uint256 invoiceId, uint256 companyId, address customerAddress, uint256 totalAmount, uint256 timestamp, bool isPaid, string paymentTxHash, uint8 status, string trackingNumber, uint256 shippedTimestamp, uint256 deliveredTimestamp)[])",
@@ -126,6 +127,9 @@ export default function SystemsPage() {
   const [companyTypeFilter, setCompanyTypeFilter] = useState<string>("ALL");
   const [userSearch, setUserSearch] = useState<string>("");
 
+  // Tipo de entidad on-chain de la wallet conectada: 0 libre, 1 empresa, 2 cliente, 3 owner
+  const [entityType, setEntityType] = useState<number | null>(null);
+
   // --- State for Contracts ---
   const [contractsList, setContractsList] = useState<ContractInfo[]>([]);
 
@@ -163,7 +167,9 @@ export default function SystemsPage() {
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
-  const isOwner = address?.toLowerCase() === OWNER_ADDRESS.toLowerCase();
+  // A11/M9: el owner se detecta on-chain con getEntityType (3 = Owner);
+  // el address hardcodeado solo se usa como respaldo.
+  const isOwner = entityType === 3 || address?.toLowerCase() === OWNER_ADDRESS.toLowerCase();
   const isMerchant = companiesList.some(
     (c) => c.companyAddress.toLowerCase() === address?.toLowerCase()
   );
@@ -176,6 +182,18 @@ export default function SystemsPage() {
       const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
       const ecommerce = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
       const euroToken = new ethers.Contract(euroTokenAddress, EUROTOKEN_ABI, rpcProvider);
+
+      // A11/M9: detectar owner on-chain ANTES de cargar datos con PII de usuarios
+      let detectedEntityType: number | null = null;
+      if (address) {
+        try {
+          detectedEntityType = Number(await ecommerce.getEntityType(address));
+        } catch {
+          detectedEntityType = 0;
+        }
+      }
+      setEntityType(detectedEntityType);
+      const isOwnerOnChain = detectedEntityType === 3 || address?.toLowerCase() === OWNER_ADDRESS.toLowerCase();
 
       // 1. Contracts Info
       let ecomEth = BigInt(0);
@@ -608,14 +626,14 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
           ethBalance: ethB,
           eurtBalance: eurtB,
           totalCapitalEur: capitalEur,
-          effectiveOrders: effOrders,
-          reputationRating: 5.0
+          effectiveOrders: effOrders
         });
       }
       setCompaniesList(formattedComps);
 
-      // 3. Fetch Users (Customers) on-chain
+      // 3. Fetch Users (Customers) on-chain — PII (nombre, email, dirección) solo para el owner (A11)
       const loadedUsers: UserRecord[] = [];
+      if (isOwnerOnChain) {
       try {
         const rawCusts = await ecommerce.getAllCustomers();
         for (const cust of rawCusts) {
@@ -716,7 +734,8 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
         }
       }
 
-      setUsersList(loadedUsers);
+        setUsersList(loadedUsers);
+      }
 
       // 4. Fetch Activity Logs (Audit)
       try {
@@ -726,7 +745,7 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
         setActivityLogs([]);
       }
 
-      // 5. Mock Stripe / Gateway Transaction History
+      // 5. Mock Stripe / Gateway Transaction History (A11: marcado como DEMO, sin hashes fabricados)
       setStripeTxs([
         {
           id: "STP-8921",
@@ -736,7 +755,7 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
           stripeFeeEur: 3.50,
           netAmountEur: 246.50,
           status: "SUCCESS",
-          paymentTxHash: "0x8be375342b299e1fcd505efbdac1e9f6ec46d419ad97935c7b39bfb1d98f6ccc",
+          paymentTxHash: "",
           invoiceId: "INV-00101",
           timestamp: new Date().toLocaleString()
         },
@@ -748,7 +767,7 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
           stripeFeeEur: 1.80,
           netAmountEur: 98.20,
           status: "SUCCESS",
-          paymentTxHash: "0x5e90202138d7237f2f44b8165c344150888debafd6ae49ef06947c51ef80a153",
+          paymentTxHash: "",
           invoiceId: "INV-00102",
           timestamp: new Date(Date.now() - 3600000).toLocaleString()
         }
@@ -769,12 +788,12 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
       servicesHealth.map(async (svc) => {
         const start = Date.now();
         try {
-          await fetch(svc.url, { method: "HEAD", mode: "no-cors" });
+          const res = await fetch(svc.url, { method: "HEAD" });
           const latency = Date.now() - start;
-          return { ...svc, status: "ONLINE" as const, latencyMs: latency, httpStatus: 200 };
+          return { ...svc, status: "ONLINE" as const, latencyMs: latency, httpStatus: res.status };
         } catch {
           const latency = Date.now() - start;
-          return { ...svc, status: "ONLINE" as const, latencyMs: latency, httpStatus: 200 };
+          return { ...svc, status: "OFFLINE" as const, latencyMs: latency, httpStatus: 0 };
         }
       })
     );
@@ -1106,11 +1125,11 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
               <div className="pt-2 border-t border-slate-100 text-xs text-slate-700 space-y-1">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Transacciones:</span>
-                  <span className="font-mono font-bold">{stripeTxs.length} Procesadas</span>
+                  <span className="font-mono font-bold">{stripeTxs.length} Procesadas (Demo)</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Tasa Éxito:</span>
-                  <span className="font-mono font-bold text-emerald-600">100% Exitosas</span>
+                  <span className="font-mono font-bold text-amber-600">Demo — sin métricas reales</span>
                 </div>
               </div>
             </div>
@@ -1187,7 +1206,15 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
               <div className="pt-2 border-t border-slate-100 text-xs text-slate-700 space-y-1">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Estado General:</span>
-                  <span className="font-mono font-bold text-emerald-600">● ONLINE (200 OK)</span>
+                  {(() => {
+                    const offline = servicesHealth.some((s) => s.status === "OFFLINE");
+                    const online = servicesHealth.length > 0 && servicesHealth.every((s) => s.status === "ONLINE");
+                    return (
+                      <span className={`font-mono font-bold ${offline ? "text-rose-600" : online ? "text-emerald-600" : "text-amber-600"}`}>
+                        ● {offline ? "SERVICIOS OFFLINE" : online ? "ONLINE (200 OK)" : "EN PRUEBA"}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -1196,9 +1223,10 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. SUB-SECCION: USUARIOS (BALANCE & TABLA & CRUD MODAL) */}
+      {/* 2. SUB-SECCION: USUARIOS (BALANCE & TABLA & CRUD MODAL) — SOLO OWNER (A11) */}
       {/* ========================================================================= */}
       {activeTab === "usuarios" && (
+        isOwner ? (
         <div className="space-y-6">
           {/* Balance General de Usuarios (No Empresas) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1219,8 +1247,8 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
             </div>
             <div className="admin-card p-5 border-l-4 border-l-purple-600">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Clientes Activos</span>
-              <span className="text-3xl font-black text-purple-900">100%</span>
-              <p className="text-xs text-slate-500 mt-1">KYC Web3 verificado</p>
+              <span className="text-3xl font-black text-purple-900">N/D</span>
+              <p className="text-xs text-slate-500 mt-1">Métrica KYC no disponible on-chain</p>
             </div>
           </div>
 
@@ -1301,6 +1329,20 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
             </div>
           </div>
         </div>
+        ) : (
+          <div className="admin-card p-12 text-center max-w-xl mx-auto space-y-4 border-2 border-rose-200 bg-rose-50/50">
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center font-bold text-2xl mx-auto">
+              🔒
+            </div>
+            <h2 className="text-xl font-bold text-rose-900">Acceso Restringido a Datos de Usuarios</h2>
+            <p className="text-xs text-rose-700 leading-relaxed">
+              El directorio de usuarios contiene información personal (nombre, correo, dirección y balances) que únicamente puede visualizar el <strong>Super Admin Owner</strong> verificado on-chain.
+            </p>
+            <div className="pt-2 text-xs text-slate-500">
+              Wallet Conectada Actual: <span className="font-mono font-bold text-slate-800">{address}</span>
+            </div>
+          </div>
+        )
       )}
 
       {/* ========================================================================= */}
@@ -1327,8 +1369,8 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
             </div>
             <div className="admin-card p-5 border-l-4 border-l-amber-600">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Reputación Promedio</span>
-              <span className="text-3xl font-black text-amber-900">⭐ 5.0</span>
-              <p className="text-xs text-slate-500 mt-1">Calificación de la comunidad</p>
+              <span className="text-3xl font-black text-amber-900">N/D</span>
+              <p className="text-xs text-slate-500 mt-1">Consulta on-chain disponible próximamente</p>
             </div>
           </div>
 
@@ -1445,9 +1487,14 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
                     <h3 className="font-extrabold text-slate-900 text-base">{c.name}</h3>
                     <p className="text-xs text-slate-500 mt-0.5 font-mono">{c.deployDate}</p>
                   </div>
-                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold text-[10px] rounded-lg border border-emerald-200">
-                    Active On-Chain
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold text-[10px] rounded-lg border border-emerald-200">
+                      Active On-Chain
+                    </span>
+                    <span className="px-2.5 py-1 bg-amber-50 text-amber-700 font-bold text-[10px] rounded-lg border border-amber-200">
+                      DEMO
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-2 text-xs font-mono">
@@ -1555,7 +1602,7 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
       {activeTab === "pasarela" && (
         <div className="space-y-6">
           <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex justify-between items-center text-xs">
-            <span className="font-extrabold text-slate-800">🛡️ Histórico de Transacciones de Pasarela Stripe & Web3</span>
+            <span className="font-extrabold text-slate-800">🛡️ Histórico de Transacciones de Pasarela Stripe & Web3 (DEMO — datos ilustrativos)</span>
             <span className="text-slate-500 font-mono">Total Transacciones: {stripeTxs.length}</span>
           </div>
 
@@ -1772,7 +1819,13 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
               <div key={idx} className="admin-card p-5 bg-white border border-slate-200 space-y-3 shadow-sm">
                 <div className="flex justify-between items-center">
                   <h4 className="font-extrabold text-slate-900 text-sm">{svc.name}</h4>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold badge-success">
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                    svc.status === "ONLINE"
+                      ? "badge-success"
+                      : svc.status === "OFFLINE"
+                      ? "bg-rose-100 text-rose-800 border border-rose-200"
+                      : "bg-slate-100 text-slate-600 border border-slate-200"
+                  }`}>
                     ● {svc.status} ({svc.httpStatus})
                   </span>
                 </div>
@@ -2084,7 +2137,7 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
 
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                 <span className="text-slate-400 block text-[10px] uppercase">Tx Hash On-Chain:</span>
-                <span className="font-bold text-slate-800 break-all">{selectedStripeTx.paymentTxHash}</span>
+                <span className="font-bold text-slate-800 break-all">{selectedStripeTx.paymentTxHash || "Pendiente (transacción de demostración)"}</span>
               </div>
             </div>
 
@@ -2320,6 +2373,14 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
             <div className="p-6 bg-slate-950 flex-1 overflow-y-auto font-mono text-xs text-slate-200">
               {viewerTab === "code" && (
                 <div className="relative">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-md text-[10px] font-bold">
+                      DEMO
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Código ilustrativo (demo) — no es una lectura on-chain del bytecode desplegado.
+                    </span>
+                  </div>
                   <div className="text-[10px] text-slate-500 mb-2 font-bold uppercase tracking-wider flex justify-between items-center">
                     <span>{selectedContractViewer.filename} &bull; Solidity Compiler ^0.8.20</span>
                     <span>{selectedContractViewer.sourceCode.split('\n').length} Líneas</span>
@@ -2450,8 +2511,11 @@ contract EuroTokenOptimized is ERC20, ERC20Permit, AccessControl, Pausable {
               <div className="space-y-4">
                 <div className="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800">
                   <div>
-                    <h4 className="font-extrabold text-white text-sm">Histórico Inmutable de Registros y Eventos</h4>
+                    <h4 className="font-extrabold text-white text-sm">Registros y Eventos (DEMO — datos ilustrativos)</h4>
                     <p className="text-xs text-slate-400">Total Registros Almacenados: {selectedContractLogs?.logsList?.length || 0}</p>
+                  </div>
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2 text-[11px] text-amber-300 font-mono">
+                    ⚠️ DEMO: estos registros son ilustrativos y NO provienen de eventos reales on-chain.
                   </div>
                   <span className="px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-mono font-bold">
                     Bloque Actual: Anvil #12

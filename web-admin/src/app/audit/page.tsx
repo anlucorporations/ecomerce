@@ -219,13 +219,21 @@ export default function AuditPage() {
       }
 
       const message = `AUTORIZACIÓN DE AUDITORÍA BLOCKCHAIN\n\nConfirmo acceso seguro a la bitácora inmutable de actividades en los contratos de la plataforma.\n\nWallet: ${address}\nFecha: ${new Date().toISOString()}`;
-      await activeSigner.signMessage(message);
+      const signature = await activeSigner.signMessage(message);
+
+      // M8: la firma debe recuperar EXACTAMENTE la billetera conectada.
+      // Nunca se concede acceso sin validar la firma.
+      const recovered = ethers.verifyMessage(message, signature);
+      if (recovered.toLowerCase() !== address?.toLowerCase()) {
+        throw new Error("La firma no corresponde a la billetera conectada.");
+      }
 
       setAuthorized(true);
       alert("¡Firma de autorización verificada con éxito! Acceso concedido a la consola de Auditoría On-Chain.");
     } catch (err: any) {
       console.error("Authorization signature failed:", err);
-      setAuthorized(true);
+      setAuthorized(false);
+      alert("Autorización denegada: " + (err?.reason || err?.message || "No se pudo verificar la firma."));
     } finally {
       setAuthorizing(false);
     }

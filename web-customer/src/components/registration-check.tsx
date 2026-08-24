@@ -63,7 +63,8 @@ export function RegistrationCheck() {
 
       if (registered) {
         setShowModal(false);
-      } else if (pathname === '/profile' && typeof window !== 'undefined' && window.location.search.includes('register=true')) {
+      } else if (pathname === '/profile') {
+        // Único modal de inscripción global: se abre en /profile cuando la wallet no está inscrita
         setShowModal(true);
       }
 

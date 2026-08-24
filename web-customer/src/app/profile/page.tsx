@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
-import { CustomerRegistrationModal } from '@/components/customer-registration-modal';
 import { KycModal } from '@/components/kyc-modal';
 
 interface AddressItem {
@@ -36,7 +35,6 @@ export default function ProfilePage() {
   const [entityType, setEntityType] = useState<number | null>(null);
   const [isRegistered, setIsRegistered] = useState<boolean>(false);
   const [isKycVerified, setIsKycVerified] = useState<boolean>(false);
-  const [showRegModal, setShowRegModal] = useState<boolean>(false);
   const [showKycModal, setShowKycModal] = useState<boolean>(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -127,12 +125,11 @@ export default function ProfilePage() {
         setIsKycVerified(kycStatus);
         setIsRegistered(registeredOnChain);
 
-        // Auto open modal if user came from redirection with ?register=true or is unregistered
-        if (typeof window !== 'undefined') {
-          const searchParams = new URLSearchParams(window.location.search);
-          if (!registeredOnChain || searchParams.get('register') === 'true') {
-            setShowRegModal(true);
-          }
+        // El modal de inscripción lo gestiona RegistrationCheck (layout global):
+        // se abre automáticamente en /profile cuando la wallet no está inscrita.
+        // SOLO se dispara si NO está inscrito (si ya lo está, no reabrir aunque la URL tenga ?register=true).
+        if (typeof window !== 'undefined' && !registeredOnChain) {
+          window.dispatchEvent(new CustomEvent('open-customer-registration'));
         }
 
       } catch (e) {
@@ -282,19 +279,6 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#F5F5F0] py-10 px-4 sm:px-6 lg:px-8">
-      <CustomerRegistrationModal
-        isOpen={showRegModal}
-        onClose={() => setShowRegModal(false)}
-        userAddress={address}
-        onSuccess={() => {
-          setIsRegistered(true);
-          setShowRegModal(false);
-          if (typeof window !== 'undefined') {
-            window.location.href = '/';
-          }
-        }}
-      />
-
       <KycModal
         isOpen={showKycModal}
         onClose={() => setShowKycModal(false)}
@@ -320,7 +304,11 @@ export default function ProfilePage() {
               </p>
             </div>
             <button
-              onClick={() => setShowRegModal(true)}
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('open-customer-registration'));
+                }
+              }}
               className="btn-cacao-pulse text-xs font-poppins shrink-0"
             >
               Inscribirme Ahora

@@ -247,7 +247,8 @@ export function StripeTopupModal({
 }: StripeTopupModalProps) {
   const [activeTab, setActiveTab] = useState<'iframe' | 'embedded'>('iframe');
 
-  const compraUrl = process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:3003' : 'https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app');
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const compraUrl = process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || (isLocal ? 'http://localhost:3003' : 'https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app');
   const iframeSrc = `${compraUrl}${userAddress ? `?address=${encodeURIComponent(userAddress)}` : ''}`;
 
   if (!isOpen) return null;

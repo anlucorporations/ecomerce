@@ -28,6 +28,7 @@ anvil_state.json
 deployment.log
 *.log
 .data/
+.logs/
 
 # OS / editor
 .DS_Store

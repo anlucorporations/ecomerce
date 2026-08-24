@@ -30,6 +30,11 @@ deployment.log
 .data/
 .logs/
 
+# Subidas generadas por la API de productos — datos de runtime, no versionar
+public/uploads/
+web-admin/public/uploads/
+web-customer/public/uploads/
+
 # OS / editor
 .DS_Store
 Thumbs.db

@@ -137,33 +137,29 @@ export function KycModal({
       }
 
       // 2. On-Chain Contract Update: Call /api/kyc/verify API to approve KYC on-chain via Owner Admin
-      try {
-        const response = await fetch('/api/kyc/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            address: userAddress,
-            phone,
-            birthDate,
-            country,
-            idImageHash,
-            selfieHash,
-            signature: kycSignature,
-            timestamp
-          })
-        });
+      // El resultado de la API es AUTORITATIVO: si la aprobación on-chain falla, NO se marca verificado.
+      const response = await fetch('/api/kyc/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: userAddress,
+          phone,
+          birthDate,
+          country,
+          idImageHash,
+          selfieHash,
+          signature: kycSignature,
+          timestamp
+        })
+      });
 
-        const resData = await response.json();
-        if (!response.ok || !resData.success) {
-          console.warn("[KYC API] Warning from server:", resData?.error);
-        } else {
-          console.log("[KYC API] Aprobado on-chain con éxito:", resData);
-        }
-      } catch (apiErr) {
-        console.warn("No se pudo contactar /api/kyc/verify directamente:", apiErr);
+      const resData = await response.json();
+      if (!response.ok || !resData.success) {
+        throw new Error(resData?.error || 'La verificación KYC no pudo completarse on-chain. Intente nuevamente.');
       }
+      console.log("[KYC API] Aprobado on-chain con éxito:", resData);
 
-      // 3. Store local persistence with SHA-256 hashes and signature proof
+      // 3. Store local persistence with SHA-256 hashes and signature proof (solo tras éxito real)
       const kycRecord = {
         address: userAddress,
         phone,

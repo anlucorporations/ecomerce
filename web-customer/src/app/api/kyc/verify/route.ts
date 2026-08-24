@@ -40,7 +40,11 @@ function getAdminPrivateKey(): string {
 }
 
 function isValidPhone(phone: string): boolean {
-  return /^[+()\-\s\d]{6,20}$/.test(phone) && /\d{6,}/.test(phone);
+  // Acepta formatos con espacios/guiones/paréntesis (ej. "+34 612 345 678"),
+  // validando el total de dígitos (6-15) en vez de dígitos consecutivos.
+  if (!/^[+()\-\s\d]{6,25}$/.test(phone)) return false;
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 6 && digits.length <= 15;
 }
 
 function isValidBirthDate(birthDate: string): boolean {

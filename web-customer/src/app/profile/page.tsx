@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
 import { KycModal } from '@/components/kyc-modal';
@@ -23,6 +24,7 @@ const ECOMMERCE_ABI = [
 ];
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { provider, address, isConnected, connect } = useWallet();
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
@@ -125,12 +127,8 @@ export default function ProfilePage() {
         setIsKycVerified(kycStatus);
         setIsRegistered(registeredOnChain);
 
-        // El modal de inscripción lo gestiona RegistrationCheck (layout global):
-        // se abre automáticamente en /profile cuando la wallet no está inscrita.
-        // SOLO se dispara si NO está inscrito (si ya lo está, no reabrir aunque la URL tenga ?register=true).
-        if (typeof window !== 'undefined' && !registeredOnChain) {
-          window.dispatchEvent(new CustomEvent('open-customer-registration'));
-        }
+        // La redirección a la página /register la gestiona RegistrationCheck (layout global)
+        // cuando la wallet NO está inscrita on-chain.
 
       } catch (e) {
         console.warn('Error in fetchStatus:', e);
@@ -304,11 +302,7 @@ export default function ProfilePage() {
               </p>
             </div>
             <button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('open-customer-registration'));
-                }
-              }}
+              onClick={() => router.push('/register?redirect=/profile')}
               className="btn-cacao-pulse text-xs font-poppins shrink-0"
             >
               Inscribirme Ahora

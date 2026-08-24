@@ -4,100 +4,69 @@ import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../hooks/useWallet';
 import { ethers } from 'ethers';
 import { useRouter, usePathname } from 'next/navigation';
-import { CustomerRegistrationModal } from './customer-registration-modal';
 
 // B7: tupla alineada con CustomerLib.Customer real
-// (address customerAddress, string name, string contactEmail, string shippingAddress,
-//  uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate,
-//  uint256 lastPurchaseDate, bool isActive)
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
-  "function isCustomerRegistered(address _customer) view returns (bool)",
-  "function getCustomer(address _customer) view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive))"
+  "function isCustomerRegistered(address _customer) view returns (bool)"
 ];
 
+/**
+ * Vigilante global de registro (layout): si la wallet conectada NO está inscrita on-chain,
+ * redirige a la página completa /register (sin formularios flotantes).
+ */
 export function RegistrationCheck() {
-  const { address, isConnected, disconnect } = useWallet();
+  const { address, isConnected } = useWallet();
   const router = useRouter();
   const pathname = usePathname();
 
-  const [isRegistered, setIsRegistered] = useState<boolean | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [checkedAddress, setCheckedAddress] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
   const checkRegistration = useCallback(async () => {
     if (!isConnected || !address) {
-      setIsRegistered(null);
-      setShowModal(false);
+      setChecked(false);
       return;
     }
-
     try {
-      // Query on-chain smart contract using direct RPC provider (Strict Source of Truth)
       const rpcProvider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
 
       let registered = false;
-      try {
-        registered = await contract.isCustomerRegistered(address);
-      } catch (e) {
-        console.warn("Could not query isCustomerRegistered:", e);
-      }
-
-      // Check entity type fallback
+      try { registered = await contract.isCustomerRegistered(address); } catch {}
       if (!registered) {
-        try {
-          const type = await contract.getEntityType(address);
-          if (Number(type) > 0) registered = true;
-        } catch (e) {
-          console.warn("Could not query getEntityType:", e);
-        }
+        try { const type = await contract.getEntityType(address); if (Number(type) > 0) registered = true; } catch {}
       }
 
-      // NOTA: NO se usa localStorage — el registro se valida SOLO on-chain (Web3-only)
+      setChecked(true);
 
-      setCheckedAddress(address);
-      setIsRegistered(registered);
-
-      if (registered) {
-        setShowModal(false);
-      } else if (pathname === '/profile') {
-        // Único modal de inscripción global: se abre en /profile cuando la wallet no está inscrita
-        setShowModal(true);
+      // Si NO está inscrito y no está ya en /register ni en /help, redirigir a la página completa
+      if (!registered && pathname !== '/register' && pathname !== '/help' && pathname !== '/companies') {
+        const redirect = encodeURIComponent(pathname || '/');
+        router.push(`/register?redirect=${redirect}`);
       }
-
     } catch (err) {
       console.warn("Registration check error:", err);
     }
-  }, [isConnected, address, ecommerceAddress, pathname]);
+  }, [isConnected, address, ecommerceAddress, pathname, router]);
 
   useEffect(() => {
     checkRegistration();
   }, [checkRegistration]);
 
+  // Evento global (p. ej. carrito): redirigir a /register
   useEffect(() => {
-    const handleOpenModal = () => setShowModal(true);
-    window.addEventListener('open-customer-registration', handleOpenModal);
-    return () => {
-      window.removeEventListener('open-customer-registration', handleOpenModal);
+    const handleOpenRegistration = () => {
+      if (pathname === '/register') return;
+      const redirect = encodeURIComponent(pathname || '/');
+      router.push(`/register?redirect=${redirect}`);
     };
-  }, []);
+    window.addEventListener('open-customer-registration', handleOpenRegistration);
+    return () => {
+      window.removeEventListener('open-customer-registration', handleOpenRegistration);
+    };
+  }, [pathname, router]);
 
-  return (
-    <CustomerRegistrationModal
-      isOpen={showModal}
-      onClose={() => setShowModal(false)}
-      userAddress={address}
-      onSuccess={() => {
-        setIsRegistered(true);
-        setShowModal(false);
-        if (typeof window !== 'undefined') {
-          window.location.reload();
-        }
-      }}
-    />
-  );
+  return null;
 }
-

@@ -56,14 +56,6 @@ export default function CartPage() {
     shippingAddress: '',
   });
 
-  // Customer Registration Modal State
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [registerForm, setRegisterForm] = useState({
-    name: '',
-    email: '',
-    shippingAddress: '',
-  });
-
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
 
   const SURPLUS_BUFFER = BigInt(1_500_000); // 1.50 EURT surplus buffer (6 decimals)
@@ -82,7 +74,7 @@ export default function CartPage() {
 
   const handleCheckout = async () => {
     if (items.length === 0) {
-      alert('Tu carrito está vacío. Agrega productos para continuar.');
+      alert('Tu carrito estÃ¡ vacÃ­o. Agrega productos para continuar.');
       return;
     }
 
@@ -109,15 +101,15 @@ export default function CartPage() {
       // Step 2: Check Entity Registration Status
       const entityType = await contract.getEntityType(activeAddress);
 
-      // EntityType 0: Unregistered -> Show Customer Registration Modal
+      // EntityType 0: Unregistered -> Redirigir a la pÃ¡gina completa de inscripciÃ³n
       if (Number(entityType) === 0) {
-        setShowRegisterModal(true);
+        router.push('/register?redirect=/cart');
         setProcessing(false);
         setCheckoutStep('');
         return;
       }
 
-      // Step 2b: Check KYC Status on-chain (el estado local NO es válido como prueba)
+      // Step 2b: Check KYC Status on-chain (el estado local NO es vÃ¡lido como prueba)
       let isVerified = false;
       try {
         const isKyc = await contract.isKYCVerified(activeAddress);
@@ -150,83 +142,6 @@ export default function CartPage() {
     }
   };
 
-  // Submit Customer Registration on Blockchain
-  const handleRegisterCustomer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!address) return;
-
-    try {
-      setProcessing(true);
-      setCheckoutStep('Inscribiendo comprador en blockchain...');
-      let activeSigner = signer;
-
-      if (!activeSigner && typeof window !== "undefined" && window.ethereum) {
-        const browserProvider = new ethers.BrowserProvider(window.ethereum as any);
-        activeSigner = await browserProvider.getSigner();
-      }
-
-      if (!activeSigner) {
-        alert("Desbloquee su extensión MetaMask para firmar el registro.");
-        setProcessing(false);
-        setCheckoutStep('');
-        return;
-      }
-
-      if (!registerForm.name.trim() || !registerForm.email.trim() || !registerForm.shippingAddress.trim()) {
-        alert("⚠️ El nombre, correo electrónico y dirección de despacho son ESTRICTAMENTE OBLIGATORIOS.");
-        setProcessing(false);
-        setCheckoutStep('');
-        return;
-      }
-
-      // Check email uniqueness across all existing customers on-chain
-      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545";
-      const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
-      const readContract = new ethers.Contract(ecommerceAddress, [
-        "function getAllCustomers() view returns (tuple(address customerAddress, string name, string contactEmail, string shippingAddress, uint256 totalPurchases, uint256 totalSpent, uint256 registrationDate, uint256 lastPurchaseDate, bool isActive)[])"
-      ], rpcProvider);
-
-      try {
-        const allCustomers = await readContract.getAllCustomers();
-        const inputEmailLower = registerForm.email.trim().toLowerCase();
-        const existingCust = Array.from(allCustomers).find((c: any) => 
-          c.contactEmail && 
-          c.contactEmail.trim().toLowerCase() === inputEmailLower && 
-          c.customerAddress.toLowerCase() !== address.toLowerCase()
-        );
-
-        if (existingCust) {
-          alert(`⚠️ El correo electrónico "${registerForm.email}" ya se encuentra registrado por otro comprador en la plataforma. No se permiten correos duplicados.`);
-          setProcessing(false);
-          setCheckoutStep('');
-          return;
-        }
-      } catch (err) {
-        console.warn("Could not check duplicate email on-chain:", err);
-      }
-
-      const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
-      const tx = await contract.registerCustomerSelf(
-        registerForm.name,
-        registerForm.email,
-        registerForm.shippingAddress,
-        { value: ethers.parseEther("3.0") }
-      );
-      await tx.wait();
-
-      alert("¡Inscripción de comprador exitosa en blockchain! Procediendo al pago...");
-      setShowRegisterModal(false);
-
-      // Execute Single-Transaction Multi-Company Invoice Creation & Payment
-      await executeInvoiceCreation(address, activeSigner);
-    } catch (err: any) {
-      console.error("Failed to register customer:", err);
-      alert("Error registrando usuario: " + (err?.reason || err?.message || "Transacción fallida"));
-      setProcessing(false);
-      setCheckoutStep('');
-    }
-  };
-
 const EURO_TOKEN_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function allowance(address owner, address spender) view returns (uint256)",
@@ -252,7 +167,7 @@ const EURO_TOKEN_ABI = [
       } catch {}
       const euroToken = new ethers.Contract(activeEuroToken, EURO_TOKEN_ABI, activeSigner);
 
-      if (items.length === 0) throw new Error('Carrito vacío');
+      if (items.length === 0) throw new Error('Carrito vacÃ­o');
 
       // Extract unique company IDs and product arrays
       const companyIds = Object.keys(itemsByCompany).map(id => BigInt(id));
@@ -268,7 +183,7 @@ const EURO_TOKEN_ABI = [
       // STEP 1: Verify & Approve EURT Allowance (ONLY if current allowance is insufficient)
       const currentAllowance = await euroToken.allowance(customerAddr, ecommerceAddress);
       if (BigInt(currentAllowance) < grandTotal) {
-        setCheckoutStep('Autorizando límite de gasto de EURT en billetera MetaMask...');
+        setCheckoutStep('Autorizando lÃ­mite de gasto de EURT en billetera MetaMask...');
         const approveTx = await euroToken.approve(ecommerceAddress, ethers.MaxUint256);
         await approveTx.wait();
       }
@@ -288,7 +203,7 @@ const EURO_TOKEN_ABI = [
       }
       await clearCart();
 
-      alert(`¡Pago completado con éxito! Se han generado ${companyIds.length} orden(es) individuales de servicio en Custodia Escrow y tu pedido ha sido registrado en la blockchain.`);
+      alert(`Â¡Pago completado con Ã©xito! Se han generado ${companyIds.length} orden(es) individuales de servicio en Custodia Escrow y tu pedido ha sido registrado en la blockchain.`);
       router.push('/orders');
     } catch (err: any) {
       console.error('Error procesando pago unificado:', err);
@@ -305,35 +220,35 @@ const EURO_TOKEN_ABI = [
         <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-5">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
-              <span>🛒 Carrito de Compras</span>
+              <span>ðŸ›’ Carrito de Compras</span>
               <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-full">
                 Web3 Powered
               </span>
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              Catálogo descentralizado con liquidación instantánea en EURT
+              CatÃ¡logo descentralizado con liquidaciÃ³n instantÃ¡nea en EURT
             </p>
           </div>
           <Link
             href="/products"
             className="text-xs font-bold px-4 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-400 rounded-xl border border-slate-700 transition"
           >
-            ← Volver al Catálogo
+            â† Volver al CatÃ¡logo
           </Link>
         </div>
 
         {items.length === 0 ? (
           <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-12 text-center shadow-xl">
             <div className="w-16 h-16 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              🛍️
+              ðŸ›ï¸
             </div>
-            <p className="text-slate-300 font-semibold text-lg mb-2">Tu carrito está vacío</p>
+            <p className="text-slate-300 font-semibold text-lg mb-2">Tu carrito estÃ¡ vacÃ­o</p>
             <p className="text-xs text-slate-400 mb-6">Explora nuestros productos verificados en blockchain y agrega tus favoritos.</p>
             <Link
               href="/products"
               className="inline-flex items-center px-6 py-3 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/30 transition"
             >
-              Explorar Catálogo de Productos
+              Explorar CatÃ¡logo de Productos
             </Link>
           </div>
         ) : (
@@ -365,7 +280,7 @@ const EURO_TOKEN_ABI = [
                               {item.productName}
                             </h3>
                             <p className="text-xs font-mono text-slate-400 mt-0.5">
-                              €{formatPrice(item.unitPrice)} EURT / unidad
+                              â‚¬{formatPrice(item.unitPrice)} EURT / unidad
                             </p>
                           </div>
 
@@ -378,7 +293,7 @@ const EURO_TOKEN_ABI = [
                                   if (newQty > BigInt(0)) {
                                     updateQuantity(item.productId, newQty);
                                   } else {
-                                    if (confirm(`¿Desea eliminar "${item.productName}" del carrito?`)) {
+                                    if (confirm(`Â¿Desea eliminar "${item.productName}" del carrito?`)) {
                                       removeFromCart(item.productId);
                                     }
                                   }
@@ -403,7 +318,7 @@ const EURO_TOKEN_ABI = [
                             {/* Subtotal */}
                             <div className="text-right w-24">
                               <span className="text-sm font-extrabold font-mono text-emerald-400 block">
-                                €{formatPrice(item.unitPrice * item.quantity)}
+                                â‚¬{formatPrice(item.unitPrice * item.quantity)}
                               </span>
                               <span className="text-[10px] text-slate-500 uppercase font-mono">EURT</span>
                             </div>
@@ -411,14 +326,14 @@ const EURO_TOKEN_ABI = [
                             {/* Explicit Remove / Delete button */}
                             <button
                               onClick={() => {
-                                if (confirm(`¿Eliminar "${item.productName}" de tu carrito?`)) {
+                                if (confirm(`Â¿Eliminar "${item.productName}" de tu carrito?`)) {
                                   removeFromCart(item.productId);
                                 }
                               }}
                               className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1"
                               title="Eliminar producto del carrito"
                             >
-                              <span>🗑️</span>
+                              <span>ðŸ—‘ï¸</span>
                               <span className="hidden sm:inline">Eliminar</span>
                             </button>
                           </div>
@@ -435,12 +350,12 @@ const EURO_TOKEN_ABI = [
               {/* EURT Balance Widget */}
               <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 shadow-xl">
                 <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center justify-between">
-                  <span>💶 Saldo Billetera (EURT)</span>
+                  <span>ðŸ’¶ Saldo Billetera (EURT)</span>
                   <button
                     onClick={refreshBalance}
                     className="text-[10px] text-indigo-400 hover:underline"
                   >
-                    🔄 Actualizar
+                    ðŸ”„ Actualizar
                   </button>
                 </h2>
 
@@ -448,16 +363,16 @@ const EURO_TOKEN_ABI = [
                   <div>
                     <span className="text-[10px] text-slate-400 block font-mono">Disponible en Wallet</span>
                     <span className="text-2xl font-black font-mono text-white">
-                      €{formatPrice(eurtBalance)} <span className="text-xs text-emerald-400 font-normal">EURT</span>
+                      â‚¬{formatPrice(eurtBalance)} <span className="text-xs text-emerald-400 font-normal">EURT</span>
                     </span>
                   </div>
                   {hasSufficientEurt ? (
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      ✓ Saldo Suficiente
+                      âœ“ Saldo Suficiente
                     </span>
                   ) : (
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      ⚠️ Requiere Recarga
+                      âš ï¸ Requiere Recarga
                     </span>
                   )}
                 </div>
@@ -466,7 +381,7 @@ const EURO_TOKEN_ABI = [
                 {!hasSufficientEurt && (
                   <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 space-y-2">
                     <p className="text-xs text-amber-200 leading-relaxed">
-                      Tu saldo actual es menor que el total de la orden (€{formatPrice(total)} EURT).
+                      Tu saldo actual es menor que el total de la orden (â‚¬{formatPrice(total)} EURT).
                     </p>
                     <a
                       href={`${process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app"}${address ? `?address=${encodeURIComponent(address)}` : ''}`}
@@ -474,7 +389,7 @@ const EURO_TOKEN_ABI = [
                       rel="noopener noreferrer"
                       className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md transition"
                     >
-                      💳 Adquirir EURT con Stripe ↗
+                      ðŸ’³ Adquirir EURT con Stripe â†—
                     </a>
                   </div>
                 )}
@@ -485,20 +400,20 @@ const EURO_TOKEN_ABI = [
                   <div className="border-b border-[#0077BB]/10 pb-4 space-y-2">
                     <div className="flex justify-between text-xs text-[#A9A9A9]">
                       <span>Subtotal Productos:</span>
-                      <span className="font-mono text-[#333333]">€{formatPrice(total)} EURT</span>
+                      <span className="font-mono text-[#333333]">â‚¬{formatPrice(total)} EURT</span>
                     </div>
                     <div className="flex justify-between text-xs text-[#A9A9A9]">
-                      <span>Comisión de Transacción:</span>
+                      <span>ComisiÃ³n de TransacciÃ³n:</span>
                       <span className="font-mono text-[#2E8B57]">0.00 EURT (Red BARLO-VENTAS)</span>
                     </div>
                     <div className="flex justify-between text-xs text-[#A9A9A9]">
-                      <span>Excedente Mínimo Requerido:</span>
+                      <span>Excedente MÃ­nimo Requerido:</span>
                       <span className="font-mono text-[#FF8800] font-bold">1.50 EURT</span>
                     </div>
                     <div className="flex justify-between items-center pt-2 border-t border-[#0077BB]/10">
                       <span className="text-lg font-bold text-[#333333] font-poppins">Total con Excedente</span>
                       <span className="text-2xl font-black font-mono text-[#2E8B57]">
-                        €{(Number(requiredEurt) / 1_000_000).toFixed(2)} <span className="text-xs text-[#333333]">EURT</span>
+                        â‚¬{(Number(requiredEurt) / 1_000_000).toFixed(2)} <span className="text-xs text-[#333333]">EURT</span>
                       </span>
                     </div>
                   </div>
@@ -506,13 +421,13 @@ const EURO_TOKEN_ABI = [
                   {!hasSufficientEurt && (
                     <div className="bg-[#FFF3E5] border border-[#FF8800]/40 rounded-xl p-3.5 space-y-2">
                       <p className="text-xs text-[#CC2233] font-bold leading-relaxed font-poppins">
-                        ⚠️ Saldo Insuficiente en EURT. Se requiere un excedente de 1.50 EURT en tu cuenta. Dispones de €{(Number(eurtBalance) / 1_000_000).toFixed(2)} EURT pero necesitas al menos €{(Number(requiredEurt) / 1_000_000).toFixed(2)} EURT.
+                        âš ï¸ Saldo Insuficiente en EURT. Se requiere un excedente de 1.50 EURT en tu cuenta. Dispones de â‚¬{(Number(eurtBalance) / 1_000_000).toFixed(2)} EURT pero necesitas al menos â‚¬{(Number(requiredEurt) / 1_000_000).toFixed(2)} EURT.
                       </p>
                       <Link
                         href="/topup"
                         className="btn-cacao-pulse w-full text-xs font-poppins uppercase tracking-wider text-center block"
                       >
-                        💳 Ir a la Sección de Recarga EURT con Stripe ➔
+                        ðŸ’³ Ir a la SecciÃ³n de Recarga EURT con Stripe âž”
                       </Link>
                     </div>
                   )}
@@ -529,10 +444,10 @@ const EURO_TOKEN_ABI = [
                     {!isConnected || !address ? (
                       <div className="bg-[#E6F4FA] border border-[#0077BB]/30 p-4 rounded-2xl text-center space-y-3">
                         <div className="flex items-center justify-center gap-2 text-[#0077BB] font-bold text-xs font-poppins">
-                          <span>🔌</span> Billetera Web3 No Conectada
+                          <span>ðŸ”Œ</span> Billetera Web3 No Conectada
                         </div>
                         <p className="text-xs text-[#333333]">
-                          Conecte su billetera MetaMask para generar la factura electrónica y pagar en EURT.
+                          Conecte su billetera MetaMask para generar la factura electrÃ³nica y pagar en EURT.
                         </p>
                         <button
                           type="button"
@@ -548,7 +463,7 @@ const EURO_TOKEN_ABI = [
                         disabled={processing || !hasSufficientEurt}
                         className="w-full btn-cacao-pulse text-sm font-poppins uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:animation-none text-center"
                       >
-                        {processing ? 'Procesando Transacción...' : 'Pagar Factura en Pasarela Web3 ➔'}
+                        {processing ? 'Procesando TransacciÃ³n...' : 'Pagar Factura en Pasarela Web3 âž”'}
                       </button>
                     )}
 
@@ -564,89 +479,6 @@ const EURO_TOKEN_ABI = [
           </div>
         )}
       </div>
-
-      {/* CUSTOMER REGISTRATION MODAL */}
-      {showRegisterModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border-2 border-[#0077BB]/30 space-y-4 relative">
-            
-            {/* Top Right Close Button */}
-            <button
-              type="button"
-              onClick={() => setShowRegisterModal(false)}
-              className="absolute top-4 right-4 text-[#A9A9A9] hover:text-[#CC2233] font-black text-base w-8 h-8 rounded-full bg-slate-100 hover:bg-rose-100 flex items-center justify-center transition"
-              title="Cerrar formulario"
-            >
-              ✕
-            </button>
-
-            <div className="border-b border-[#0077BB]/10 pb-3 pr-8">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FFF3E5] text-[#FF8800] border border-[#FF8800]/30 mb-2 inline-block font-poppins">
-                ⚠️ Billetera No Registrada
-              </span>
-              <h2 className="text-xl font-bold text-[#333333] font-poppins">Inscripción de Usuario Comprador</h2>
-              <p className="text-xs text-[#A9A9A9] mt-1 leading-relaxed">
-                Para cumplir con la política de seguridad y poder facturar en blockchain, complete sus datos de despacho una única vez.
-              </p>
-            </div>
-
-            <form onSubmit={handleRegisterCustomer} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Nombre Completo:</label>
-                <input
-                  type="text"
-                  value={registerForm.name}
-                  onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
-                  placeholder="Ej. Juan Pérez"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Email / Contacto:</label>
-                <input
-                  type="email"
-                  value={registerForm.email}
-                  onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-                  placeholder="juan@ejemplo.com"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Dirección Completa de Envío:</label>
-                <textarea
-                  value={registerForm.shippingAddress}
-                  onChange={(e) => setRegisterForm({ ...registerForm, shippingAddress: e.target.value })}
-                  placeholder="Calle, Número, Ciudad, Código Postal..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                  rows={3}
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRegisterModal(false)}
-                  className="px-4 py-2 text-slate-400 font-semibold hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={processing}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 disabled:opacity-50"
-                >
-                  {processing ? "Inscribiendo..." : "Completar Registro & Pagar"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* STRIPE TOP-UP MODAL */}
       <StripeTopupModal
@@ -665,8 +497,8 @@ const EURO_TOKEN_ABI = [
           setIsKYCModalOpen(false);
           handleCheckout();
         }}
-        customTitle="Verificación KYC Necesaria para Pagar Carrito"
-        customReason="Su cuenta se encuentra actualmente en estado 'Inscrito'. Para procesar el pago de su carrito de compras y generar facturas con Custodia Escrow, complete este rápido paso de verificación de identidad."
+        customTitle="VerificaciÃ³n KYC Necesaria para Pagar Carrito"
+        customReason="Su cuenta se encuentra actualmente en estado 'Inscrito'. Para procesar el pago de su carrito de compras y generar facturas con Custodia Escrow, complete este rÃ¡pido paso de verificaciÃ³n de identidad."
       />
     </div>
   );

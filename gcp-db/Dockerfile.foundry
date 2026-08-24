@@ -1,0 +1,8 @@
+# Nodo Foundry Anvil para Cloud Run (GCP)
+FROM ghcr.io/foundry-rs/foundry:stable
+
+COPY foundry-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8545
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,0 +1,33 @@
+# Cloud Build: construye la imagen de un microservicio con los NEXT_PUBLIC_* de GCP
+# Uso:
+#   gcloud builds submit --config cloudbuild.yaml --project=mcc-ecommerce \
+#     --substitutions=_SERVICE=mcc-web-admin,_RPC_URL=...,_ECOM=...,_EURO=...,... <directorio-de-la-app>
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/mcc-ecommerce-repo/$_SERVICE:latest'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_RPC_URL=$_RPC_URL'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_CHAIN_ID=31337'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS=$_ECOM'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_EURO_TOKEN_ADDRESS=$_EURO'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_WEB_ADMIN_URL=$_WEB_ADMIN'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_WEB_CUSTOMER_URL=$_WEB_CUSTOMER'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_PASARELA_URL=$_PASARELA'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_COMPRA_STABLECOIN_URL=$_COMPRA'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_STRIPE_PUBLIC_KEY=$_STRIPE_PUB'
+      - '.'
+images:
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/mcc-ecommerce-repo/$_SERVICE:latest'
+options:
+  logging: CLOUD_LOGGING_ONLY

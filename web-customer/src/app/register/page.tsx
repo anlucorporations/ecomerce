@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWallet } from '../../hooks/useWallet';
@@ -21,6 +21,15 @@ type RegStatus = 'idle' | 'checking' | 'processing' | 'success' | 'error';
  * (registerCustomerSelf) — sin formularios flotantes.
  */
 export default function RegisterPage() {
+  // useSearchParams requiere Suspense para el prerender estático (next build)
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-xs text-slate-400 font-mono">Cargando registro...</div>}>
+      <RegisterInner />
+    </Suspense>
+  );
+}
+
+function RegisterInner() {
   const { address, signer, provider, connect, isConnecting, error: walletError } = useWallet();
   const router = useRouter();
   const searchParams = useSearchParams();

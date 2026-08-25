@@ -36,10 +36,11 @@
 
 ## 📑 Direcciones de Smart Contracts en GCP (desplegadas 2026-08-24)
 
-- **Contrato Principal Ecommerce:** `0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0`
-- **Stablecoin EuroTokenOptimized (EURT):** `0xb7f8bc63bbcad18155201308c8f3540b07f84f5e`
-- **Chain ID:** `31337` · Nodo: `https://mcc-foundry-anvil-1095249147821.europe-west1.run.app`
+- **Contrato Principal Ecommerce:** `0x5FC8d32690cc91D4c39d9d3abcBD16989F875707`
+- **Stablecoin EuroTokenOptimized (EURT):** `0x5FbDB2315678afecb367f032d93F642f64180aa3`
+- **Chain ID:** `31337` · Nodo: `https://mcc-foundry-anvil-1095249147821.europe-west1.run.app` (lectura pública desde navegador)
 - Estado: 2 empresas, 10 productos, 2 clientes KYC con 1.000 EURT (seedado).
+- **Persistencia:** el estado de Anvil se vuelca cada 30 s a `gs://mcc-ecommerce-anvil-state/anvil-state.json` (GCS FUSE en `/data` con `--load-state`/`--dump-state`) — la cadena sobrevive reinicios.
 
 ## 🎨 Registro de Contenedores Artifact Registry
 - **URL:** `europe-west1-docker.pkg.dev/mcc-ecommerce/mcc-ecommerce-repo`

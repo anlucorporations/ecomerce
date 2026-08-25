@@ -29,5 +29,3 @@ steps:
       - '.'
 images:
   - 'europe-west1-docker.pkg.dev/$PROJECT_ID/mcc-ecommerce-repo/$_SERVICE:latest'
-options:
-  logging: CLOUD_LOGGING_ONLY

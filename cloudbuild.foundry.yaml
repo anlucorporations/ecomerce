@@ -1,0 +1,12 @@
+# Cloud Build: imagen Foundry Anvil persistente
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/mcc-ecommerce-repo/mcc-foundry-anvil:latest'
+      - '-f'
+      - 'Dockerfile.foundry'
+      - '.'
+images:
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/mcc-ecommerce-repo/mcc-foundry-anvil:latest'

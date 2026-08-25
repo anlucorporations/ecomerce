@@ -1,8 +1,7 @@
-# Nodo Foundry Anvil para Cloud Run (GCP)
+# Nodo Foundry Anvil para Cloud Run (GCP) — estado persistente en GCS FUSE
 FROM ghcr.io/foundry-rs/foundry:stable
 
-COPY foundry-entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
 EXPOSE 8545
-ENTRYPOINT ["/entrypoint.sh"]
+# ENTRYPOINT explícito: sobrescribe el de la imagen base (anvil) para limpiar $PORT
+# y montar --load-state/--dump-state sobre el volumen GCS (/data).
+ENTRYPOINT ["/bin/sh", "-c", "PORT=$(printf '%s' \"${PORT:-8545}\" | tr -d '\\r\\n[:space:]'); STATE=${STATE_PATH:-/data/anvil-state.json}; ARGS=\"--host 0.0.0.0 --port $PORT --chain-id 31337 --code-size-limit 100000 --silent\"; if [ -f \"$STATE\" ]; then echo \"Loading state $STATE\"; ARGS=\"$ARGS --load-state $STATE\"; fi; ARGS=\"$ARGS --dump-state $STATE --state-interval 30\"; echo \"Starting Anvil on port $PORT (state $STATE)\"; exec anvil $ARGS"]

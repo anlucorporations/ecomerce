@@ -120,3 +120,31 @@ Toda la documentación técnica y de uso se encuentra organizada por carpetas de
 
 ### 📁 Histórico de Desarrollo (`repTecnico/`):
 - 📁 [`repTecnico/INDEX_REPOSITORIO_TECNICO.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/repTecnico/INDEX_REPOSITORIO_TECNICO.md) — Catálogo completo de documentos de diseño, pruebas y requerimientos.
+
+---
+
+## 🌐 6. Versiones Demo — Coordenadas GCP (Cloud Run)
+
+La plataforma cuenta con una **versión demo desplegada en Google Cloud Platform (Cloud Run)**, accesible públicamente sin instalación local:
+
+| # | Servicio | Puerto | URL Pública (Demo) | Estado verificado* |
+|---|----------|:---:|:---|:---:|
+| 1 | 🖥️ **Web Admin Console** | `3000` | [https://mcc-web-admin-1095249147821.europe-west1.run.app](https://mcc-web-admin-1095249147821.europe-west1.run.app) | 🟢 200 OK |
+| 2 | 🛍️ **Web Customer Storefront** | `3001` | [https://mcc-web-customer-1095249147821.europe-west1.run.app](https://mcc-web-customer-1095249147821.europe-west1.run.app) | 🟢 200 OK |
+| 3 | 💳 **Pasarela Web3 Escrow** | `3002` | [https://mcc-pasarela-1095249147821.europe-west1.run.app](https://mcc-pasarela-1095249147821.europe-west1.run.app) | 🟢 200 OK |
+| 4 | 💶 **Compra EURT (Stripe FIAT)** | `3003` | [https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app](https://mcc-compra-stablecoin-1095249147821.europe-west1.run.app) | 🟢 200 OK |
+| 5 | 🐘 **PostgreSQL 16** | `5432` | `https://mcc-postgres-1095249147821.europe-west1.run.app` | ⚠️ 503 (escalado a 0) |
+| 6 | 📊 **pgAdmin 4** | `80` | [https://mcc-pgadmin-1095249147821.europe-west1.run.app](https://mcc-pgadmin-1095249147821.europe-west1.run.app) | ⚠️ Timeout |
+| 7 | ⛓️ **Foundry Anvil RPC** | `8545` | `https://mcc-foundry-anvil-1095249147821.europe-west1.run.app` | 🔒 Privado (Bearer Auth) |
+
+*\*Estado verificado el 23/08/2026. Los servicios 1-4 responden HTTP 200; `mcc-postgres` responde 503 cuando está escalado a 0 instancias (Cloud Run serverless); `mcc-foundry-anvil` responde 400 a peticiones GET porque es un endpoint JSON-RPC que exige `POST` + token de identidad GCP; `mcc-pgadmin` puede tardar en arrancar (cold start).*
+
+### 📍 Datos del Despliegue
+
+- **Proyecto GCP:** `mcc-ecommerce` · **ID Numérico:** `1095249147821`
+- **Región:** `europe-west1` (Madrid / Europa Occidental) · **Rama:** `BarloVentas-GCP`
+- **Registro de Contenedores (Artifact Registry):** `europe-west1-docker.pkg.dev/mcc-ecommerce/mcc-ecommerce-repo`
+- **Contratos desplegados en GCP:** Ecommerce `0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650` · EuroToken (EURT) `0x5FbDB2315678afecb367f032d93F642f64180aa3`
+- **Informe técnico completo:** [`Docs/informe_despliegue_gcp.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/Docs/informe_despliegue_gcp.md) — incluye credenciales de BD/pgAdmin, cadena de conexión y pasos de acceso al nodo Anvil privado.
+
+> ⚠️ **Nota:** la demo en GCP usa un nodo Anvil remoto (chainId 31337) y contratos cuyos fondos son de prueba. Para desarrollo local use las secciones 4 y 3 de este documento (puertos 3000-3003, RPC `http://127.0.0.1:8545`).

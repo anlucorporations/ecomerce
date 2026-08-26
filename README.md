@@ -137,14 +137,18 @@ La plataforma cuenta con una **versión demo desplegada en Google Cloud Platform
 | 6 | 📊 **pgAdmin 4** | `80` | [https://mcc-pgadmin-1095249147821.europe-west1.run.app](https://mcc-pgadmin-1095249147821.europe-west1.run.app) | ⚠️ Timeout |
 | 7 | ⛓️ **Foundry Anvil RPC** | `8545` | `https://mcc-foundry-anvil-1095249147821.europe-west1.run.app` | 🔒 Privado (Bearer Auth) |
 
-*\*Estado verificado el 23/08/2026. Los servicios 1-4 responden HTTP 200; `mcc-postgres` responde 503 cuando está escalado a 0 instancias (Cloud Run serverless); `mcc-foundry-anvil` responde 400 a peticiones GET porque es un endpoint JSON-RPC que exige `POST` + token de identidad GCP; `mcc-pgadmin` puede tardar en arrancar (cold start).*
+*\*Estado verificado el 26/08/2026. Las URLs `-1095249147821-europe-west1.run.app` **redirigen** al formato interno actual de Cloud Run (`-slzlptbcla-ew.a.run.app`). Los servicios 1-4 responden HTTP 200; `mcc-postgres` responde 503 cuando está escalado a 0 instancias (Cloud Run serverless); `mcc-foundry-anvil` responde 400 a peticiones GET porque es un endpoint JSON-RPC que exige `POST` + token de identidad GCP; `mcc-pgadmin` puede tardar en arrancar (cold start).*
 
 ### 📍 Datos del Despliegue
 
 - **Proyecto GCP:** `mcc-ecommerce` · **ID Numérico:** `1095249147821`
 - **Región:** `europe-west1` (Madrid / Europa Occidental) · **Rama:** `BarloVentas-GCP`
 - **Registro de Contenedores (Artifact Registry):** `europe-west1-docker.pkg.dev/mcc-ecommerce/mcc-ecommerce-repo`
-- **Contratos desplegados en GCP:** Ecommerce `0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650` · EuroToken (EURT) `0x5FbDB2315678afecb367f032d93F642f64180aa3`
+- **Contratos desplegados en GCP (verificados on-chain, chainId 31337):**
+  - **Ecommerce (Escrow):** `0x5FC8d32690cc91D4c39d9d3abcBD16989F875707` ✅ (con código; las apps GCP apuntan a esta dirección)
+  - **EuroToken (EURT):** `0x5FbDB2315678afecb367f032d93F642f64180aa3` ✅ (6 decimales)
+  - ⚠️ La dirección `0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650` (citada en documentación antigua como Ecommerce de GCP) **ya no tiene código** en la cadena actual — quedó obsoleta tras el reinicio del nodo Anvil.
+- **Claves Stripe (modo test):** resguardadas en **Secret Manager** (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`) y referenciadas desde Cloud Run — nunca en el código ni en `.env` versionado.
 - **Informe técnico completo:** [`Docs/informe_despliegue_gcp.md`](file:///c:/Users/lucci/MasterCodeCripto/GitLab/ecomerce/Docs/informe_despliegue_gcp.md) — incluye credenciales de BD/pgAdmin, cadena de conexión y pasos de acceso al nodo Anvil privado.
 
-> ⚠️ **Nota:** la demo en GCP usa un nodo Anvil remoto (chainId 31337) y contratos cuyos fondos son de prueba. Para desarrollo local use las secciones 4 y 3 de este documento (puertos 3000-3003, RPC `http://127.0.0.1:8545`).
+> ⚠️ **Nota:** la demo en GCP usa un nodo Anvil remoto (chainId 31337) con fondos de prueba. El estado on-chain es **efímero** (el nodo se reinicia sin persistencia garantizada de datos); si el nodo se reinicia, las direcciones de los contratos pueden cambiar. Para desarrollo local use las secciones 4 y 3 de este documento (puertos 3000-3003, RPC `http://127.0.0.1:8545`).

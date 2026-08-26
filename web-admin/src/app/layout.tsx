@@ -72,14 +72,6 @@ export default function RootLayout({
     checkEntityType();
   }, [address, provider, pathname, router, ecommerceAddress, isOwner]);
 
-  const handleCompanyRegSuccess = () => {
-    setEntityType(1);
-    setShowCompanyRegModal(false);
-    if (typeof window !== "undefined") {
-      window.location.href = "/";
-    }
-  };
-
   const navItems = [
     {
       name: "Dashboard General",

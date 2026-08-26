@@ -167,7 +167,7 @@ export default function DashboardHome() {
                 <button
                   onClick={() => {
                     if (isConnected && address) {
-                      setShowCompanyRegModal(true);
+                      window.location.href = "/companies";
                     } else {
                       handleConnectWalletBtn();
                     }

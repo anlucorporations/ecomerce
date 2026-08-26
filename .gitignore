@@ -10,3 +10,5 @@ foundry-pp/
 .env*.local
 anvil.exe
 docker-build
+# Copia de trabajo para pruebas de navegador (no forma parte del proyecto)
+scripts/browser-test/web-customer-fixed/

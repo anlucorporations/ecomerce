@@ -41,6 +41,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Faltan parámetros requeridos (amount, walletAddress)" }, { status: 400, headers: corsHeaders });
     }
 
+    // ===== PROTOCOLO STRIPE: exigir clave real. NUNCA operar en modo demo (minteo sin pago). =====
+    if (!stripeSecretKey || stripeSecretKey === "dummy_key" || stripeSecretKey.startsWith("sk_test_mock")) {
+      console.error("[checkout] STRIPE_SECRET_KEY no configurada. Recarga deshabilitada (no se mintea sin pago).");
+      return NextResponse.json({
+        error: "La pasarela de pago no está configurada (falta STRIPE_SECRET_KEY). La recarga está deshabilitada por seguridad."
+      }, { status: 503, headers: corsHeaders });
+    }
+
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0 || !isFinite(numericAmount)) {
+      return NextResponse.json({ error: "Monto inválido. Debe ser un número mayor que 0." }, { status: 400, headers: corsHeaders });
+    }
+    if (numericAmount > 10000) {
+      return NextResponse.json({ error: "Monto máximo por transacción: 10.000 EURT." }, { status: 400, headers: corsHeaders });
+    }
+
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     const relayerWallet = new ethers.Wallet(RELAYER_PRIVATE_KEY, provider);
     const euroTokenContract = new ethers.Contract(EURO_TOKEN_ADDRESS, EURO_TOKEN_ABI, relayerWallet);
@@ -77,42 +93,62 @@ export async function POST(request: Request) {
       }, { status: 403, headers: corsHeaders });
     }
 
-    const amountInCents = Math.round(parseFloat(amount) * 100);
+    const amountInCents = Math.round(numericAmount * 100);
 
-    // Process Payment Intent via Stripe if live key present
-    let paymentIntentId = `ch_stripe_demo_${Math.floor(100000 + Math.random() * 900000)}`;
-
-    if (stripeSecretKey && stripeSecretKey !== "dummy_key" && !stripeSecretKey.startsWith("sk_test_mock")) {
-      try {
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount: amountInCents,
-          currency: "eur",
-          payment_method_types: ["card"],
-          description: `Compra de ${amount} EURT para ${walletAddress}`,
-          confirm: true,
-          payment_method: paymentMethodId || "pm_card_visa",
-          return_url: process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "http://localhost:3003"
-        });
-        paymentIntentId = paymentIntent.id;
-      } catch (stripeErr: any) {
-        console.error("Stripe payment processing failed:", stripeErr?.message);
-        return NextResponse.json({
-          error: "No se pudo completar el pago con la pasarela Stripe. La transacción fue cancelada."
-        }, { status: 402, headers: corsHeaders });
-      }
+    // ===== PROTOCOLO STRIPE: crear PaymentIntent y cobrar =====
+    let paymentIntent: Stripe.PaymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: amountInCents,
+        currency: "eur",
+        payment_method_types: ["card"],
+        description: `Compra de ${numericAmount} EURT para ${walletAddress}`,
+        confirm: true,
+        payment_method: paymentMethodId || "pm_card_visa",
+        return_url: process.env.NEXT_PUBLIC_COMPRA_STABLECOIN_URL || "http://localhost:3003",
+      });
+    } catch (stripeErr: any) {
+      console.error("Stripe payment processing failed:", stripeErr?.message);
+      return NextResponse.json({
+        error: "No se pudo completar el pago con la pasarela Stripe. La transacción fue cancelada."
+      }, { status: 402, headers: corsHeaders });
     }
 
-    // Execute On-Chain EuroToken (EURT) Minting (Decimals: 6)
-    const rawMintAmount = BigInt(Math.round(parseFloat(amount) * 1000000));
-    const mintTx = await euroTokenContract.mint(walletAddress, rawMintAmount);
-    const receipt = await mintTx.wait();
+    // ===== PROTOCOLO STRIPE: SOLO entregar tokens si el pago está confirmado (status succeeded) =====
+    if (paymentIntent.status === "requires_action" || paymentIntent.status === "requires_confirmation") {
+      return NextResponse.json({
+        error: "El pago requiere autenticación adicional (3DS). Complete la verificación y reintente.",
+        requiresAction: true,
+        paymentIntentId: paymentIntent.id,
+        clientSecret: paymentIntent.client_secret,
+      }, { status: 402, headers: corsHeaders });
+    }
 
-    return NextResponse.json({
-      success: true,
-      stripePaymentId: paymentIntentId,
-      mintTxHash: receipt.hash,
-      message: `¡${amount} EURT han sido emitidos y confirmados en blockchain para ${walletAddress}!`
-    }, { status: 200, headers: corsHeaders });
+    if (paymentIntent.status !== "succeeded") {
+      console.error(`[checkout] PaymentIntent ${paymentIntent.id} no confirmado (status=${paymentIntent.status}). NO se mintean tokens.`);
+      return NextResponse.json({
+        error: `El pago no se completó (estado: ${paymentIntent.status}). No se emitieron tokens.`
+      }, { status: 402, headers: corsHeaders });
+    }
+
+    // ===== Pago confirmado: emitir EURT on-chain (Decimals: 6) =====
+    try {
+      const rawMintAmount = BigInt(Math.round(numericAmount * 1000000));
+      const mintTx = await euroTokenContract.mint(walletAddress, rawMintAmount);
+      const receipt = await mintTx.wait();
+
+      return NextResponse.json({
+        success: true,
+        stripePaymentId: paymentIntent.id,
+        mintTxHash: receipt.hash,
+        message: `¡${numericAmount} EURT han sido emitidos y confirmados en blockchain para ${walletAddress}!`
+      }, { status: 200, headers: corsHeaders });
+    } catch (mintErr: any) {
+      console.error("Mint failed after successful Stripe payment:", mintErr);
+      return NextResponse.json({
+        error: "El pago se procesó, pero falló la emisión de tokens. Contacte soporte con el ID: " + paymentIntent.id
+      }, { status: 500, headers: corsHeaders });
+    }
 
   } catch (error: any) {
     console.error("Checkout processing error:", error);

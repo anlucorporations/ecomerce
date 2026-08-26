@@ -133,9 +133,9 @@ export function UserDropdown() {
       <button
         onClick={() => connect()}
         disabled={isConnecting}
-        className="btn-cacao-pulse text-xs text-white font-bold transition disabled:opacity-50"
+        className="btn-cacao-pulse text-xs text-white font-bold transition disabled:opacity-50 min-h-[44px] px-4 rounded-2xl"
       >
-        {isConnecting ? 'Conectando Wallet...' : 'Conectar Billetera Web3'}
+        {isConnecting ? 'Conectando...' : 'Conectar Billetera'}
       </button>
     );
   }
@@ -146,7 +146,7 @@ export function UserDropdown() {
       {!isRegistered && (
         <Link
           href="/profile?register=true"
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-[#FF8800] via-[#E07700] to-[#FF8800] hover:from-[#E07700] hover:to-[#C66800] text-white font-black text-xs shadow-md shadow-[#FF8800]/30 animate-pulse hover:animate-none transition-all font-poppins shrink-0"
+          className="flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-2xl bg-gradient-to-r from-[#FF8800] via-[#E07700] to-[#FF8800] hover:from-[#E07700] hover:to-[#C66800] text-white font-black text-xs shadow-md shadow-[#FF8800]/30 animate-pulse hover:animate-none transition-all font-poppins shrink-0"
         >
           <span className="text-sm">📝</span>
           <span className="hidden sm:inline">Inscribir Cuenta Web3</span>
@@ -159,7 +159,7 @@ export function UserDropdown() {
         {/* Trigger Button in Navbar */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-3 px-3.5 py-2 rounded-2xl bg-white hover:bg-slate-50 border transition shadow-sm ${
+          className={`flex items-center gap-3 px-3.5 py-2 min-h-[44px] rounded-2xl bg-white hover:bg-slate-50 border transition shadow-sm ${
             !isRegistered ? 'border-amber-400 ring-2 ring-amber-400/40' : 'border-[#0077BB]/20'
           }`}
         >
@@ -192,7 +192,7 @@ export function UserDropdown() {
 
         {/* DROPDOWN MENU */}
         {isOpen && (
-          <div className="absolute right-0 mt-3 w-84 glass-card p-4 z-50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute right-0 mt-3 w-80 sm:w-88 glass-card p-4 z-50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
             
             {/* Header */}
             <div className="border-b border-[#0077BB]/10 pb-3 flex items-center justify-between gap-2">
@@ -203,7 +203,7 @@ export function UserDropdown() {
                 <h3 className="font-black text-sm text-[#333333] truncate font-poppins">
                   {userName}
                 </h3>
-                <span className="font-mono text-[11px] text-[#A9A9A9] block">
+                <span className="font-mono text-[11px] text-[#A9A9A9] block truncate">
                   {address.slice(0, 10)}...{address.slice(-6)}
                 </span>
               </div>
@@ -252,7 +252,7 @@ export function UserDropdown() {
                   <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Carrito Bloqueado</span>
                 </div>
                 <p className="text-[11px] text-[#333333] leading-tight">
-                  Su cuenta está en estado <strong>Inscrito</strong>. Complete la verificación de identidad (DNI + Foto) para habilitar compras y recargas EURT.
+                  Su cuenta está en estado <strong>Inscrito</strong>. Complete la verificación de identidad para habilitar compras y recargas EURT.
                 </p>
                 <button
                   onClick={() => {
@@ -266,122 +266,120 @@ export function UserDropdown() {
               </div>
             )}
 
-          {/* Balances Card */}
-          <div className="bg-white/80 border border-[#0077BB]/15 rounded-xl p-3.5 space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold uppercase text-[#0077BB] block tracking-wider font-poppins">
-                Saldos en Billetera
-              </span>
+            {/* Balances Card */}
+            <div className="bg-white/80 border border-[#0077BB]/15 rounded-xl p-3.5 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold uppercase text-[#0077BB] block tracking-wider font-poppins">
+                  Saldos en Billetera
+                </span>
+                <Link
+                  href="/topup"
+                  onClick={() => setIsOpen(false)}
+                  className="text-[10px] font-bold text-[#FF8800] hover:underline font-poppins flex items-center gap-0.5"
+                >
+                  + Recargar
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-[#EAF5EF] p-2.5 rounded-lg border border-[#2E8B57]/20">
+                  <span className="text-[10px] text-[#2E8B57] font-mono block font-semibold">EuroToken (EURT)</span>
+                  <span className="text-sm font-black font-mono text-[#2E8B57]">€{eurtBalance}</span>
+                </div>
+                <div className="bg-[#E6F4FA] p-2.5 rounded-lg border border-[#0077BB]/20">
+                  <span className="text-[10px] text-[#0077BB] font-mono block font-semibold">Ethereum (ETH)</span>
+                  <span className="text-sm font-black font-mono text-[#0077BB]">{ethBalance} ETH</span>
+                </div>
+              </div>
+
               <Link
                 href="/topup"
                 onClick={() => setIsOpen(false)}
-                className="text-[10px] font-bold text-[#FF8800] hover:underline font-poppins flex items-center gap-0.5"
+                className="w-full py-2 bg-[#FFF3E5] hover:bg-[#FFE8CC] text-[#FF8800] border border-[#FF8800]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 font-poppins"
               >
-                + Recargar
+                <span>💳</span> Recargar EURT con Stripe ➔
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-[#EAF5EF] p-2.5 rounded-lg border border-[#2E8B57]/20">
-                <span className="text-[10px] text-[#2E8B57] font-mono block font-semibold">EuroToken (EURT)</span>
-                <span className="text-sm font-black font-mono text-[#2E8B57]">€{eurtBalance}</span>
+            {/* Cart Summary */}
+            <div className="bg-white/80 border border-[#0077BB]/15 rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-[#0077BB] uppercase block font-poppins">Resumen del Carrito</span>
+                <span className="text-xs font-semibold text-[#333333]">
+                  {items.length} producto(s) &bull; €{formatPrice(total)} EURT
+                </span>
               </div>
-              <div className="bg-[#E6F4FA] p-2.5 rounded-lg border border-[#0077BB]/20">
-                <span className="text-[10px] text-[#0077BB] font-mono block font-semibold">Ethereum (ETH)</span>
-                <span className="text-sm font-black font-mono text-[#0077BB]">{ethBalance} ETH</span>
-              </div>
+              <Link
+                href="/cart"
+                onClick={() => setIsOpen(false)}
+                className="px-3 py-1.5 bg-[#FF8800] hover:bg-[#E07700] text-white rounded-lg text-xs font-bold shadow-sm transition font-poppins"
+              >
+                Ir al Carrito
+              </Link>
             </div>
 
-            {/* Direct Link to /topup Section */}
-            <Link
-              href="/topup"
-              onClick={() => setIsOpen(false)}
-              className="w-full py-2 bg-[#FFF3E5] hover:bg-[#FFE8CC] text-[#FF8800] border border-[#FF8800]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 font-poppins"
-            >
-              <span>💳</span> Recargar EURT con Stripe ➔
-            </Link>
-          </div>
+            {/* Navigation Links */}
+            <div className="space-y-1 pt-1 border-t border-[#0077BB]/10">
+              <Link
+                href="/profile"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#E6F4FA] text-xs font-bold text-[#333333] hover:text-[#0077BB] transition font-poppins"
+              >
+                <span>👤 Perfil y Direcciones de Envío</span>
+              </Link>
 
-          {/* Cart Summary */}
-          <div className="bg-white/80 border border-[#0077BB]/15 rounded-xl p-3 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-[#0077BB] uppercase block font-poppins">Resumen del Carrito</span>
-              <span className="text-xs font-semibold text-[#333333]">
-                {items.length} producto(s) &bull; €{formatPrice(total)} EURT
-              </span>
+              <Link
+                href="/finance"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#E6F4FA] text-xs font-bold text-[#333333] hover:text-[#0077BB] transition font-poppins"
+              >
+                <span>📊 Finanzas del Usuario</span>
+              </Link>
+
+              <Link
+                href="/orders"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#E6F4FA] text-xs font-bold text-[#333333] hover:text-[#0077BB] transition font-poppins"
+              >
+                <span>📦 Mis Pedidos</span>
+              </Link>
             </div>
-            <Link
-              href="/cart"
-              onClick={() => setIsOpen(false)}
-              className="px-3 py-1.5 bg-[#FF8800] hover:bg-[#E07700] text-white rounded-lg text-xs font-bold shadow-sm transition font-poppins"
-            >
-              Ir al Carrito
-            </Link>
+
+            {/* Disconnect Button */}
+            <div className="pt-2 border-t border-[#0077BB]/10">
+              <button
+                onClick={() => {
+                  disconnect();
+                  setIsOpen(false);
+                }}
+                className="w-full py-2 bg-[#FCEAEB] hover:bg-rose-100 text-[#CC2233] rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 font-poppins"
+              >
+                <span>🔌 Desconectar Wallet</span>
+              </button>
+            </div>
+
           </div>
+        )}
 
-          {/* Navigation Links */}
-          <div className="space-y-1 pt-1 border-t border-[#0077BB]/10">
-            <Link
-              href="/profile"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-[#E6F4FA] text-xs font-bold text-[#333333] hover:text-[#0077BB] transition font-poppins"
-            >
-              <span>👤 Perfil y Direcciones de Envío</span>
-            </Link>
+        {/* STRIPE TOP-UP MODAL */}
+        <StripeTopupModal
+          isOpen={isStripeModalOpen}
+          onClose={() => setIsStripeModalOpen(false)}
+          userAddress={address}
+          onSuccess={fetchUserData}
+        />
 
-            <Link
-              href="/finance"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-[#E6F4FA] text-xs font-bold text-[#333333] hover:text-[#0077BB] transition font-poppins"
-            >
-              <span>📊 Finanzas del Usuario</span>
-            </Link>
-
-            <Link
-              href="/orders"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-[#E6F4FA] text-xs font-bold text-[#333333] hover:text-[#0077BB] transition font-poppins"
-            >
-              <span>📦 Mis Pedidos</span>
-            </Link>
-          </div>
-
-          {/* Disconnect Button */}
-          <div className="pt-2 border-t border-[#0077BB]/10">
-            <button
-              onClick={() => {
-                disconnect();
-                setIsOpen(false);
-              }}
-              className="w-full py-2 bg-[#FCEAEB] hover:bg-rose-100 text-[#CC2233] rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 font-poppins"
-            >
-              <span>🔌 Desconectar Wallet</span>
-            </button>
-          </div>
-
-        </div>
-      )}
-
-      {/* STRIPE TOP-UP MODAL */}
-      <StripeTopupModal
-        isOpen={isStripeModalOpen}
-        onClose={() => setIsStripeModalOpen(false)}
-        userAddress={address}
-        onSuccess={fetchUserData}
-      />
-
-      {/* KYC VERIFICATION MODAL */}
-      <KycModal
-        isOpen={isKycModalOpen}
-        onClose={() => setIsKycModalOpen(false)}
-        userAddress={address}
-        onSuccess={() => {
-          setIsKycModalOpen(false);
-          fetchUserData();
-        }}
-      />
-    </div>
+        {/* KYC VERIFICATION MODAL */}
+        <KycModal
+          isOpen={isKycModalOpen}
+          onClose={() => setIsKycModalOpen(false)}
+          userAddress={address}
+          onSuccess={() => {
+            setIsKycModalOpen(false);
+            fetchUserData();
+          }}
+        />
+      </div>
     </div>
   );
 }
-

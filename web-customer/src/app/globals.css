@@ -50,6 +50,11 @@
   box-shadow: 0 12px 40px 0 rgba(0, 119, 187, 0.14);
 }
 
+/* Safe Area Inset Support */
+.safe-area-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
 /* Micro-animation: Tambor Pulse (Ritmo de Tambor para CTA) */
 @keyframes tamborPulse {
   0% {

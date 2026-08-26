@@ -7,6 +7,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { WalletAssistant } from "../components/wallet-assistant";
 import { useWallet } from "../hooks/useWallet";
+import { detectWallets } from "../lib/wallet/provider";
 import { ethers } from "ethers";
 
 const ECOMMERCE_ABI = [
@@ -33,6 +34,20 @@ export default function RootLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { address, isConnected, isConnecting, provider, connect, disconnect } = useWallet();
+
+  // Conectar wallet detectada (web-admin exige walletInfo de mipd)
+  const handleConnectWallet = async () => {
+    try {
+      const detected = await detectWallets();
+      if (detected.length === 0) {
+        alert("No se detectó ninguna billetera Web3. Instale MetaMask o Rabby y recargue la página.");
+        return;
+      }
+      await connect(detected[0]);
+    } catch (e: any) {
+      console.warn("Error conectando wallet:", e);
+    }
+  };
   const [entityType, setEntityType] = useState<number>(0); // 0: Unregistered, 1: Company, 2: Customer, 3: Owner
 
   const ecommerceAddress = process.env.NEXT_PUBLIC_ECOMMERCE_MAIN_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
@@ -253,7 +268,7 @@ export default function RootLayout({
                 </Link>
 
                 <button
-                  onClick={() => connect()}
+                  onClick={handleConnectWallet}
                   disabled={isConnecting}
                   className="px-4 py-2 bg-[#0077BB] hover:bg-[#005F96] text-white font-bold text-xs rounded-xl shadow-md transition disabled:opacity-50 min-h-[44px]"
                 >

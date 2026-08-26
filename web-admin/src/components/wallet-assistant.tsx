@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useWallet } from '../hooks/useWallet';
+import { detectWallets } from '../lib/wallet/provider';
 import { ANVIL_GCP_NETWORK } from '../lib/demo/network';
 import { DEMO_ACCOUNTS, isDemoModeEnabled } from '../lib/demo/accounts';
 
@@ -23,6 +24,20 @@ export function WalletAssistant({ isOpen, onClose }: WalletAssistantProps) {
 
   const demoMode = isDemoModeEnabled();
   const activeAccount = DEMO_ACCOUNTS[selectedAccountIndex] || DEMO_ACCOUNTS[0];
+
+  // Conectar wallet detectada (web-admin exige walletInfo de mipd)
+  const handleConnect = async () => {
+    try {
+      const detected = await detectWallets();
+      if (detected.length === 0) {
+        alert('No se detectó ninguna billetera Web3. Instale MetaMask o Rabby.');
+        return;
+      }
+      await connect(detected[0]);
+    } catch (e: any) {
+      console.warn('Error conectando wallet:', e);
+    }
+  };
 
   const handleAddNetwork = async () => {
     if (typeof window === 'undefined' || !window.ethereum) {
@@ -357,7 +372,7 @@ export function WalletAssistant({ isOpen, onClose }: WalletAssistantProps) {
                   </div>
                   {!isConnected ? (
                     <button
-                      onClick={() => connect()}
+                      onClick={handleConnect}
                       className="px-4 py-2 bg-gradient-to-r from-[#0077BB] to-[#FF8800] text-white font-black text-xs rounded-xl shadow-md font-poppins transition hover:opacity-90"
                     >
                       Conectar Consola

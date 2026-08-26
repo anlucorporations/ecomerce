@@ -5,15 +5,25 @@ import Link from 'next/link';
 import { ethers } from 'ethers';
 import { Elements } from '@stripe/react-stripe-js';
 import { useWallet } from '@/hooks/useWallet';
+import { detectWallets } from '@/lib/wallet/provider';
 import { TopupForm, stripePromise } from '@/components/stripe-topup-modal';
 
 export default function TopupPage() {
-  const { address, isConnected, connect } = useWallet();
+  const { wallets, address, isConnected, connect } = useWallet();
   const [eurtBalance, setEurtBalance] = useState<string>('0.00');
   const [ethBalance, setEthBalance] = useState<string>('0.0000');
   const [loadingBalance, setLoadingBalance] = useState(false);
 
   const euroTokenAddress = process.env.NEXT_PUBLIC_EURO_TOKEN_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+
+  const handleConnect = async () => {
+    const detected = wallets && wallets.length > 0 ? wallets : await detectWallets();
+    if (detected.length === 0) {
+      alert('No se detectó ninguna billetera Web3. Instale MetaMask o Rabby y recargue la página.');
+      return;
+    }
+    await connect(detected[0]);
+  };
 
   const fetchBalances = useCallback(async () => {
     if (!address) return;
@@ -77,8 +87,7 @@ export default function TopupPage() {
             </div>
             {!isConnected && (
               <button
-                onClick={() => connect()}
-                disabled={false}
+                onClick={handleConnect}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition"
               >
                 🔌 Conectar Billetera Web3
@@ -122,7 +131,7 @@ export default function TopupPage() {
                   Conecte su billetera Web3 para autorizar la recarga y recibir los EURT.
                 </p>
                 <button
-                  onClick={() => connect()}
+                  onClick={handleConnect}
                   className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition"
                 >
                   🔌 Conectar Billetera Web3

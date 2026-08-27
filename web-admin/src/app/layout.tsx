@@ -8,7 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { WalletAssistant } from "../components/wallet-assistant";
 import { useWallet } from "../hooks/useWallet";
 import { detectWallets } from "../lib/wallet/provider";
-import { ethers } from "ethers";
+import { Contract, JsonRpcProvider, formatEther } from "ethers";
 
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
@@ -100,17 +100,17 @@ export default function RootLayout({
     }
 
     try {
-      const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
+      const rpcProvider = provider || new JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545");
 
       // 1. Fetch ETH Balance
       try {
         const rawEth = await rpcProvider.getBalance(address);
-        setEthBalance(parseFloat(ethers.formatEther(rawEth)).toFixed(4));
+        setEthBalance(parseFloat(formatEther(rawEth)).toFixed(4));
       } catch {}
 
       // 2. Fetch EURT Balance
       try {
-        const tokenContract = new ethers.Contract(
+        const tokenContract = new Contract(
           euroTokenAddress,
           ["function balanceOf(address account) view returns (uint256)"],
           rpcProvider
@@ -121,7 +121,7 @@ export default function RootLayout({
 
       // 3. Fetch Entity Type & Company Details
       try {
-        const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
+        const contract = new Contract(ecommerceAddress, ECOMMERCE_ABI, rpcProvider);
         const eType = await contract.getEntityType(address);
         let typeNum = Number(eType);
 

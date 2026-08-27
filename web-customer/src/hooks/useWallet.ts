@@ -2,18 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { BrowserProvider, JsonRpcSigner } from 'ethers';
-
-interface EthereumProvider {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on: (event: string, handler: (...args: unknown[]) => void) => void;
-  removeListener: (event: string, handler: (...args: unknown[]) => void) => void;
-}
-
-declare global {
-  interface Window {
-    ethereum?: EthereumProvider;
-  }
-}
+import { connectWallet, switchNetwork as switchWalletNetwork, WalletInfo, isInAppDappBrowser, isMobileDevice } from '../lib/wallet/provider';
 
 interface WalletState {
   provider: BrowserProvider | null;
@@ -21,6 +10,8 @@ interface WalletState {
   address: string | null;
   chainId: number | null;
   isConnecting: boolean;
+  isMobile: boolean;
+  isInAppBrowser: boolean;
   error: string | null;
 }
 
@@ -31,53 +22,53 @@ export function useWallet() {
     address: null,
     chainId: null,
     isConnecting: false,
+    isMobile: false,
+    isInAppBrowser: false,
     error: null,
   });
 
-  // Connect to MetaMask
-  const connect = useCallback(async () => {
-    if (typeof window === 'undefined' || !window.ethereum) {
-      throw new Error('MetaMask not installed');
+  // Detect mobile & in-app browser environment on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setState((prev) => ({
+        ...prev,
+        isMobile: isMobileDevice(),
+        isInAppBrowser: isInAppDappBrowser(),
+      }));
     }
+  }, []);
 
+  // Connect to Wallet (with EIP-6963, In-App DApp Browser or generic window.ethereum)
+  const connect = useCallback(async (walletInfo?: WalletInfo) => {
     setState((prev) => ({ ...prev, isConnecting: true, error: null }));
 
     try {
-      // Request accounts
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      }) as string[];
+      const { provider, signer, address, chainId } = await connectWallet(walletInfo);
 
-      if (accounts.length === 0) {
-        throw new Error('No accounts found');
-      }
-
-      const provider = new BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const address = accounts[0];
-      const network = await provider.getNetwork();
-      const chainId = Number(network.chainId);
-
-      setState({
+      setState((prev) => ({
+        ...prev,
         provider,
         signer,
         address,
         chainId,
         isConnecting: false,
         error: null,
-      });
+      }));
 
-      // Store address in localStorage
-      localStorage.setItem('walletAddress', address);
-      localStorage.setItem('walletConnected', 'true');
-      localStorage.removeItem('userDisconnected');
+      // Persist connection state
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('walletAddress', address);
+        localStorage.setItem('walletConnected', 'true');
+        localStorage.removeItem('userDisconnected');
+      }
 
+      return { provider, signer, address, chainId };
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
       setState((prev) => ({
         ...prev,
         isConnecting: false,
-        error: err.message || 'Failed to connect wallet',
+        error: err.message || 'Error conectando billetera',
       }));
       throw error;
     }
@@ -85,31 +76,28 @@ export function useWallet() {
 
   // Disconnect wallet
   const disconnect = useCallback(() => {
-    setState({
+    setState((prev) => ({
+      ...prev,
       provider: null,
       signer: null,
       address: null,
       chainId: null,
       isConnecting: false,
       error: null,
-    });
+    }));
 
-    localStorage.removeItem('walletAddress');
-    localStorage.removeItem('walletConnected');
-    localStorage.setItem('userDisconnected', 'true');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('walletAddress');
+      localStorage.removeItem('walletConnected');
+      localStorage.setItem('userDisconnected', 'true');
+    }
   }, []);
 
   // Switch network
   const switchNetwork = useCallback(
     async (chainId: number) => {
-      if (!window.ethereum) throw new Error('MetaMask not installed');
-
       try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: `0x${chainId.toString(16)}` }],
-        });
-
+        await switchWalletNetwork(chainId);
         if (state.provider) {
           const network = await state.provider.getNetwork();
           setState((prev) => ({ ...prev, chainId: Number(network.chainId) }));
@@ -123,68 +111,81 @@ export function useWallet() {
     [state.provider]
   );
 
-  // Auto-reconnect on page load
+  // Auto-connect on page load & Auto-detect In-App Mobile Browser
   useEffect(() => {
     async function autoConnect() {
-      if (typeof window === 'undefined' || !window.ethereum) return;
+      if (typeof window === 'undefined') return;
 
-      if (localStorage.getItem('userDisconnected') === 'true') return;
-
-      const wasConnected = localStorage.getItem('walletConnected');
+      const inApp = isInAppDappBrowser();
+      const wasConnected = localStorage.getItem('walletConnected') === 'true';
       const savedAddress = localStorage.getItem('walletAddress');
+      const userDisconnected = localStorage.getItem('userDisconnected') === 'true';
 
-      if (!wasConnected || !savedAddress) return;
+      // If user is inside an in-app dApp browser, or previously connected
+      if ((inApp && !userDisconnected) || (wasConnected && savedAddress && !userDisconnected)) {
+        try {
+          const eth = (window as any).ethereum;
+          if (!eth) return;
 
-      try {
-        setState((prev) => ({ ...prev, isConnecting: true }));
+          setState((prev) => ({ ...prev, isConnecting: true }));
 
-        // Check if still connected
-        const accounts = await window.ethereum.request({
-          method: 'eth_accounts',
-        }) as string[];
+          // Silent check accounts
+          const accounts = (await eth.request({ method: 'eth_accounts' })) as string[];
 
-        if (accounts.length === 0) {
-          // No longer connected
-          disconnect();
-          return;
+          if (accounts && accounts.length > 0) {
+            const provider = new BrowserProvider(eth);
+            const signer = await provider.getSigner();
+            const address = accounts[0];
+            const network = await provider.getNetwork();
+            const chainId = Number(network.chainId);
+
+            setState((prev) => ({
+              ...prev,
+              provider,
+              signer,
+              address,
+              chainId,
+              isConnecting: false,
+              error: null,
+            }));
+
+            localStorage.setItem('walletAddress', address);
+            localStorage.setItem('walletConnected', 'true');
+          } else if (inApp) {
+            // Inside in-app browser with no active account authorized yet: prompt eth_requestAccounts
+            const { provider, signer, address, chainId } = await connectWallet();
+            setState((prev) => ({
+              ...prev,
+              provider,
+              signer,
+              address,
+              chainId,
+              isConnecting: false,
+              error: null,
+            }));
+            localStorage.setItem('walletAddress', address);
+            localStorage.setItem('walletConnected', 'true');
+          } else {
+            setState((prev) => ({ ...prev, isConnecting: false }));
+          }
+        } catch (err) {
+          console.warn('Auto-connect silent notice:', err);
+          setState((prev) => ({ ...prev, isConnecting: false }));
         }
-
-        const provider = new BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
-        const address = accounts[0];
-        const network = await provider.getNetwork();
-        const chainId = Number(network.chainId);
-
-        setState({
-          provider,
-          signer,
-          address,
-          chainId,
-          isConnecting: false,
-          error: null,
-        });
-
-        // Update stored address if changed
-        if (address !== savedAddress) {
-          localStorage.setItem('walletAddress', address);
-        }
-      } catch (error) {
-        console.error('Auto-connect failed:', error);
-        disconnect();
       }
     }
 
     autoConnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, []);
 
   // Listen for account/chain changes
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.ethereum) return;
+    if (typeof window === 'undefined' || !(window as any).ethereum) return;
+    const eth = (window as any).ethereum;
 
     const handleAccountsChanged = async (...args: unknown[]) => {
       const accounts = args[0] as string[];
-      if (accounts.length === 0) {
+      if (!accounts || accounts.length === 0) {
         disconnect();
       } else if (state.provider) {
         try {
@@ -199,18 +200,17 @@ export function useWallet() {
     };
 
     const handleChainChanged = async () => {
-      // Reload the page on chain change (recommended by MetaMask)
       window.location.reload();
     };
 
-    if (window.ethereum) {
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-      window.ethereum.on('chainChanged', handleChainChanged);
+    if (eth.on) {
+      eth.on('accountsChanged', handleAccountsChanged);
+      eth.on('chainChanged', handleChainChanged);
 
       return () => {
-        if (window.ethereum && typeof window.ethereum.removeListener === 'function') {
-          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-          window.ethereum.removeListener('chainChanged', handleChainChanged);
+        if (eth.removeListener) {
+          eth.removeListener('accountsChanged', handleAccountsChanged);
+          eth.removeListener('chainChanged', handleChainChanged);
         }
       };
     }
@@ -221,6 +221,6 @@ export function useWallet() {
     connect,
     disconnect,
     switchNetwork,
-    isConnected: !!state.address,
+    isConnected: Boolean(state.address),
   };
 }

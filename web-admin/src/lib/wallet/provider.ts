@@ -10,6 +10,15 @@ export interface WalletInfo {
   rdns: string;
 }
 
+export interface MobileDeepLinkWallet {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  deepLink: string;
+  description: string;
+}
+
 export interface WalletState {
   provider: BrowserProvider | null;
   signer: JsonRpcSigner | null;
@@ -30,6 +39,81 @@ export function getWalletStore(): Store {
   return store!;
 }
 
+/**
+ * Detect if client is running on mobile device
+ */
+export function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent || navigator.vendor || (window as any).opera
+  );
+}
+
+/**
+ * Detect if client is inside an In-App dApp Browser (MetaMask Mobile, Trust, Phantom, Coinbase)
+ */
+export function isInAppDappBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  const eth = (window as any).ethereum;
+  if (!eth) return false;
+
+  const isMetaMaskMobile = Boolean(eth.isMetaMask && /Mobile|Android|iPhone/i.test(navigator.userAgent));
+  const isTrust = Boolean(eth.isTrust || eth.isTrustWallet);
+  const isCoinbase = Boolean(eth.isCoinbaseWallet || eth.isCoinbaseBrowser);
+  const isPhantom = Boolean((window as any).phantom?.ethereum?.isPhantom);
+  const isBraveMobile = Boolean(navigator.userAgent.includes('Brave') && isMobileDevice());
+  const isRabby = Boolean(eth.isRabby);
+
+  return Boolean(isMetaMaskMobile || isTrust || isCoinbase || isPhantom || isBraveMobile || isRabby || (isMobileDevice() && eth.isMetaMask));
+}
+
+/**
+ * Generate universal deep links to open the current admin dApp in installed mobile wallet apps
+ */
+export function getMobileDeepLinks(customUrl?: string): MobileDeepLinkWallet[] {
+  if (typeof window === 'undefined') return [];
+
+  const currentHref = customUrl || window.location.href;
+  const cleanHost = window.location.host;
+  const cleanHostAndPath = currentHref.replace(/^https?:\/\//, '');
+  const encodedFullUrl = encodeURIComponent(currentHref);
+
+  return [
+    {
+      id: 'metamask',
+      name: 'MetaMask Mobile',
+      icon: '🦊',
+      color: '#F6851B',
+      description: 'Abrir en la app oficial de MetaMask',
+      deepLink: `https://metamask.app.link/dapp/${cleanHostAndPath}`,
+    },
+    {
+      id: 'trust',
+      name: 'Trust Wallet',
+      icon: '🛡️',
+      color: '#0500FF',
+      description: 'Abrir en Trust Wallet dApp Browser',
+      deepLink: `https://link.trustwallet.com/open_url?coin_id=60&url=${encodedFullUrl}`,
+    },
+    {
+      id: 'phantom',
+      name: 'Phantom Wallet',
+      icon: '👻',
+      color: '#AB9FF2',
+      description: 'Conectar con Phantom Multi-Chain',
+      deepLink: `https://phantom.app/ul/browse/${encodedFullUrl}?ref=${encodeURIComponent(cleanHost)}`,
+    },
+    {
+      id: 'coinbase',
+      name: 'Coinbase Wallet',
+      icon: '🔵',
+      color: '#0052FF',
+      description: 'Abrir en Coinbase Wallet dApp Browser',
+      deepLink: `https://go.cb-w.com/dapp?cb_url=${encodedFullUrl}`,
+    },
+  ];
+}
+
 export async function detectWallets(): Promise<WalletInfo[]> {
   if (typeof window === 'undefined') return [];
 
@@ -44,48 +128,33 @@ export async function detectWallets(): Promise<WalletInfo[]> {
   }));
 }
 
-export async function connectWallet(walletInfo: WalletInfo, silent: boolean = false): Promise<{
+export async function connectWallet(walletInfo?: WalletInfo, silent: boolean = false): Promise<{
   provider: BrowserProvider;
   signer: JsonRpcSigner;
   address: string;
   chainId: number;
 }> {
-  const walletStore = getWalletStore();
+  let eip1193Provider: Eip1193Provider | null = null;
 
-  // Wait for providers to be available (max 2 seconds)
-  let providers = walletStore.getProviders();
-  let attempts = 0;
-  while (providers.length === 0 && attempts < 20) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    providers = walletStore.getProviders();
-    attempts++;
+  if (walletInfo) {
+    const walletStore = getWalletStore();
+    const providers = walletStore.getProviders();
+    const selected = providers.find((p) => p.info.uuid === walletInfo.uuid || p.info.name === walletInfo.name);
+    if (selected) {
+      eip1193Provider = selected.provider as Eip1193Provider;
+    }
   }
 
-  if (providers.length === 0) {
-    throw new Error('No wallet providers detected');
+  if (!eip1193Provider && typeof window !== 'undefined' && (window as any).ethereum) {
+    eip1193Provider = (window as any).ethereum as Eip1193Provider;
   }
 
-  // Try to find by UUID first, then by name as fallback
-  let selectedProvider = providers.find((p) => p.info.uuid === walletInfo.uuid);
-
-  if (!selectedProvider) {
-    // Fallback: try to find by name
-    selectedProvider = providers.find((p) => p.info.name === walletInfo.name);
+  if (!eip1193Provider) {
+    throw new Error('No se detectó ninguna billetera Web3 compatible.');
   }
 
-  if (!selectedProvider) {
-    console.error('Available providers:', providers.map(p => ({ uuid: p.info.uuid, name: p.info.name })));
-    console.error('Looking for:', walletInfo);
-    throw new Error(`Wallet not found: ${walletInfo.name}`);
-  }
-
-  const eip1193Provider = selectedProvider.provider as Eip1193Provider;
-
-  // Request accounts - use eth_accounts for silent reconnect, eth_requestAccounts for new connection
   const method = silent ? 'eth_accounts' : 'eth_requestAccounts';
-  const accounts = await eip1193Provider.request({
-    method,
-  }) as string[];
+  const accounts = (await eip1193Provider.request({ method })) as string[];
 
   if (!accounts || accounts.length === 0) {
     if (silent) {
@@ -99,30 +168,28 @@ export async function connectWallet(walletInfo: WalletInfo, silent: boolean = fa
   const address = accounts[0];
   const network = await provider.getNetwork();
   const chainId = Number(network.chainId);
-  console.log('connectWallet', provider, signer, address, chainId);
+
   return { provider, signer, address, chainId };
 }
 
 export async function switchNetwork(chainId: number): Promise<void> {
-  if (typeof window === 'undefined' || !window.ethereum) {
+  if (typeof window === 'undefined' || !(window as any).ethereum) {
     throw new Error('No wallet found');
   }
 
   const chainIdHex = `0x${chainId.toString(16)}`;
 
   try {
-    await window.ethereum.request({
+    await (window as any).ethereum.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: chainIdHex }],
     });
   } catch (error: unknown) {
-    // Chain not added, try to add it
     const err = error as { code?: number };
     if (err.code === 4902) {
-      // For Besu network
       if (chainId === 81234) {
         const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://besu1.proyectos.codecrypto.academy';
-        await window.ethereum.request({
+        await (window as any).ethereum.request({
           method: 'wallet_addEthereumChain',
           params: [
             {
@@ -138,8 +205,7 @@ export async function switchNetwork(chainId: number): Promise<void> {
           ],
         });
       } else if (chainId === 31337) {
-        // For backwards compatibility with localhost/Anvil
-        await window.ethereum.request({
+        await (window as any).ethereum.request({
           method: 'wallet_addEthereumChain',
           params: [
             {
@@ -160,17 +226,5 @@ export async function switchNetwork(chainId: number): Promise<void> {
     } else {
       throw error;
     }
-  }
-}
-
-interface EthereumProvider {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on: (event: string, handler: (...args: unknown[]) => void) => void;
-  removeListener: (event: string, handler: (...args: unknown[]) => void) => void;
-}
-
-declare global {
-  interface Window {
-    ethereum?: EthereumProvider;
   }
 }

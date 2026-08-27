@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWallet } from '../hooks/useWallet';
 import { useCart } from '../hooks/useCart';
-import { ethers } from 'ethers';
+import { Contract, JsonRpcProvider, ZeroAddress } from 'ethers';
 import Link from 'next/link';
 import { StripeTopupModal } from './stripe-topup-modal';
 import { KycModal } from './kyc-modal';
+import { MobileWalletModal } from './mobile-wallet-modal';
+import { isInAppDappBrowser, isMobileDevice } from '../lib/wallet/provider';
 
 export function UserDropdown() {
   const { provider, address, isConnected, isConnecting, connect, disconnect } = useWallet();
@@ -14,6 +16,7 @@ export function UserDropdown() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [eurtBalance, setEurtBalance] = useState<string>('0.00');
   const [ethBalance, setEthBalance] = useState<string>('0.0000');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -36,7 +39,7 @@ export function UserDropdown() {
       return;
     }
     try {
-      const rpcProvider = provider || new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545');
+      const rpcProvider = provider || new JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545');
 
       // 1. Fetch ETH Balance
       const rawEth = await rpcProvider.getBalance(address);
@@ -49,7 +52,7 @@ export function UserDropdown() {
       let activeEuroToken = euroTokenAddress;
 
       try {
-        const ecomContract = new ethers.Contract(
+        const ecomContract = new Contract(
           ecommerceAddress,
           [
             'function isCustomerRegistered(address account) view returns (bool)',
@@ -65,7 +68,7 @@ export function UserDropdown() {
 
         try {
           const onChainToken = await ecomContract.euroTokenAddress();
-          if (onChainToken && onChainToken !== ethers.ZeroAddress) {
+          if (onChainToken && onChainToken !== ZeroAddress) {
             activeEuroToken = onChainToken;
           }
         } catch {}
@@ -80,7 +83,7 @@ export function UserDropdown() {
 
       // 3. Fetch EURT Balance
       try {
-        const tokenContract = new ethers.Contract(
+        const tokenContract = new Contract(
           activeEuroToken,
           ['function balanceOf(address account) view returns (uint256)'],
           rpcProvider
@@ -128,15 +131,33 @@ export function UserDropdown() {
     return (Number(price) / 1_000_000).toFixed(2);
   };
 
+  const handleConnectClick = () => {
+    if (isMobileDevice() && !isInAppDappBrowser()) {
+      setIsWalletModalOpen(true);
+    } else {
+      connect().catch(console.warn);
+    }
+  };
+
   if (!isConnected || !address) {
     return (
-      <button
-        onClick={() => connect()}
-        disabled={isConnecting}
-        className="btn-cacao-pulse text-xs text-white font-bold transition disabled:opacity-50 min-h-[44px] px-4 rounded-2xl"
-      >
-        {isConnecting ? 'Conectando...' : 'Conectar Billetera'}
-      </button>
+      <>
+        <button
+          onClick={handleConnectClick}
+          disabled={isConnecting}
+          className="btn-cacao-pulse text-xs text-white font-bold transition disabled:opacity-50 min-h-[44px] px-4 rounded-2xl flex items-center gap-1.5"
+        >
+          <span>👛</span>
+          <span>{isConnecting ? 'Conectando...' : 'Conectar Billetera'}</span>
+        </button>
+
+        {/* Mobile Wallet Modal with Deep Links */}
+        <MobileWalletModal
+          isOpen={isWalletModalOpen}
+          onClose={() => setIsWalletModalOpen(false)}
+          onConnectDirect={connect}
+        />
+      </>
     );
   }
 

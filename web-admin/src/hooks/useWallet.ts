@@ -9,6 +9,8 @@ import {
   WalletInfo,
   WalletState,
   getWalletStore,
+  isInAppDappBrowser,
+  isMobileDevice,
 } from '../lib/wallet/provider';
 
 export function useWallet() {
@@ -42,7 +44,7 @@ export function useWallet() {
   }, []);
 
   // Connect to wallet
-  const connect = useCallback(async (walletInfo: WalletInfo, silent: boolean = false) => {
+  const connect = useCallback(async (walletInfo?: WalletInfo, silent: boolean = false) => {
     setState((prev) => ({ ...prev, isConnecting: true, error: null }));
 
     try {
@@ -54,14 +56,16 @@ export function useWallet() {
         signer,
         address,
         chainId,
-        selectedWallet: walletInfo,
+        selectedWallet: walletInfo || null,
         isConnecting: false,
         error: null,
       }));
 
       // Store in localStorage
       if (typeof window !== 'undefined') {
-        localStorage.setItem('selectedWallet', JSON.stringify(walletInfo));
+        if (walletInfo) {
+          localStorage.setItem('selectedWallet', JSON.stringify(walletInfo));
+        }
         localStorage.setItem('connectedAddress', address);
         localStorage.setItem('connectedChainId', chainId.toString());
         localStorage.removeItem('userDisconnected');
@@ -117,7 +121,7 @@ export function useWallet() {
     [state.provider]
   );
 
-  // Auto-reconnect on page load
+  // Auto-reconnect on page load & in-app dApp browser detection
   useEffect(() => {
     async function autoConnect() {
       if (typeof window === 'undefined') return;
@@ -127,24 +131,26 @@ export function useWallet() {
         return;
       }
 
+      const inApp = isInAppDappBrowser();
       const savedWallet = localStorage.getItem('selectedWallet');
+
       if (savedWallet) {
         try {
           await new Promise((resolve) => setTimeout(resolve, 300));
           const walletInfo = JSON.parse(savedWallet);
           await connect(walletInfo, true);
-          console.log('Auto-reconnected successfully via saved wallet');
           return;
         } catch (error) {
           console.warn('Auto-connect via saved wallet failed:', error);
         }
       }
 
-      // Fallback auto-connect via window.ethereum directly
-      if (window.ethereum) {
+      // Auto-connect inside mobile In-App dApp browser or direct window.ethereum
+      if ((window as any).ethereum) {
         try {
-          const browserProvider = new BrowserProvider(window.ethereum as any);
-          const accounts = await browserProvider.send('eth_accounts', []);
+          const browserProvider = new BrowserProvider((window as any).ethereum);
+          const accounts = (await browserProvider.send('eth_accounts', [])) as string[];
+
           if (accounts && accounts.length > 0) {
             const activeSigner = await browserProvider.getSigner();
             const network = await browserProvider.getNetwork();
@@ -157,7 +163,9 @@ export function useWallet() {
               isConnecting: false,
               error: null,
             }));
-            console.log('Auto-connected via window.ethereum directly:', accounts[0]);
+            localStorage.setItem('connectedAddress', accounts[0]);
+          } else if (inApp) {
+            await connect(undefined, false);
           }
         } catch (err) {
           console.warn('Direct window.ethereum auto-connect failed:', err);
@@ -171,15 +179,16 @@ export function useWallet() {
 
   // Listen for account/chain changes
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.ethereum) return;
+    if (typeof window === 'undefined' || !(window as any).ethereum) return;
+    const eth = (window as any).ethereum;
 
     const handleAccountsChanged = async (...args: unknown[]) => {
       const accounts = args[0] as string[];
-      if (accounts.length === 0) {
+      if (!accounts || accounts.length === 0) {
         disconnect();
       } else {
         try {
-          const browserProvider = new BrowserProvider(window.ethereum as any);
+          const browserProvider = new BrowserProvider(eth);
           const activeSigner = await browserProvider.getSigner();
           setState((prev) => ({ ...prev, address: accounts[0], provider: browserProvider, signer: activeSigner }));
           if (typeof window !== 'undefined') {
@@ -191,28 +200,18 @@ export function useWallet() {
       }
     };
 
-    const handleChainChanged = async (...args: unknown[]) => {
-      const chainIdHex = args[0] as string;
-      const chainId = parseInt(chainIdHex, 16);
-      try {
-        if (window.ethereum) {
-          const browserProvider = new BrowserProvider(window.ethereum as any);
-          const activeSigner = await browserProvider.getSigner();
-          setState((prev) => ({ ...prev, chainId, provider: browserProvider, signer: activeSigner }));
-        }
-      } catch (e) {
-        console.error('Error handling chainChanged:', e);
-      }
+    const handleChainChanged = async () => {
+      window.location.reload();
     };
 
-    if (window.ethereum) {
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-      window.ethereum.on('chainChanged', handleChainChanged);
+    if (eth.on) {
+      eth.on('accountsChanged', handleAccountsChanged);
+      eth.on('chainChanged', handleChainChanged);
 
       return () => {
-        if (window.ethereum) {
-          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-          window.ethereum.removeListener('chainChanged', handleChainChanged);
+        if (eth.removeListener) {
+          eth.removeListener('accountsChanged', handleAccountsChanged);
+          eth.removeListener('chainChanged', handleChainChanged);
         }
       };
     }

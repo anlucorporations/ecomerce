@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { useContract } from '@/hooks/useContract';
 import { useWallet } from '@/hooks/useWallet';
 import { useCart } from '@/hooks/useCart';
-import { ethers } from 'ethers';
+import { ethers, MaxUint256, Contract } from 'ethers';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { StripeTopupModal } from '@/components/stripe-topup-modal';
 import { KycModal } from '@/components/kyc-modal';
+import { signPermitEIP712, submitPermitToRelayer } from '@/lib/relayer/eip712';
 
 const ECOMMERCE_ABI = [
   "function getEntityType(address account) view returns (uint8)",
@@ -180,12 +181,25 @@ const EURO_TOKEN_ABI = [
         BigInt(0)
       );
 
-      // STEP 1: Verify & Approve EURT Allowance (ONLY if current allowance is insufficient)
+      // STEP 1: Verify & Approve EURT Allowance (Gasless EIP-712 Permit or Approve Fallback)
       const currentAllowance = await euroToken.allowance(customerAddr, ecommerceAddress);
       if (BigInt(currentAllowance) < grandTotal) {
-        setCheckoutStep('Autorizando lÃ­mite de gasto de EURT en billetera MetaMask...');
-        const approveTx = await euroToken.approve(ecommerceAddress, ethers.MaxUint256);
-        await approveTx.wait();
+        setCheckoutStep('✍️ Solicitando firma Gasless EIP-712 (0 Gas ETH)...');
+        try {
+          const permitPayload = await signPermitEIP712(
+            activeSigner,
+            activeEuroToken,
+            ecommerceAddress,
+            MaxUint256
+          );
+          setCheckoutStep('⚡ Relayer ejecutando autorización en blockchain...');
+          await submitPermitToRelayer(permitPayload);
+        } catch (permitErr: any) {
+          console.warn('Permit EIP-712 fallback to standard approve:', permitErr);
+          setCheckoutStep('Autorizando límite de gasto de EURT en billetera...');
+          const approveTx = await euroToken.approve(ecommerceAddress, MaxUint256);
+          await approveTx.wait();
+        }
       }
 
       // STEP 2: Process SINGLE-TRANSACTION Multi-Company Checkout & Escrow Deposit

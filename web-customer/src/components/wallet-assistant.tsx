@@ -25,7 +25,7 @@ export function WalletAssistant({ isOpen, onClose }: WalletAssistantProps) {
   const activeAccount = DEMO_ACCOUNTS[selectedAccountIndex] || DEMO_ACCOUNTS[0];
 
   const handleAddNetwork = async () => {
-    if (typeof window === 'undefined' || !window.ethereum) {
+    if (typeof window === 'undefined' || !(window as any).ethereum) {
       setNetworkStatus('⚠️ No se detectó billetera Web3 (MetaMask/Trust). Ábrelo desde el navegador in-app de tu wallet móvil.');
       return;
     }
@@ -34,7 +34,7 @@ export function WalletAssistant({ isOpen, onClose }: WalletAssistantProps) {
       setIsAddingNetwork(true);
       setNetworkStatus(null);
 
-      await window.ethereum.request({
+      await (window as any).ethereum.request({
         method: 'wallet_addEthereumChain',
         params: [
           {

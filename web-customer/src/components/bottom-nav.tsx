@@ -191,7 +191,7 @@ export function BottomNav() {
       <MobileWalletModal
         isOpen={isWalletModalOpen}
         onClose={() => setIsWalletModalOpen(false)}
-        onConnectDirect={connect}
+        onConnectDirect={async () => { await connect(); }}
       />
     </>
   );

@@ -127,8 +127,8 @@ export default function CartPage() {
         return;
       }
 
-      if (!activeSigner && typeof window !== "undefined" && window.ethereum) {
-        const browserProvider = new ethers.BrowserProvider(window.ethereum as any);
+      if (!activeSigner && typeof window !== "undefined" && (window as any).ethereum) {
+        const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
         activeSigner = await browserProvider.getSigner();
       }
 

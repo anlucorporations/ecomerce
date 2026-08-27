@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { BrowserProvider, JsonRpcSigner } from 'ethers';
 import { connectWallet, switchNetwork as switchWalletNetwork, WalletInfo, isInAppDappBrowser, isMobileDevice } from '../lib/wallet/provider';
 
+const EXPECTED_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
+
 interface WalletState {
   provider: BrowserProvider | null;
   signer: JsonRpcSigner | null;
@@ -45,12 +47,23 @@ export function useWallet() {
     try {
       const { provider, signer, address, chainId } = await connectWallet(walletInfo);
 
+      // Forzar la red correcta (31337 Anvil GCP/local) al conectar:
+      // si la wallet está en otra red, las transacciones (registro, checkout) irían a la red
+      // equivocada y nunca se minarían -> la inscripción "no queda registrada".
+      if (chainId !== EXPECTED_CHAIN_ID) {
+        try {
+          await switchWalletNetwork(EXPECTED_CHAIN_ID);
+        } catch (switchErr) {
+          console.warn('No se pudo cambiar a la red correcta:', switchErr);
+        }
+      }
+
       setState((prev) => ({
         ...prev,
         provider,
         signer,
         address,
-        chainId,
+        chainId: EXPECTED_CHAIN_ID,
         isConnecting: false,
         error: null,
       }));

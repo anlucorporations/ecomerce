@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWallet } from '../../hooks/useWallet';
+import { switchNetwork } from '../../lib/wallet/provider';
 import { ethers } from 'ethers';
 
 const ECOMMERCE_ABI = [
@@ -112,7 +113,18 @@ function RegisterInner() {
         console.warn('No se pudo verificar unicidad de email on-chain:', err);
       }
 
-      // 2. Transacción on-chain (firma MetaMask)
+      // 2. Garantizar red correcta (31337) antes de enviar la transacción de inscripción
+      try {
+        const net = await activeSigner.provider?.getNetwork();
+        if (net && Number(net.chainId) !== Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337)) {
+          setMessage('Cambiando a la red BARLO-VENTAS (31337) en su billetera...');
+          await switchNetwork(Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337));
+        }
+      } catch (netErr) {
+        console.warn('Chequeo de red en inscripción:', netErr);
+      }
+
+      // 3. Transacción on-chain (firma MetaMask)
       const contract = new ethers.Contract(ecommerceAddress, ECOMMERCE_ABI, activeSigner);
       setMessage('Confirmando la transacción en MetaMask...');
       const tx = await contract.registerCustomerSelf(formData.name, formData.email, formData.shippingAddress);
